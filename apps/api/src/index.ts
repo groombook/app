@@ -8,6 +8,7 @@ import { servicesRouter } from "./routes/services.js";
 import { appointmentsRouter } from "./routes/appointments.js";
 import { staffRouter } from "./routes/staff.js";
 import { invoicesRouter } from "./routes/invoices.js";
+import { bookRouter } from "./routes/book.js";
 import { authMiddleware } from "./middleware/auth.js";
 
 const app = new Hono();
@@ -24,6 +25,9 @@ app.use(
 
 // Health check (no auth required)
 app.get("/health", (c) => c.json({ status: "ok" }));
+
+// Public booking routes — no auth required, must be registered before auth middleware
+app.route("/api/book", bookRouter);
 
 // Protected API routes
 const api = app.basePath("/api");

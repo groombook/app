@@ -4,6 +4,7 @@ import { ClientsPage } from "./pages/Clients.js";
 import { ServicesPage } from "./pages/Services.js";
 import { StaffPage } from "./pages/Staff.js";
 import { InvoicesPage } from "./pages/Invoices.js";
+import { BookPage } from "./pages/Book.js";
 
 const NAV_LINKS = [
   { to: "/", label: "Appointments" },
@@ -28,6 +29,21 @@ export function App() {
         }}
       >
         <strong style={{ marginRight: "1rem", fontSize: 16 }}>Groom Book</strong>
+        <Link
+          to="/book"
+          style={{
+            padding: "0.35rem 0.75rem",
+            borderRadius: 4,
+            textDecoration: "none",
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#fff",
+            background: "#4f8a6f",
+            marginRight: "0.5rem",
+          }}
+        >
+          Book
+        </Link>
         {NAV_LINKS.map(({ to, label }) => {
           const active =
             to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
@@ -57,6 +73,7 @@ export function App() {
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/staff" element={<StaffPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
+          <Route path="/book" element={<BookPage />} />
         </Routes>
       </main>
     </div>
