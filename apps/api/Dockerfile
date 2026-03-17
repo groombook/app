@@ -38,3 +38,7 @@ CMD ["node", "apps/api/dist/index.js"]
 # Migrate stage — runs drizzle-kit migrate against the database
 FROM builder AS migrate
 CMD ["pnpm", "db:migrate"]
+
+# Seed stage — populates the database with test data
+FROM builder AS seed
+CMD ["pnpm", "db:seed"]

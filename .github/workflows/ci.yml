@@ -94,10 +94,37 @@ jobs:
         with:
           context: .
           file: apps/api/Dockerfile
+          target: runner
           push: true
           tags: |
             ghcr.io/groombook/api:${{ github.sha }}
             ghcr.io/groombook/api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Migrate image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: migrate
+          push: true
+          tags: |
+            ghcr.io/groombook/migrate:${{ github.sha }}
+            ghcr.io/groombook/migrate:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Seed image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: seed
+          push: true
+          tags: |
+            ghcr.io/groombook/seed:${{ github.sha }}
+            ghcr.io/groombook/seed:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
