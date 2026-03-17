@@ -444,15 +444,13 @@ export function GroupBookingPage() {
 
   useEffect(() => {
     loadAll();
-  }, [clientFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [clientFilter]); // re-fetch when client filter changes
 
   async function cancelGroup(groupId: string) {
     if (!confirm("Cancel all appointments in this group visit?")) return;
     const res = await fetch(`/api/appointment-groups/${groupId}`, { method: "DELETE" });
     if (res.ok) loadAll();
   }
-
-  const clientMap = new Map(clients.map((c) => [c.id, c.name]));
 
   if (loading && groups.length === 0) return <p style={{ padding: "1rem" }}>Loading…</p>;
   if (error) return <p style={{ padding: "1rem", color: "#dc2626" }}>Error: {error}</p>;
