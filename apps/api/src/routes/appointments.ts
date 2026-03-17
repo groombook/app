@@ -26,6 +26,7 @@ const createAppointmentSchema = z.object({
   petId: z.string().uuid(),
   serviceId: z.string().uuid(),
   staffId: z.string().uuid().optional(),
+  batherStaffId: z.string().uuid().optional(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
   notes: z.string().max(2000).optional(),
@@ -41,6 +42,7 @@ const createAppointmentSchema = z.object({
 
 const updateAppointmentSchema = z.object({
   staffId: z.string().uuid().nullable().optional(),
+  batherStaffId: z.string().uuid().nullable().optional(),
   status: z
     .enum([
       "scheduled",

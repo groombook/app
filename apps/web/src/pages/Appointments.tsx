@@ -69,6 +69,7 @@ interface BookingForm {
   petId: string;
   serviceId: string;
   staffId: string;
+  batherStaffId: string;
   date: string;
   startTime: string;
   notes: string;
@@ -82,6 +83,7 @@ const EMPTY_FORM: BookingForm = {
   petId: "",
   serviceId: "",
   staffId: "",
+  batherStaffId: "",
   date: formatDate(new Date()),
   startTime: "09:00",
   notes: "",
@@ -208,6 +210,7 @@ export function AppointmentsPage() {
       petId: form.petId,
       serviceId: form.serviceId,
       staffId: form.staffId || undefined,
+      batherStaffId: form.batherStaffId || undefined,
       startTime: startISO,
       endTime: endISO,
       notes: form.notes || undefined,
@@ -496,6 +499,18 @@ export function AppointmentsPage() {
                 ))}
               </select>
             </Field>
+            <Field label="Bather / Assistant (optional)">
+              <select
+                value={form.batherStaffId}
+                onChange={(e) => setForm((f) => ({ ...f, batherStaffId: e.target.value }))}
+                style={inputStyle}
+              >
+                <option value="">— none —</option>
+                {staff.filter((s) => s.active).map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </Field>
             <Field label="Date">
               <input
                 type="date"
@@ -638,6 +653,7 @@ function AppointmentDetail({
   const client = clients.find((c) => c.id === appt.clientId);
   const service = services.find((s) => s.id === appt.serviceId);
   const groomer = staff.find((s) => s.id === appt.staffId);
+  const bather = staff.find((s) => s.id === appt.batherStaffId);
   const transitions = STATUS_TRANSITIONS[appt.status] ?? [];
 
   function handleDeleteClick() {
@@ -675,6 +691,7 @@ function AppointmentDetail({
             ["Client", client?.name ?? "—"],
             ["Service", service?.name ?? "—"],
             ["Groomer", groomer?.name ?? "Unassigned"],
+            ...(bather ? [["Bather/Asst.", bather.name] as [string, string]] : []),
             ["Start", new Date(appt.startTime).toLocaleString()],
             ["End", new Date(appt.endTime).toLocaleString()],
             ["Status", appt.status.replace("_", " ")],

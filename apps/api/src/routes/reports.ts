@@ -9,6 +9,7 @@ import {
   appointments,
   clients,
   invoices,
+  invoiceTipSplits,
   services,
   staff,
 } from "@groombook/db";
@@ -301,6 +302,37 @@ reportsRouter.get("/clients", async (c) => {
     churnRisk: churnRisk.slice(0, 20), // top 20 at-risk clients
     churnRiskTotal: churnRisk.length,
   });
+});
+
+// ─── Tip splits payroll report ────────────────────────────────────────────────
+// GET /api/reports/tip-splits?from=&to=
+// Aggregates tip earnings per staff member for the period
+
+reportsRouter.get("/tip-splits", async (c) => {
+  const db = getDb();
+  const from = parseDate(c.req.query("from"), defaultFrom());
+  const to = parseDate(c.req.query("to"), defaultTo());
+
+  const rows = await db
+    .select({
+      staffId: invoiceTipSplits.staffId,
+      staffName: invoiceTipSplits.staffName,
+      totalTipCents: sql<number>`SUM(${invoiceTipSplits.shareCents})::int`,
+      invoiceCount: sql<number>`COUNT(DISTINCT ${invoiceTipSplits.invoiceId})::int`,
+    })
+    .from(invoiceTipSplits)
+    .innerJoin(invoices, eq(invoiceTipSplits.invoiceId, invoices.id))
+    .where(
+      and(
+        eq(invoices.status, "paid"),
+        gte(invoices.paidAt, from),
+        lt(invoices.paidAt, to)
+      )
+    )
+    .groupBy(invoiceTipSplits.staffId, invoiceTipSplits.staffName)
+    .orderBy(sql`SUM(${invoiceTipSplits.shareCents}) DESC`);
+
+  return c.json({ from: from.toISOString(), to: to.toISOString(), rows });
 });
 
 // ─── CSV export ───────────────────────────────────────────────────────────────

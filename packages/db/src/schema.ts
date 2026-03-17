@@ -133,6 +133,10 @@ export const appointments = pgTable("appointments", {
   staffId: uuid("staff_id").references(() => staff.id, {
     onDelete: "set null",
   }),
+  // Optional secondary staff (bather/assistant) for tip-split tracking
+  batherStaffId: uuid("bather_staff_id").references(() => staff.id, {
+    onDelete: "set null",
+  }),
   status: appointmentStatusEnum("status").notNull().default("scheduled"),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
@@ -181,6 +185,20 @@ export const invoiceLineItems = pgTable("invoice_line_items", {
   quantity: integer("quantity").notNull().default(1),
   unitPriceCents: integer("unit_price_cents").notNull(),
   totalCents: integer("total_cents").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Per-staff tip allocation calculated when an invoice is paid.
+// staff_name is snapshotted at calculation time so reports remain accurate if staff is deleted.
+export const invoiceTipSplits = pgTable("invoice_tip_splits", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id")
+    .notNull()
+    .references(() => invoices.id, { onDelete: "cascade" }),
+  staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+  staffName: text("staff_name").notNull(),
+  sharePct: numeric("share_pct", { precision: 5, scale: 2 }).notNull(),
+  shareCents: integer("share_cents").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

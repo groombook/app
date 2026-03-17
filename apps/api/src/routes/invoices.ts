@@ -7,6 +7,7 @@ import {
   getDb,
   invoices,
   invoiceLineItems,
+  invoiceTipSplits,
   appointments,
   services,
 } from "@groombook/db";
@@ -59,7 +60,7 @@ invoicesRouter.get("/", async (c) => {
   return c.json(rows);
 });
 
-// Get single invoice with line items
+// Get single invoice with line items and tip splits
 invoicesRouter.get("/:id", async (c) => {
   const db = getDb();
   const id = c.req.param("id");
@@ -67,13 +68,77 @@ invoicesRouter.get("/:id", async (c) => {
   const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
   if (!invoice) return c.json({ error: "Not found" }, 404);
 
-  const lineItems = await db
-    .select()
-    .from(invoiceLineItems)
-    .where(eq(invoiceLineItems.invoiceId, id));
+  const [lineItems, tipSplits] = await Promise.all([
+    db.select().from(invoiceLineItems).where(eq(invoiceLineItems.invoiceId, id)),
+    db.select().from(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id)),
+  ]);
 
-  return c.json({ ...invoice, lineItems });
+  return c.json({ ...invoice, lineItems, tipSplits });
 });
+
+// Save tip splits for an invoice (replaces existing splits)
+const tipSplitSchema = z.object({
+  splits: z.array(
+    z.object({
+      staffId: z.string().uuid().nullable(),
+      staffName: z.string().min(1).max(200),
+      sharePct: z.number().min(0).max(100),
+    })
+  ).min(1).refine(
+    (splits) => {
+      const total = splits.reduce((sum, s) => sum + s.sharePct, 0);
+      return Math.abs(total - 100) < 0.01;
+    },
+    { message: "Split percentages must sum to 100" }
+  ),
+});
+
+invoicesRouter.post(
+  "/:id/tip-splits",
+  zValidator("json", tipSplitSchema),
+  async (c) => {
+    const db = getDb();
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    if (!invoice) return c.json({ error: "Not found" }, 404);
+    if (invoice.status === "void") return c.json({ error: "Cannot modify a voided invoice" }, 422);
+
+    const tipCents = invoice.tipCents;
+
+    await db.transaction(async (tx) => {
+      // Remove existing splits
+      await tx.delete(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id));
+
+      // Insert new splits, distributing tipCents proportionally
+      let remaining = tipCents;
+      const rows = body.splits.map((s, i) => {
+        const isLast = i === body.splits.length - 1;
+        const shareCents = isLast ? remaining : Math.round((s.sharePct / 100) * tipCents);
+        if (!isLast) remaining -= shareCents;
+        return {
+          invoiceId: id,
+          staffId: s.staffId,
+          staffName: s.staffName,
+          sharePct: s.sharePct.toFixed(2),
+          shareCents,
+        };
+      });
+
+      if (rows.length > 0) {
+        await tx.insert(invoiceTipSplits).values(rows);
+      }
+    });
+
+    const splits = await db
+      .select()
+      .from(invoiceTipSplits)
+      .where(eq(invoiceTipSplits.invoiceId, id));
+
+    return c.json(splits, 201);
+  }
+);
 
 // Create invoice (optionally pre-populated from an appointment)
 invoicesRouter.post(

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Invoice, Client, Appointment, Service } from "@groombook/types";
+import type { Invoice, Client, Appointment, Service, Staff, InvoiceTipSplit } from "@groombook/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,10 +146,14 @@ function CreateFromAppointmentForm({
 
 function InvoiceDetailModal({
   invoice,
+  allStaff,
+  allAppointments,
   onClose,
   onUpdated,
 }: {
   invoice: Invoice;
+  allStaff: Staff[];
+  allAppointments: Appointment[];
   onClose: () => void;
   onUpdated: () => void;
 }) {
@@ -157,6 +161,39 @@ function InvoiceDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [tipStr, setTipStr] = useState((invoice.tipCents / 100).toFixed(2));
   const [paymentMethod, setPaymentMethod] = useState<string>(invoice.paymentMethod ?? "cash");
+
+  // Tip split state: array of {staffId, staffName, pct}
+  const linkedAppt = invoice.appointmentId
+    ? allAppointments.find((a) => a.id === invoice.appointmentId)
+    : undefined;
+
+  function buildDefaultSplits(): Array<{ staffId: string | null; staffName: string; pct: number }> {
+    const groomer = linkedAppt?.staffId
+      ? allStaff.find((s) => s.id === linkedAppt.staffId)
+      : undefined;
+    const bather = linkedAppt?.batherStaffId
+      ? allStaff.find((s) => s.id === linkedAppt.batherStaffId)
+      : undefined;
+    if (!groomer) return [];
+    if (bather) {
+      return [
+        { staffId: groomer.id, staffName: groomer.name, pct: 70 },
+        { staffId: bather.id, staffName: bather.name, pct: 30 },
+      ];
+    }
+    return [{ staffId: groomer.id, staffName: groomer.name, pct: 100 }];
+  }
+
+  const existingSplits = (invoice.tipSplits ?? []).map((s: InvoiceTipSplit) => ({
+    staffId: s.staffId,
+    staffName: s.staffName,
+    pct: parseFloat(s.sharePct),
+  }));
+
+  const [tipSplits, setTipSplits] = useState<Array<{ staffId: string | null; staffName: string; pct: number }>>(
+    existingSplits.length > 0 ? existingSplits : buildDefaultSplits()
+  );
+  const [showSplits, setShowSplits] = useState(tipSplits.length > 0);
 
   async function markPaid() {
     setSaving(true);
@@ -166,16 +203,32 @@ function InvoiceDetailModal({
       const res = await fetch(`/api/invoices/${invoice.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "paid",
-          paymentMethod,
-          tipCents,
-        }),
+        body: JSON.stringify({ status: "paid", paymentMethod, tipCents }),
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
+
+      // Save tip splits if applicable and tip > 0
+      if (showSplits && tipCents > 0 && tipSplits.length > 0) {
+        const totalPct = tipSplits.reduce((s, r) => s + r.pct, 0);
+        if (Math.abs(totalPct - 100) < 0.01) {
+          const splitsRes = await fetch(`/api/invoices/${invoice.id}/tip-splits`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              splits: tipSplits.map((r) => ({
+                staffId: r.staffId,
+                staffName: r.staffName,
+                sharePct: r.pct,
+              })),
+            }),
+          });
+          if (!splitsRes.ok) console.warn("Tip split save failed (non-blocking)");
+        }
+      }
+
       onUpdated();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to update");
@@ -265,6 +318,88 @@ function InvoiceDetailModal({
         {invoice.paymentMethod && <SummaryRow label="Payment" value={invoice.paymentMethod} />}
       </div>
 
+      {/* ── Tip Distribution ── */}
+      {invoice.status !== "void" && (
+        <div style={{ marginTop: "0.75rem", borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>Tip Distribution</span>
+            {invoice.status !== "paid" && (
+              <button
+                onClick={() => setShowSplits((v) => !v)}
+                style={{ ...btnStyle, fontSize: 12 }}
+              >
+                {showSplits ? "Hide" : "Set up"}
+              </button>
+            )}
+          </div>
+
+          {/* Show existing splits on paid invoices */}
+          {invoice.status === "paid" && (invoice.tipSplits ?? []).length > 0 && (
+            <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+              <tbody>
+                {(invoice.tipSplits ?? []).map((s: InvoiceTipSplit) => (
+                  <tr key={s.id}>
+                    <td style={{ padding: "2px 0", color: "#374151" }}>{s.staffName}</td>
+                    <td style={{ padding: "2px 0", color: "#6b7280", textAlign: "right" }}>{parseFloat(s.sharePct).toFixed(0)}%</td>
+                    <td style={{ padding: "2px 0", textAlign: "right", fontWeight: 600 }}>{fmtMoney(s.shareCents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {invoice.status === "paid" && (invoice.tipSplits ?? []).length === 0 && (
+            <p style={{ fontSize: 12, color: "#9ca3af", margin: 0 }}>No split recorded.</p>
+          )}
+
+          {/* Editable splits before payment */}
+          {invoice.status !== "paid" && showSplits && (
+            <div>
+              {tipSplits.map((row, idx) => {
+                const splitTipCents = Math.round((row.pct / 100) * (Math.round(parseFloat(tipStr) * 100) || 0));
+                return (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.35rem", fontSize: 13 }}>
+                    <input
+                      value={row.staffName}
+                      onChange={(e) => setTipSplits((prev) => prev.map((r, i) => i === idx ? { ...r, staffName: e.target.value } : r))}
+                      style={{ ...inputStyle, flex: 1 }}
+                      placeholder="Name"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={row.pct}
+                      onChange={(e) => setTipSplits((prev) => prev.map((r, i) => i === idx ? { ...r, pct: Number(e.target.value) } : r))}
+                      style={{ ...inputStyle, width: 60, textAlign: "right" }}
+                    />
+                    <span style={{ color: "#6b7280" }}>%</span>
+                    <span style={{ minWidth: 60, textAlign: "right", color: "#374151" }}>{fmtMoney(splitTipCents)}</span>
+                    <button
+                      onClick={() => setTipSplits((prev) => prev.filter((_, i) => i !== idx))}
+                      style={{ ...btnStyle, color: "#dc2626", borderColor: "#dc2626", padding: "0.2rem 0.4rem" }}
+                    >×</button>
+                  </div>
+                );
+              })}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.25rem" }}>
+                <button
+                  onClick={() => setTipSplits((prev) => [...prev, { staffId: null, staffName: "", pct: 0 }])}
+                  style={{ ...btnStyle, fontSize: 12 }}
+                >
+                  + Add person
+                </button>
+                {(() => {
+                  const total = tipSplits.reduce((s, r) => s + r.pct, 0);
+                  const ok = Math.abs(total - 100) < 0.01;
+                  return <span style={{ fontSize: 12, color: ok ? "#10b981" : "#ef4444" }}>Total: {total.toFixed(0)}%{ok ? " ✓" : " (must be 100%)"}</span>;
+                })()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {invoice.status !== "paid" && invoice.status !== "void" && (
         <div style={{ marginTop: "1rem", borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}>
           <Field label="Payment Method">
@@ -330,6 +465,7 @@ export function InvoicesPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [allStaff, setAllStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -337,22 +473,24 @@ export function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
 
   async function loadAll() {
-    const [invRes, clientRes, apptRes, svcRes] = await Promise.all([
+    const [invRes, clientRes, apptRes, svcRes, staffRes] = await Promise.all([
       fetch("/api/invoices" + (statusFilter ? `?status=${statusFilter}` : "")),
       fetch("/api/clients"),
       fetch("/api/appointments"),
       fetch("/api/services?includeInactive=true"),
+      fetch("/api/staff"),
     ]);
 
-    if (!invRes.ok || !clientRes.ok || !apptRes.ok || !svcRes.ok) {
+    if (!invRes.ok || !clientRes.ok || !apptRes.ok || !svcRes.ok || !staffRes.ok) {
       throw new Error("Failed to load data");
     }
 
-    const [invData, clientData, apptData, svcData] = await Promise.all([
+    const [invData, clientData, apptData, svcData, staffData] = await Promise.all([
       invRes.json() as Promise<Invoice[]>,
       clientRes.json() as Promise<Client[]>,
       apptRes.json() as Promise<Appointment[]>,
       svcRes.json() as Promise<Service[]>,
+      staffRes.json() as Promise<Staff[]>,
     ]);
 
     const clientMap = new Map(clientData.map((c) => [c.id, c.name]));
@@ -365,6 +503,7 @@ export function InvoicesPage() {
     setClients(clientData);
     setAppointments(apptData);
     setServices(svcData);
+    setAllStaff(staffData);
   }
 
   useEffect(() => {
@@ -461,6 +600,8 @@ export function InvoicesPage() {
       {selectedInvoice && (
         <InvoiceDetailModal
           invoice={selectedInvoice}
+          allStaff={allStaff}
+          allAppointments={appointments}
           onClose={() => setSelectedInvoice(null)}
           onUpdated={() => {
             setSelectedInvoice(null);

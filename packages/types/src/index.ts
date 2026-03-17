@@ -91,6 +91,7 @@ export interface Appointment {
   petId: string;
   serviceId: string;
   staffId: string | null;
+  batherStaffId: string | null;
   status: AppointmentStatus;
   startTime: string;
   endTime: string;
@@ -101,6 +102,16 @@ export interface Appointment {
   groupId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface InvoiceTipSplit {
+  id: string;
+  invoiceId: string;
+  staffId: string | null;
+  staffName: string;
+  sharePct: string;
+  shareCents: number;
+  createdAt: string;
 }
 
 export type InvoiceStatus = "draft" | "pending" | "paid" | "void";
@@ -131,6 +142,7 @@ export interface Invoice {
   createdAt: string;
   updatedAt: string;
   lineItems?: InvoiceLineItem[];
+  tipSplits?: InvoiceTipSplit[];
 }
 
 // Paginated list response

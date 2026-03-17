@@ -50,6 +50,13 @@
       "when": 1773783600000,
       "tag": "0006_pet_profile_attributes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1773820800000,
+      "tag": "0007_tip_splitting",
+      "breakpoints": true
     }
   ]
 }
