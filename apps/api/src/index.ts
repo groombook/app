@@ -7,6 +7,7 @@ import { petsRouter } from "./routes/pets.js";
 import { servicesRouter } from "./routes/services.js";
 import { appointmentsRouter } from "./routes/appointments.js";
 import { staffRouter } from "./routes/staff.js";
+import { invoicesRouter } from "./routes/invoices.js";
 import { authMiddleware } from "./middleware/auth.js";
 
 const app = new Hono();
@@ -33,6 +34,7 @@ api.route("/pets", petsRouter);
 api.route("/services", servicesRouter);
 api.route("/appointments", appointmentsRouter);
 api.route("/staff", staffRouter);
+api.route("/invoices", invoicesRouter);
 
 const port = Number(process.env.PORT ?? 3000);
 console.log(`API server listening on port ${port}`);
