@@ -61,6 +61,14 @@ export interface RecurringSeries {
   createdAt: string;
 }
 
+export interface AppointmentGroup {
+  id: string;
+  clientId: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Appointment {
   id: string;
   clientId: string;
@@ -74,6 +82,7 @@ export interface Appointment {
   priceCents: number | null;
   seriesId: string | null;
   seriesIndex: number | null;
+  groupId: string | null;
   createdAt: string;
   updatedAt: string;
 }

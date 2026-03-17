@@ -102,6 +102,18 @@ export const recurringSeries = pgTable("recurring_series", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// appointmentGroups links multiple appointments from the same client visit.
+// Each pet in the group gets its own appointment row with its own groomer.
+export const appointmentGroups = pgTable("appointment_groups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "restrict" }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const appointments = pgTable("appointments", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id")
@@ -127,6 +139,10 @@ export const appointments = pgTable("appointments", {
     onDelete: "set null",
   }),
   seriesIndex: integer("series_index"),
+  // Multi-pet group booking: links this appointment to others in the same visit
+  groupId: uuid("group_id").references(() => appointmentGroups.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

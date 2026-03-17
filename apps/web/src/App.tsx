@@ -6,6 +6,7 @@ import { StaffPage } from "./pages/Staff.js";
 import { InvoicesPage } from "./pages/Invoices.js";
 import { BookPage } from "./pages/Book.js";
 import { ReportsPage } from "./pages/Reports.js";
+import { GroupBookingPage } from "./pages/GroupBooking.js";
 
 const NAV_LINKS = [
   { to: "/", label: "Appointments" },
@@ -13,6 +14,7 @@ const NAV_LINKS = [
   { to: "/services", label: "Services" },
   { to: "/staff", label: "Staff" },
   { to: "/invoices", label: "Invoices" },
+  { to: "/group-bookings", label: "Group Bookings" },
   { to: "/reports", label: "Reports" },
 ];
 
@@ -76,6 +78,7 @@ export function App() {
           <Route path="/staff" element={<StaffPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/book" element={<BookPage />} />
+          <Route path="/group-bookings" element={<GroupBookingPage />} />
           <Route path="/reports" element={<ReportsPage />} />
         </Routes>
       </main>
