@@ -1,8 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { getDb, pets } from "@groombook/db";
+import { eq, getDb, pets } from "@groombook/db";
 
 export const petsRouter = new Hono();
 
@@ -42,8 +41,15 @@ petsRouter.get("/:id", async (c) => {
 
 petsRouter.post("/", zValidator("json", createPetSchema), async (c) => {
   const db = getDb();
-  const body = c.req.valid("json");
-  const [row] = await db.insert(pets).values(body).returning();
+  const { weightKg, dateOfBirth, ...rest } = c.req.valid("json");
+  const [row] = await db
+    .insert(pets)
+    .values({
+      ...rest,
+      weightKg: weightKg?.toString(),
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+    })
+    .returning();
   return c.json(row, 201);
 });
 
@@ -52,10 +58,15 @@ petsRouter.patch(
   zValidator("json", updatePetSchema),
   async (c) => {
     const db = getDb();
-    const body = c.req.valid("json");
+    const { weightKg, dateOfBirth, ...rest } = c.req.valid("json");
     const [row] = await db
       .update(pets)
-      .set({ ...body, updatedAt: new Date() })
+      .set({
+        ...rest,
+        weightKg: weightKg?.toString(),
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+        updatedAt: new Date(),
+      })
       .where(eq(pets.id, c.req.param("id")))
       .returning();
     if (!row) return c.json({ error: "Not found" }, 404);

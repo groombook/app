@@ -1,8 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { getDb, services } from "@groombook/db";
+import { eq, getDb, services } from "@groombook/db";
 
 export const servicesRouter = new Hono();
 
