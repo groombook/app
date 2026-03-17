@@ -8,6 +8,13 @@
       "when": 1773771452946,
       "tag": "0000_colossal_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1742241600000,
+      "tag": "0001_pet_health_alerts",
+      "breakpoints": true
     }
   ]
 }

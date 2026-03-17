@@ -49,6 +49,7 @@ export const pets = pgTable("pets", {
   breed: text("breed"),
   weightKg: numeric("weight_kg", { precision: 5, scale: 2 }),
   dateOfBirth: timestamp("date_of_birth"),
+  healthAlerts: text("health_alerts"),
   groomingNotes: text("grooming_notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

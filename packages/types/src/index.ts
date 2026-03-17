@@ -27,6 +27,7 @@ export interface Pet {
   breed: string | null;
   weightKg: number | null;
   dateOfBirth: string | null;
+  healthAlerts: string | null;
   groomingNotes: string | null;
   createdAt: string;
   updatedAt: string;

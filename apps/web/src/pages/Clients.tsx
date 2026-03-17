@@ -17,11 +17,12 @@ interface PetForm {
   breed: string;
   weightStr: string;
   dob: string;
+  healthAlerts: string;
   groomingNotes: string;
 }
 
 const EMPTY_CLIENT: ClientForm = { name: "", email: "", phone: "", address: "", notes: "" };
-const EMPTY_PET: PetForm = { name: "", species: "Dog", breed: "", weightStr: "", dob: "", groomingNotes: "" };
+const EMPTY_PET: PetForm = { name: "", species: "Dog", breed: "", weightStr: "", dob: "", healthAlerts: "", groomingNotes: "" };
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -47,6 +48,8 @@ export function ClientsPage() {
   const [petForm, setPetForm] = useState<PetForm>(EMPTY_PET);
   const [petFormError, setPetFormError] = useState<string | null>(null);
   const [savingPet, setSavingPet] = useState(false);
+  const [deletingPetId, setDeletingPetId] = useState<string | null>(null);
+  const [deletingClient, setDeletingClient] = useState(false);
 
   async function loadClients() {
     const r = await fetch("/api/clients");
@@ -133,10 +136,48 @@ export function ClientsPage() {
       name: p.name, species: p.species, breed: p.breed ?? "",
       weightStr: p.weightKg != null ? String(p.weightKg) : "",
       dob: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : "",
+      healthAlerts: p.healthAlerts ?? "",
       groomingNotes: p.groomingNotes ?? "",
     });
     setPetFormError(null);
     setShowPetForm(true);
+  }
+
+  async function deletePet(petId: string) {
+    if (!selectedClient) return;
+    if (!window.confirm("Delete this pet? This cannot be undone.")) return;
+    setDeletingPetId(petId);
+    try {
+      const res = await fetch(`/api/pets/${petId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      await loadPets(selectedClient.id);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to delete pet");
+    } finally {
+      setDeletingPetId(null);
+    }
+  }
+
+  async function deleteClient(clientId: string) {
+    if (!window.confirm("Delete this client and all their pets? This cannot be undone.")) return;
+    setDeletingClient(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      setSelectedClient(null);
+      setPets([]);
+      await loadClients();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to delete client");
+    } finally {
+      setDeletingClient(false);
+    }
   }
 
   async function submitPet(e: React.FormEvent) {
@@ -152,6 +193,7 @@ export function ClientsPage() {
         breed: petForm.breed || undefined,
         weightKg: petForm.weightStr ? parseFloat(petForm.weightStr) : undefined,
         dateOfBirth: petForm.dob ? new Date(petForm.dob).toISOString() : undefined,
+        healthAlerts: petForm.healthAlerts || undefined,
         groomingNotes: petForm.groomingNotes || undefined,
       };
       const res = editingPet
@@ -233,9 +275,18 @@ export function ClientsPage() {
                 </div>
               )}
             </div>
-            <button onClick={() => openEditClient(selectedClient)} style={{ ...btnStyle, marginLeft: "auto" }}>
-              Edit client
-            </button>
+            <div style={{ display: "flex", gap: "0.5rem", marginLeft: "auto" }}>
+              <button onClick={() => openEditClient(selectedClient)} style={btnStyle}>
+                Edit client
+              </button>
+              <button
+                onClick={() => { void deleteClient(selectedClient.id); }}
+                disabled={deletingClient}
+                style={{ ...btnStyle, color: "#dc2626", borderColor: "#fca5a5" }}
+              >
+                {deletingClient ? "Deleting…" : "Delete client"}
+              </button>
+            </div>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
@@ -255,13 +306,27 @@ export function ClientsPage() {
                 <div key={p.id} style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.75rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <strong style={{ fontSize: 15 }}>{p.name}</strong>
-                    <button onClick={() => openEditPet(p)} style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11 }}>Edit</button>
+                    <div style={{ display: "flex", gap: "0.3rem" }}>
+                      <button onClick={() => openEditPet(p)} style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11 }}>Edit</button>
+                      <button
+                        onClick={() => { void deletePet(p.id); }}
+                        disabled={deletingPetId === p.id}
+                        style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11, color: "#dc2626", borderColor: "#fca5a5" }}
+                      >
+                        {deletingPetId === p.id ? "…" : "Delete"}
+                      </button>
+                    </div>
                   </div>
                   <div style={{ fontSize: 13, color: "#6b7280", marginTop: "0.2rem" }}>
                     {p.species}{p.breed ? ` · ${p.breed}` : ""}
                   </div>
                   {p.weightKg != null && <div style={{ fontSize: 12, color: "#6b7280" }}>{p.weightKg} kg</div>}
                   {p.dateOfBirth && <div style={{ fontSize: 12, color: "#6b7280" }}>Born {new Date(p.dateOfBirth).toLocaleDateString()}</div>}
+                  {p.healthAlerts && (
+                    <div style={{ fontSize: 12, marginTop: "0.35rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, padding: "0.3rem 0.5rem", color: "#dc2626" }}>
+                      <span style={{ fontWeight: 600 }}>⚠ Health alerts:</span> {p.healthAlerts}
+                    </div>
+                  )}
                   {p.groomingNotes && (
                     <div style={{ fontSize: 12, marginTop: "0.35rem", color: "#374151" }}>
                       <span style={{ fontWeight: 600 }}>Notes:</span> {p.groomingNotes}
@@ -330,6 +395,9 @@ export function ClientsPage() {
             </Field>
             <Field label="Date of birth (optional)">
               <input type="date" value={petForm.dob} onChange={(e) => setPetForm((f) => ({ ...f, dob: e.target.value }))} style={inputStyle} />
+            </Field>
+            <Field label="Health alerts (allergies, conditions, medications)">
+              <textarea value={petForm.healthAlerts} onChange={(e) => setPetForm((f) => ({ ...f, healthAlerts: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical", borderColor: petForm.healthAlerts ? "#fca5a5" : undefined }} placeholder="e.g. Allergic to lavender, heart condition, on medication X" />
             </Field>
             <Field label="Grooming notes (optional)">
               <textarea value={petForm.groomingNotes} onChange={(e) => setPetForm((f) => ({ ...f, groomingNotes: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical" }} />

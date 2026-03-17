@@ -12,6 +12,7 @@ const createPetSchema = z.object({
   breed: z.string().max(200).optional(),
   weightKg: z.number().positive().optional(),
   dateOfBirth: z.string().datetime().optional(),
+  healthAlerts: z.string().max(2000).optional(),
   groomingNotes: z.string().max(2000).optional(),
 });
 
