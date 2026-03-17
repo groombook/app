@@ -50,6 +50,8 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type CascadeMode = "this_only" | "this_and_future" | "all";
+
 interface BookingForm {
   clientId: string;
   petId: string;
@@ -58,6 +60,9 @@ interface BookingForm {
   date: string;
   startTime: string;
   notes: string;
+  recurring: boolean;
+  recurrenceFrequencyWeeks: string;
+  recurrenceCount: string;
 }
 
 const EMPTY_FORM: BookingForm = {
@@ -68,6 +73,9 @@ const EMPTY_FORM: BookingForm = {
   date: formatDate(new Date()),
   startTime: "09:00",
   notes: "",
+  recurring: false,
+  recurrenceFrequencyWeeks: "4",
+  recurrenceCount: "12",
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -153,21 +161,30 @@ export function AppointmentsPage() {
     endDate.setMinutes(endDate.getMinutes() + service.durationMinutes);
     const endISO = endDate.toISOString();
 
+    const payload: Record<string, unknown> = {
+      clientId: form.clientId,
+      petId: form.petId,
+      serviceId: form.serviceId,
+      staffId: form.staffId || undefined,
+      startTime: startISO,
+      endTime: endISO,
+      notes: form.notes || undefined,
+    };
+
+    if (form.recurring) {
+      payload.recurrence = {
+        frequencyWeeks: parseInt(form.recurrenceFrequencyWeeks),
+        count: parseInt(form.recurrenceCount),
+      };
+    }
+
     setSaving(true);
     setFormError(null);
     try {
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: form.clientId,
-          petId: form.petId,
-          serviceId: form.serviceId,
-          staffId: form.staffId || undefined,
-          startTime: startISO,
-          endTime: endISO,
-          notes: form.notes || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
@@ -197,9 +214,12 @@ export function AppointmentsPage() {
     }
   }
 
-  async function deleteAppt(id: string) {
-    if (!confirm("Delete this appointment?")) return;
-    await fetch(`/api/appointments/${id}`, { method: "DELETE" });
+  async function deleteAppt(id: string, cascade: CascadeMode) {
+    const url =
+      cascade !== "this_only"
+        ? `/api/appointments/${id}?cascade=${cascade}`
+        : `/api/appointments/${id}`;
+    await fetch(url, { method: "DELETE" });
     setSelectedAppt(null);
     await loadAppointments();
   }
@@ -289,6 +309,9 @@ export function AppointmentsPage() {
                       <div style={{ fontWeight: 600 }}>{fmtTime(a.startTime)}</div>
                       <div>{cli?.name ?? "—"}</div>
                       <div style={{ opacity: 0.9 }}>{svc?.name ?? "—"}</div>
+                      {a.seriesId && (
+                        <div style={{ opacity: 0.85, fontSize: 10 }}>↻ recurring</div>
+                      )}
                     </div>
                   );
                 })}
@@ -383,6 +406,58 @@ export function AppointmentsPage() {
                 style={{ ...inputStyle, resize: "vertical" }}
               />
             </Field>
+
+            {/* Recurrence */}
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                <input
+                  type="checkbox"
+                  checked={form.recurring}
+                  onChange={(e) => setForm((f) => ({ ...f, recurring: e.target.checked }))}
+                />
+                Recurring appointment
+              </label>
+            </div>
+
+            {form.recurring && (
+              <div
+                style={{
+                  background: "#f0f9ff",
+                  border: "1px solid #bae6fd",
+                  borderRadius: 6,
+                  padding: "0.75rem",
+                  marginBottom: "0.75rem",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "0.75rem",
+                }}
+              >
+                <Field label="Repeat every">
+                  <select
+                    value={form.recurrenceFrequencyWeeks}
+                    onChange={(e) => setForm((f) => ({ ...f, recurrenceFrequencyWeeks: e.target.value }))}
+                    style={inputStyle}
+                  >
+                    <option value="2">2 weeks</option>
+                    <option value="4">4 weeks</option>
+                    <option value="6">6 weeks</option>
+                    <option value="8">8 weeks</option>
+                    <option value="12">12 weeks</option>
+                  </select>
+                </Field>
+                <Field label="Number of appointments">
+                  <input
+                    type="number"
+                    min={2}
+                    max={52}
+                    value={form.recurrenceCount}
+                    onChange={(e) => setForm((f) => ({ ...f, recurrenceCount: e.target.value }))}
+                    style={inputStyle}
+                  />
+                </Field>
+              </div>
+            )}
+
             {formError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{formError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
               <button
@@ -390,7 +465,11 @@ export function AppointmentsPage() {
                 disabled={saving}
                 style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6" }}
               >
-                {saving ? "Saving…" : "Book Appointment"}
+                {saving
+                  ? "Saving…"
+                  : form.recurring
+                  ? `Book ${form.recurrenceCount} appointments`
+                  : "Book Appointment"}
               </button>
               <button type="button" onClick={() => setShowForm(false)} style={btnStyle}>
                 Cancel
@@ -434,17 +513,46 @@ function AppointmentDetail({
   services: Service[];
   staff: Staff[];
   onUpdateStatus: (a: Appointment, status: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, cascade: CascadeMode) => void;
   onClose: () => void;
 }) {
+  const [showDeleteOptions, setShowDeleteOptions] = useState(false);
+  const [deleteCascade, setDeleteCascade] = useState<CascadeMode>("this_only");
+
   const client = clients.find((c) => c.id === appt.clientId);
   const service = services.find((s) => s.id === appt.serviceId);
   const groomer = staff.find((s) => s.id === appt.staffId);
   const transitions = STATUS_TRANSITIONS[appt.status] ?? [];
 
+  function handleDeleteClick() {
+    if (appt.seriesId) {
+      setShowDeleteOptions(true);
+    } else {
+      if (confirm("Delete this appointment?")) {
+        onDelete(appt.id, "this_only");
+      }
+    }
+  }
+
   return (
     <>
-      <h2 style={{ marginTop: 0 }}>Appointment Details</h2>
+      <h2 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+        Appointment Details
+        {appt.seriesId && (
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              background: "#ede9fe",
+              color: "#6d28d9",
+              padding: "0.15rem 0.5rem",
+              borderRadius: 99,
+            }}
+          >
+            ↻ Recurring series
+          </span>
+        )}
+      </h2>
       <table style={{ borderCollapse: "collapse", width: "100%", marginBottom: "1rem", fontSize: 14 }}>
         <tbody>
           {([
@@ -455,6 +563,9 @@ function AppointmentDetail({
             ["End", new Date(appt.endTime).toLocaleString()],
             ["Status", appt.status.replace("_", " ")],
             ["Notes", appt.notes ?? "—"],
+            ...(appt.seriesId
+              ? [["Series slot", `#${(appt.seriesIndex ?? 0) + 1}`] as [string, string]]
+              : []),
           ] as [string, string][]).map(([label, value]) => (
             <tr key={label}>
               <td style={{ padding: "4px 12px 4px 0", fontWeight: 600, whiteSpace: "nowrap", verticalAlign: "top", color: "#6b7280" }}>
@@ -486,17 +597,69 @@ function AppointmentDetail({
           ))}
         </div>
       )}
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        {appt.status !== "completed" && appt.status !== "cancelled" && (
-          <button
-            onClick={() => onDelete(appt.id)}
-            style={{ ...btnStyle, backgroundColor: "#ef4444", color: "#fff", borderColor: "#ef4444" }}
-          >
-            Delete
-          </button>
-        )}
-        <button onClick={onClose} style={btnStyle}>Close</button>
-      </div>
+
+      {/* Cascade delete picker (series appointments only) */}
+      {showDeleteOptions && (
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fca5a5",
+            borderRadius: 6,
+            padding: "0.75rem",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <p style={{ margin: "0 0 0.5rem", fontWeight: 600, fontSize: 13 }}>
+            This is part of a recurring series. Which appointments should be cancelled?
+          </p>
+          {(
+            [
+              ["this_only", "This appointment only"],
+              ["this_and_future", "This and all future appointments in the series"],
+              ["all", "All appointments in the series"],
+            ] as [CascadeMode, string][]
+          ).map(([value, label]) => (
+            <label
+              key={value}
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.35rem", fontSize: 13, cursor: "pointer" }}
+            >
+              <input
+                type="radio"
+                name="deleteCascade"
+                value={value}
+                checked={deleteCascade === value}
+                onChange={() => setDeleteCascade(value)}
+              />
+              {label}
+            </label>
+          ))}
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+            <button
+              onClick={() => onDelete(appt.id, deleteCascade)}
+              style={{ ...btnStyle, backgroundColor: "#ef4444", color: "#fff", borderColor: "#ef4444" }}
+            >
+              Confirm cancellation
+            </button>
+            <button onClick={() => setShowDeleteOptions(false)} style={btnStyle}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!showDeleteOptions && (
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          {appt.status !== "completed" && appt.status !== "cancelled" && (
+            <button
+              onClick={handleDeleteClick}
+              style={{ ...btnStyle, backgroundColor: "#ef4444", color: "#fff", borderColor: "#ef4444" }}
+            >
+              Delete
+            </button>
+          )}
+          <button onClick={onClose} style={btnStyle}>Close</button>
+        </div>
+      )}
     </>
   );
 }

@@ -22,6 +22,13 @@
       "when": 1773777600000,
       "tag": "0002_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1742169600000,
+      "tag": "0003_recurring_series",
+      "breakpoints": true
     }
   ]
 }

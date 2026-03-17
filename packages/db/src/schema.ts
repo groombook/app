@@ -92,6 +92,13 @@ export const staff = pgTable("staff", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const recurringSeries = pgTable("recurring_series", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // How many weeks between each appointment in the series
+  frequencyWeeks: integer("frequency_weeks").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const appointments = pgTable("appointments", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id")
@@ -112,6 +119,11 @@ export const appointments = pgTable("appointments", {
   notes: text("notes"),
   // Override price at time of booking (null = use service base price)
   priceCents: integer("price_cents"),
+  // Recurring series support
+  seriesId: uuid("series_id").references(() => recurringSeries.id, {
+    onDelete: "set null",
+  }),
+  seriesIndex: integer("series_index"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

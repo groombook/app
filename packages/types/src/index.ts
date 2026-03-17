@@ -54,6 +54,12 @@ export interface Staff {
   updatedAt: string;
 }
 
+export interface RecurringSeries {
+  id: string;
+  frequencyWeeks: number;
+  createdAt: string;
+}
+
 export interface Appointment {
   id: string;
   clientId: string;
@@ -65,6 +71,8 @@ export interface Appointment {
   endTime: string;
   notes: string | null;
   priceCents: number | null;
+  seriesId: string | null;
+  seriesIndex: number | null;
   createdAt: string;
   updatedAt: string;
 }
