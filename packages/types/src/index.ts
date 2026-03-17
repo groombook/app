@@ -69,6 +69,36 @@ export interface Appointment {
   updatedAt: string;
 }
 
+export type InvoiceStatus = "draft" | "pending" | "paid" | "void";
+export type PaymentMethod = "cash" | "card" | "check" | "other";
+
+export interface InvoiceLineItem {
+  id: string;
+  invoiceId: string;
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalCents: number;
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  appointmentId: string | null;
+  clientId: string;
+  subtotalCents: number;
+  taxCents: number;
+  tipCents: number;
+  totalCents: number;
+  status: InvoiceStatus;
+  paymentMethod: PaymentMethod | null;
+  paidAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lineItems?: InvoiceLineItem[];
+}
+
 // Paginated list response
 export interface PaginatedList<T> {
   items: T[];

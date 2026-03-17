@@ -26,6 +26,20 @@ export const staffRoleEnum = pgEnum("staff_role", [
   "manager",
 ]);
 
+export const invoiceStatusEnum = pgEnum("invoice_status", [
+  "draft",
+  "pending",
+  "paid",
+  "void",
+]);
+
+export const paymentMethodEnum = pgEnum("payment_method", [
+  "cash",
+  "card",
+  "check",
+  "other",
+]);
+
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
 export const clients = pgTable("clients", {
@@ -100,4 +114,36 @@ export const appointments = pgTable("appointments", {
   priceCents: integer("price_cents"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const invoices = pgTable("invoices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, {
+    onDelete: "restrict",
+  }),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "restrict" }),
+  subtotalCents: integer("subtotal_cents").notNull(),
+  taxCents: integer("tax_cents").notNull().default(0),
+  tipCents: integer("tip_cents").notNull().default(0),
+  totalCents: integer("total_cents").notNull(),
+  status: invoiceStatusEnum("status").notNull().default("draft"),
+  paymentMethod: paymentMethodEnum("payment_method"),
+  paidAt: timestamp("paid_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const invoiceLineItems = pgTable("invoice_line_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id")
+    .notNull()
+    .references(() => invoices.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitPriceCents: integer("unit_price_cents").notNull(),
+  totalCents: integer("total_cents").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });

@@ -1,0 +1,245 @@
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import {
+  and,
+  eq,
+  getDb,
+  invoices,
+  invoiceLineItems,
+  appointments,
+  services,
+} from "@groombook/db";
+
+export const invoicesRouter = new Hono();
+
+const createInvoiceSchema = z.object({
+  appointmentId: z.string().uuid().optional(),
+  clientId: z.string().uuid(),
+  lineItems: z
+    .array(
+      z.object({
+        description: z.string().min(1).max(500),
+        quantity: z.number().int().positive().default(1),
+        unitPriceCents: z.number().int().nonnegative(),
+      })
+    )
+    .min(1),
+  taxCents: z.number().int().nonnegative().default(0),
+  tipCents: z.number().int().nonnegative().default(0),
+  notes: z.string().max(2000).optional(),
+});
+
+const updateInvoiceSchema = z.object({
+  status: z.enum(["draft", "pending", "paid", "void"]).optional(),
+  paymentMethod: z.enum(["cash", "card", "check", "other"]).nullable().optional(),
+  paidAt: z.string().datetime().nullable().optional(),
+  taxCents: z.number().int().nonnegative().optional(),
+  tipCents: z.number().int().nonnegative().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
+// List invoices
+invoicesRouter.get("/", async (c) => {
+  const db = getDb();
+  const clientId = c.req.query("clientId");
+  const appointmentId = c.req.query("appointmentId");
+  const status = c.req.query("status");
+
+  const conditions = [];
+  if (clientId) conditions.push(eq(invoices.clientId, clientId));
+  if (appointmentId) conditions.push(eq(invoices.appointmentId, appointmentId));
+  if (status) conditions.push(eq(invoices.status, status as "draft" | "pending" | "paid" | "void"));
+
+  const rows =
+    conditions.length > 0
+      ? await db.select().from(invoices).where(and(...conditions)).orderBy(invoices.createdAt)
+      : await db.select().from(invoices).orderBy(invoices.createdAt);
+
+  return c.json(rows);
+});
+
+// Get single invoice with line items
+invoicesRouter.get("/:id", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+  if (!invoice) return c.json({ error: "Not found" }, 404);
+
+  const lineItems = await db
+    .select()
+    .from(invoiceLineItems)
+    .where(eq(invoiceLineItems.invoiceId, id));
+
+  return c.json({ ...invoice, lineItems });
+});
+
+// Create invoice (optionally pre-populated from an appointment)
+invoicesRouter.post(
+  "/",
+  zValidator("json", createInvoiceSchema),
+  async (c) => {
+    const db = getDb();
+    const body = c.req.valid("json");
+
+    // If appointmentId provided, verify it exists
+    if (body.appointmentId) {
+      const [appt] = await db
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, body.appointmentId));
+      if (!appt) return c.json({ error: "Appointment not found" }, 404);
+    }
+
+    const subtotalCents = body.lineItems.reduce(
+      (sum, item) => sum + item.quantity * item.unitPriceCents,
+      0
+    );
+    const totalCents = subtotalCents + body.taxCents + body.tipCents;
+
+    const [invoice] = await db
+      .insert(invoices)
+      .values({
+        appointmentId: body.appointmentId ?? null,
+        clientId: body.clientId,
+        subtotalCents,
+        taxCents: body.taxCents,
+        tipCents: body.tipCents,
+        totalCents,
+        notes: body.notes ?? null,
+      })
+      .returning();
+
+    if (!invoice) return c.json({ error: "Failed to create invoice" }, 500);
+
+    const items = await db
+      .insert(invoiceLineItems)
+      .values(
+        body.lineItems.map((item) => ({
+          invoiceId: invoice.id,
+          description: item.description,
+          quantity: item.quantity,
+          unitPriceCents: item.unitPriceCents,
+          totalCents: item.quantity * item.unitPriceCents,
+        }))
+      )
+      .returning();
+
+    return c.json({ ...invoice, lineItems: items }, 201);
+  }
+);
+
+// Create invoice from appointment (convenience endpoint)
+invoicesRouter.post("/from-appointment/:appointmentId", async (c) => {
+  const db = getDb();
+  const appointmentId = c.req.param("appointmentId");
+
+  const [appt] = await db
+    .select({
+      id: appointments.id,
+      clientId: appointments.clientId,
+      serviceId: appointments.serviceId,
+      priceCents: appointments.priceCents,
+      serviceName: services.name,
+      serviceBasePriceCents: services.basePriceCents,
+    })
+    .from(appointments)
+    .innerJoin(services, eq(appointments.serviceId, services.id))
+    .where(eq(appointments.id, appointmentId));
+
+  if (!appt) return c.json({ error: "Appointment not found" }, 404);
+
+  // Check if invoice already exists for this appointment
+  const [existing] = await db
+    .select({ id: invoices.id })
+    .from(invoices)
+    .where(eq(invoices.appointmentId, appointmentId))
+    .limit(1);
+
+  if (existing) {
+    return c.json(
+      { error: "Invoice already exists for this appointment", invoiceId: existing.id },
+      409
+    );
+  }
+
+  const unitPriceCents = appt.priceCents ?? appt.serviceBasePriceCents;
+  const subtotalCents = unitPriceCents;
+  const totalCents = subtotalCents;
+
+  const [invoice] = await db
+    .insert(invoices)
+    .values({
+      appointmentId,
+      clientId: appt.clientId,
+      subtotalCents,
+      taxCents: 0,
+      tipCents: 0,
+      totalCents,
+    })
+    .returning();
+
+  if (!invoice) return c.json({ error: "Failed to create invoice" }, 500);
+
+  const [lineItem] = await db
+    .insert(invoiceLineItems)
+    .values({
+      invoiceId: invoice.id,
+      description: appt.serviceName,
+      quantity: 1,
+      unitPriceCents,
+      totalCents: unitPriceCents,
+    })
+    .returning();
+
+  return c.json({ ...invoice, lineItems: [lineItem] }, 201);
+});
+
+// Update invoice
+invoicesRouter.patch(
+  "/:id",
+  zValidator("json", updateInvoiceSchema),
+  async (c) => {
+    const db = getDb();
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+
+    const [current] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, id));
+    if (!current) return c.json({ error: "Not found" }, 404);
+
+    if (current.status === "void") {
+      return c.json({ error: "Cannot modify a voided invoice" }, 422);
+    }
+
+    const update: Record<string, unknown> = { ...body, updatedAt: new Date() };
+
+    // Auto-set paidAt when marking as paid
+    if (body.status === "paid" && !body.paidAt && !current.paidAt) {
+      update.paidAt = new Date();
+    }
+
+    // Recalculate total if tax or tip changed
+    const newTaxCents = body.taxCents ?? current.taxCents;
+    const newTipCents = body.tipCents ?? current.tipCents;
+    if (body.taxCents !== undefined || body.tipCents !== undefined) {
+      update.totalCents = current.subtotalCents + newTaxCents + newTipCents;
+    }
+
+    const [updated] = await db
+      .update(invoices)
+      .set(update)
+      .where(eq(invoices.id, id))
+      .returning();
+
+    const lineItems = await db
+      .select()
+      .from(invoiceLineItems)
+      .where(eq(invoiceLineItems.invoiceId, id));
+
+    return c.json({ ...updated, lineItems });
+  }
+);

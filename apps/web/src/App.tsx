@@ -3,12 +3,14 @@ import { AppointmentsPage } from "./pages/Appointments.js";
 import { ClientsPage } from "./pages/Clients.js";
 import { ServicesPage } from "./pages/Services.js";
 import { StaffPage } from "./pages/Staff.js";
+import { InvoicesPage } from "./pages/Invoices.js";
 
 const NAV_LINKS = [
   { to: "/", label: "Appointments" },
   { to: "/clients", label: "Clients" },
   { to: "/services", label: "Services" },
   { to: "/staff", label: "Staff" },
+  { to: "/invoices", label: "Invoices" },
 ];
 
 export function App() {
@@ -54,6 +56,7 @@ export function App() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/staff" element={<StaffPage />} />
+          <Route path="/invoices" element={<InvoicesPage />} />
         </Routes>
       </main>
     </div>
