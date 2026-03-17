@@ -1,0 +1,19 @@
+{
+  "name": "groombook",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Open source, self-hostable pet grooming business management platform",
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:migrate": "pnpm --filter @groombook/db migrate"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.4"
+}
