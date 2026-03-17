@@ -30,8 +30,24 @@ export interface Pet {
   dateOfBirth: string | null;
   healthAlerts: string | null;
   groomingNotes: string | null;
+  cutStyle: string | null;
+  shampooPreference: string | null;
+  specialCareNotes: string | null;
+  customFields: Record<string, string>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface GroomingVisitLog {
+  id: string;
+  petId: string;
+  appointmentId: string | null;
+  staffId: string | null;
+  cutStyle: string | null;
+  productsUsed: string | null;
+  notes: string | null;
+  groomedAt: string;
+  createdAt: string;
 }
 
 export interface Service {

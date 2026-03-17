@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Client, Pet } from "@groombook/types";
+import type { Client, GroomingVisitLog, Pet } from "@groombook/types";
 
 // ─── Forms ───────────────────────────────────────────────────────────────────
 
@@ -19,10 +19,24 @@ interface PetForm {
   dob: string;
   healthAlerts: string;
   groomingNotes: string;
+  cutStyle: string;
+  shampooPreference: string;
+  specialCareNotes: string;
+}
+
+interface VisitLogForm {
+  cutStyle: string;
+  productsUsed: string;
+  notes: string;
+  groomedAt: string;
 }
 
 const EMPTY_CLIENT: ClientForm = { name: "", email: "", phone: "", address: "", notes: "" };
-const EMPTY_PET: PetForm = { name: "", species: "Dog", breed: "", weightStr: "", dob: "", healthAlerts: "", groomingNotes: "" };
+const EMPTY_PET: PetForm = {
+  name: "", species: "Dog", breed: "", weightStr: "", dob: "",
+  healthAlerts: "", groomingNotes: "", cutStyle: "", shampooPreference: "", specialCareNotes: "",
+};
+const EMPTY_VISIT_LOG: VisitLogForm = { cutStyle: "", productsUsed: "", notes: "", groomedAt: "" };
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -51,6 +65,15 @@ export function ClientsPage() {
   const [deletingPetId, setDeletingPetId] = useState<string | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
 
+  // Visit log
+  const [logPetId, setLogPetId] = useState<string | null>(null);
+  const [visitLogs, setVisitLogs] = useState<Record<string, GroomingVisitLog[]>>({});
+  const [logsLoading, setLogsLoading] = useState<Record<string, boolean>>({});
+  const [showLogForm, setShowLogForm] = useState(false);
+  const [logForm, setLogForm] = useState<VisitLogForm>(EMPTY_VISIT_LOG);
+  const [logFormError, setLogFormError] = useState<string | null>(null);
+  const [savingLog, setSavingLog] = useState(false);
+
   async function loadClients() {
     const r = await fetch("/api/clients");
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -68,6 +91,17 @@ export function ClientsPage() {
     const r = await fetch(`/api/pets?clientId=${encodeURIComponent(clientId)}`);
     setPets((await r.json()) as Pet[]);
     setPetsLoading(false);
+  }
+
+  async function loadVisitLogs(petId: string) {
+    setLogsLoading((prev) => ({ ...prev, [petId]: true }));
+    const r = await fetch(`/api/grooming-logs?petId=${encodeURIComponent(petId)}`);
+    if (r.ok) {
+      setVisitLogs((prev) => ({ ...prev, [petId]: (r.json() as unknown as Promise<GroomingVisitLog[]>).then ? [] : [] }));
+      const logs = (await r.json()) as GroomingVisitLog[];
+      setVisitLogs((prev) => ({ ...prev, [petId]: logs }));
+    }
+    setLogsLoading((prev) => ({ ...prev, [petId]: false }));
   }
 
   function selectClient(c: Client) {
@@ -138,6 +172,9 @@ export function ClientsPage() {
       dob: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : "",
       healthAlerts: p.healthAlerts ?? "",
       groomingNotes: p.groomingNotes ?? "",
+      cutStyle: p.cutStyle ?? "",
+      shampooPreference: p.shampooPreference ?? "",
+      specialCareNotes: p.specialCareNotes ?? "",
     });
     setPetFormError(null);
     setShowPetForm(true);
@@ -195,6 +232,9 @@ export function ClientsPage() {
         dateOfBirth: petForm.dob ? new Date(petForm.dob).toISOString() : undefined,
         healthAlerts: petForm.healthAlerts || undefined,
         groomingNotes: petForm.groomingNotes || undefined,
+        cutStyle: petForm.cutStyle || undefined,
+        shampooPreference: petForm.shampooPreference || undefined,
+        specialCareNotes: petForm.specialCareNotes || undefined,
       };
       const res = editingPet
         ? await fetch(`/api/pets/${editingPet.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
@@ -209,6 +249,50 @@ export function ClientsPage() {
       setPetFormError(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setSavingPet(false);
+    }
+  }
+
+  // ── Visit Log ──
+
+  function openLogForm(petId: string) {
+    setLogPetId(petId);
+    setLogForm({ ...EMPTY_VISIT_LOG, groomedAt: new Date().toISOString().slice(0, 16) });
+    setLogFormError(null);
+    setShowLogForm(true);
+    // Load existing logs for this pet
+    if (!visitLogs[petId]) {
+      void loadVisitLogs(petId);
+    }
+  }
+
+  async function submitVisitLog(e: React.FormEvent) {
+    e.preventDefault();
+    if (!logPetId) return;
+    setSavingLog(true);
+    setLogFormError(null);
+    try {
+      const body = {
+        petId: logPetId,
+        cutStyle: logForm.cutStyle || undefined,
+        productsUsed: logForm.productsUsed || undefined,
+        notes: logForm.notes || undefined,
+        groomedAt: logForm.groomedAt ? new Date(logForm.groomedAt).toISOString() : undefined,
+      };
+      const res = await fetch("/api/grooming-logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      setShowLogForm(false);
+      await loadVisitLogs(logPetId);
+    } catch (e: unknown) {
+      setLogFormError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSavingLog(false);
     }
   }
 
@@ -301,13 +385,19 @@ export function ClientsPage() {
           ) : pets.length === 0 ? (
             <p style={{ color: "#6b7280", fontSize: 14 }}>No pets on file for this client.</p>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.75rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "0.75rem" }}>
               {pets.map((p) => (
                 <div key={p.id} style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.75rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <strong style={{ fontSize: 15 }}>{p.name}</strong>
                     <div style={{ display: "flex", gap: "0.3rem" }}>
                       <button onClick={() => openEditPet(p)} style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11 }}>Edit</button>
+                      <button
+                        onClick={() => openLogForm(p.id)}
+                        style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11, backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }}
+                      >
+                        Log visit
+                      </button>
                       <button
                         onClick={() => { void deletePet(p.id); }}
                         disabled={deletingPetId === p.id}
@@ -322,16 +412,59 @@ export function ClientsPage() {
                   </div>
                   {p.weightKg != null && <div style={{ fontSize: 12, color: "#6b7280" }}>{p.weightKg} kg</div>}
                   {p.dateOfBirth && <div style={{ fontSize: 12, color: "#6b7280" }}>Born {new Date(p.dateOfBirth).toLocaleDateString()}</div>}
+
                   {p.healthAlerts && (
                     <div style={{ fontSize: 12, marginTop: "0.35rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, padding: "0.3rem 0.5rem", color: "#dc2626" }}>
                       <span style={{ fontWeight: 600 }}>⚠ Health alerts:</span> {p.healthAlerts}
                     </div>
                   )}
-                  {p.groomingNotes && (
-                    <div style={{ fontSize: 12, marginTop: "0.35rem", color: "#374151" }}>
-                      <span style={{ fontWeight: 600 }}>Notes:</span> {p.groomingNotes}
+
+                  {/* Grooming preferences */}
+                  {(p.cutStyle || p.shampooPreference || p.specialCareNotes || p.groomingNotes) && (
+                    <div style={{ marginTop: "0.5rem", borderTop: "1px solid #f3f4f6", paddingTop: "0.4rem" }}>
+                      {p.cutStyle && (
+                        <div style={{ fontSize: 12, color: "#374151" }}>
+                          <span style={{ fontWeight: 600 }}>Cut:</span> {p.cutStyle}
+                        </div>
+                      )}
+                      {p.shampooPreference && (
+                        <div style={{ fontSize: 12, color: "#374151" }}>
+                          <span style={{ fontWeight: 600 }}>Shampoo:</span> {p.shampooPreference}
+                        </div>
+                      )}
+                      {p.specialCareNotes && (
+                        <div style={{ fontSize: 12, marginTop: "0.2rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 4, padding: "0.3rem 0.5rem", color: "#92400e" }}>
+                          <span style={{ fontWeight: 600 }}>Special care:</span> {p.specialCareNotes}
+                        </div>
+                      )}
+                      {p.groomingNotes && (
+                        <div style={{ fontSize: 12, marginTop: "0.2rem", color: "#374151" }}>
+                          <span style={{ fontWeight: 600 }}>Notes:</span> {p.groomingNotes}
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  {/* Visit history (loaded on demand) */}
+                  {(() => {
+                    const logs = visitLogs[p.id];
+                    if (!logs || logs.length === 0) return null;
+                    return (
+                      <div style={{ marginTop: "0.5rem", borderTop: "1px solid #f3f4f6", paddingTop: "0.4rem" }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: "0.25rem" }}>VISIT HISTORY</div>
+                        {logs.slice(0, 3).map((log) => (
+                          <div key={log.id} style={{ fontSize: 11, color: "#374151", marginBottom: "0.2rem", borderLeft: "2px solid #e2e8f0", paddingLeft: "0.4rem" }}>
+                            <span style={{ color: "#6b7280" }}>{new Date(log.groomedAt).toLocaleDateString()}</span>
+                            {log.cutStyle && <span> · {log.cutStyle}</span>}
+                            {log.notes && <span> · {log.notes}</span>}
+                          </div>
+                        ))}
+                        {logs.length > 3 && (
+                          <div style={{ fontSize: 11, color: "#6b7280" }}>+{logs.length - 3} more visits</div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
@@ -397,17 +530,117 @@ export function ClientsPage() {
               <input type="date" value={petForm.dob} onChange={(e) => setPetForm((f) => ({ ...f, dob: e.target.value }))} style={inputStyle} />
             </Field>
             <Field label="Health alerts (allergies, conditions, medications)">
-              <textarea value={petForm.healthAlerts} onChange={(e) => setPetForm((f) => ({ ...f, healthAlerts: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical", borderColor: petForm.healthAlerts ? "#fca5a5" : undefined }} placeholder="e.g. Allergic to lavender, heart condition, on medication X" />
+              <textarea
+                value={petForm.healthAlerts}
+                onChange={(e) => setPetForm((f) => ({ ...f, healthAlerts: e.target.value }))}
+                rows={2}
+                style={{ ...inputStyle, resize: "vertical", borderColor: petForm.healthAlerts ? "#fca5a5" : undefined }}
+                placeholder="e.g. Allergic to lavender, heart condition, on medication X"
+              />
             </Field>
-            <Field label="Grooming notes (optional)">
-              <textarea value={petForm.groomingNotes} onChange={(e) => setPetForm((f) => ({ ...f, groomingNotes: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-            </Field>
+            <div style={{ borderTop: "1px solid #e5e7eb", marginTop: "0.75rem", paddingTop: "0.75rem" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Grooming Preferences
+              </div>
+              <Field label="Preferred cut style (optional)">
+                <input
+                  value={petForm.cutStyle}
+                  onChange={(e) => setPetForm((f) => ({ ...f, cutStyle: e.target.value }))}
+                  style={inputStyle}
+                  placeholder="e.g. Puppy cut, Breed standard, Teddy bear"
+                />
+              </Field>
+              <Field label="Shampoo / product preference (optional)">
+                <input
+                  value={petForm.shampooPreference}
+                  onChange={(e) => setPetForm((f) => ({ ...f, shampooPreference: e.target.value }))}
+                  style={inputStyle}
+                  placeholder="e.g. Hypoallergenic, Oatmeal, Whitening"
+                />
+              </Field>
+              <Field label="Special care instructions (optional)">
+                <textarea
+                  value={petForm.specialCareNotes}
+                  onChange={(e) => setPetForm((f) => ({ ...f, specialCareNotes: e.target.value }))}
+                  rows={2}
+                  style={{ ...inputStyle, resize: "vertical" }}
+                  placeholder="e.g. Needs a pee pad in pen, anxious around dryers, requires muzzle"
+                />
+              </Field>
+              <Field label="General grooming notes (optional)">
+                <textarea value={petForm.groomingNotes} onChange={(e) => setPetForm((f) => ({ ...f, groomingNotes: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+              </Field>
+            </div>
             {petFormError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{petFormError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
               <button type="submit" disabled={savingPet} style={{ ...btnStyle, backgroundColor: "#10b981", color: "#fff", borderColor: "#10b981" }}>
                 {savingPet ? "Saving…" : editingPet ? "Save Changes" : "Add Pet"}
               </button>
               <button type="button" onClick={() => setShowPetForm(false)} style={btnStyle}>Cancel</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ── Visit log modal ── */}
+      {showLogForm && logPetId && (
+        <Modal onClose={() => setShowLogForm(false)}>
+          <h2 style={{ marginTop: 0 }}>Log Grooming Visit</h2>
+          {logsLoading[logPetId] && <p style={{ fontSize: 13, color: "#6b7280" }}>Loading history…</p>}
+          {visitLogs[logPetId] && visitLogs[logPetId].length > 0 && (
+            <div style={{ marginBottom: "1rem" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: "0.4rem", textTransform: "uppercase" }}>Past Visits</div>
+              {visitLogs[logPetId].slice(0, 5).map((log) => (
+                <div key={log.id} style={{ fontSize: 12, borderLeft: "2px solid #e2e8f0", paddingLeft: "0.5rem", marginBottom: "0.3rem", color: "#374151" }}>
+                  <strong>{new Date(log.groomedAt).toLocaleDateString()}</strong>
+                  {log.cutStyle && <span> · {log.cutStyle}</span>}
+                  {log.productsUsed && <span> · {log.productsUsed}</span>}
+                  {log.notes && <div style={{ color: "#6b7280" }}>{log.notes}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          <form onSubmit={submitVisitLog}>
+            <Field label="Date &amp; time">
+              <input
+                type="datetime-local"
+                value={logForm.groomedAt}
+                onChange={(e) => setLogForm((f) => ({ ...f, groomedAt: e.target.value }))}
+                style={inputStyle}
+                required
+              />
+            </Field>
+            <Field label="Cut style (optional)">
+              <input
+                value={logForm.cutStyle}
+                onChange={(e) => setLogForm((f) => ({ ...f, cutStyle: e.target.value }))}
+                style={inputStyle}
+                placeholder="e.g. Puppy cut, Kennel cut"
+              />
+            </Field>
+            <Field label="Products used (optional)">
+              <input
+                value={logForm.productsUsed}
+                onChange={(e) => setLogForm((f) => ({ ...f, productsUsed: e.target.value }))}
+                style={inputStyle}
+                placeholder="e.g. Oatmeal shampoo, leave-in conditioner"
+              />
+            </Field>
+            <Field label="Notes (optional)">
+              <textarea
+                value={logForm.notes}
+                onChange={(e) => setLogForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                style={{ ...inputStyle, resize: "vertical" }}
+                placeholder="Anything notable about this visit"
+              />
+            </Field>
+            {logFormError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{logFormError}</p>}
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+              <button type="submit" disabled={savingLog} style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6" }}>
+                {savingLog ? "Saving…" : "Save Visit Log"}
+              </button>
+              <button type="button" onClick={() => setShowLogForm(false)} style={btnStyle}>Cancel</button>
             </div>
           </form>
         </Modal>

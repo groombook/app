@@ -14,6 +14,10 @@ const createPetSchema = z.object({
   dateOfBirth: z.string().datetime().optional(),
   healthAlerts: z.string().max(2000).optional(),
   groomingNotes: z.string().max(2000).optional(),
+  cutStyle: z.string().max(500).optional(),
+  shampooPreference: z.string().max(500).optional(),
+  specialCareNotes: z.string().max(2000).optional(),
+  customFields: z.record(z.string(), z.string()).optional(),
 });
 
 const updatePetSchema = createPetSchema.partial().omit({ clientId: true });
@@ -42,13 +46,14 @@ petsRouter.get("/:id", async (c) => {
 
 petsRouter.post("/", zValidator("json", createPetSchema), async (c) => {
   const db = getDb();
-  const { weightKg, dateOfBirth, ...rest } = c.req.valid("json");
+  const { weightKg, dateOfBirth, customFields, ...rest } = c.req.valid("json");
   const [row] = await db
     .insert(pets)
     .values({
       ...rest,
       weightKg: weightKg?.toString(),
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+      customFields: customFields ?? {},
     })
     .returning();
   return c.json(row, 201);
@@ -59,13 +64,14 @@ petsRouter.patch(
   zValidator("json", updatePetSchema),
   async (c) => {
     const db = getDb();
-    const { weightKg, dateOfBirth, ...rest } = c.req.valid("json");
+    const { weightKg, dateOfBirth, customFields, ...rest } = c.req.valid("json");
     const [row] = await db
       .update(pets)
       .set({
         ...rest,
         weightKg: weightKg?.toString(),
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+        ...(customFields !== undefined ? { customFields } : {}),
         updatedAt: new Date(),
       })
       .where(eq(pets.id, c.req.param("id")))

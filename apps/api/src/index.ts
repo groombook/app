@@ -11,6 +11,7 @@ import { invoicesRouter } from "./routes/invoices.js";
 import { bookRouter } from "./routes/book.js";
 import { reportsRouter } from "./routes/reports.js";
 import { appointmentGroupsRouter } from "./routes/appointmentGroups.js";
+import { groomingLogsRouter } from "./routes/groomingLogs.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { startReminderScheduler } from "./services/reminders.js";
 
@@ -44,6 +45,7 @@ api.route("/staff", staffRouter);
 api.route("/invoices", invoicesRouter);
 api.route("/reports", reportsRouter);
 api.route("/appointment-groups", appointmentGroupsRouter);
+api.route("/grooming-logs", groomingLogsRouter);
 
 const port = Number(process.env.PORT ?? 3000);
 console.log(`API server listening on port ${port}`);

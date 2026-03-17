@@ -36,6 +36,20 @@
       "when": 1773779939000,
       "tag": "0004_reminder_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773783000000,
+      "tag": "0005_appointment_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1773783600000,
+      "tag": "0006_pet_profile_attributes",
+      "breakpoints": true
     }
   ]
 }

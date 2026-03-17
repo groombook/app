@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -68,6 +69,10 @@ export const pets = pgTable("pets", {
   dateOfBirth: timestamp("date_of_birth"),
   healthAlerts: text("health_alerts"),
   groomingNotes: text("grooming_notes"),
+  cutStyle: text("cut_style"),
+  shampooPreference: text("shampoo_preference"),
+  specialCareNotes: text("special_care_notes"),
+  customFields: jsonb("custom_fields").$type<Record<string, string>>().notNull().default({}),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -194,3 +199,21 @@ export const reminderLogs = pgTable(
   },
   (t) => [unique().on(t.appointmentId, t.reminderType)]
 );
+
+export const groomingVisitLogs = pgTable("grooming_visit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  petId: uuid("pet_id")
+    .notNull()
+    .references(() => pets.id, { onDelete: "cascade" }),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, {
+    onDelete: "set null",
+  }),
+  staffId: uuid("staff_id").references(() => staff.id, {
+    onDelete: "set null",
+  }),
+  cutStyle: text("cut_style"),
+  productsUsed: text("products_used"),
+  notes: text("notes"),
+  groomedAt: timestamp("groomed_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
