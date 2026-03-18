@@ -15,12 +15,13 @@ import {
   clients,
   pets,
 } from "@groombook/db";
+import {
+  generateAvailableSlots,
+  BUSINESS_START_HOUR,
+  BUSINESS_END_HOUR,
+} from "../lib/slots.js";
 
 export const bookRouter = new Hono();
-
-// Business hours (UTC) — 09:00–17:00
-const BUSINESS_START_HOUR = 9;
-const BUSINESS_END_HOUR = 17;
 
 // ─── GET /api/book/services ─────────────────────────────────────────────────
 // Public: list active services for the booking flow
@@ -86,23 +87,12 @@ bookRouter.get("/availability", async (c) => {
       )
     );
 
-  const durationMs = service.durationMinutes * 60_000;
-  const slots: string[] = [];
-  let slotStart = dayStart.getTime();
-
-  while (slotStart + durationMs <= dayEnd.getTime()) {
-    const slotEnd = slotStart + durationMs;
-    const hasGroomer = groomers.some(({ id: groomerId }) =>
-      !booked.some(
-        (a) =>
-          a.staffId === groomerId &&
-          a.startTime.getTime() < slotEnd &&
-          a.endTime.getTime() > slotStart
-      )
-    );
-    if (hasGroomer) slots.push(new Date(slotStart).toISOString());
-    slotStart += durationMs;
-  }
+  const slots = generateAvailableSlots({
+    dateStr,
+    durationMinutes: service.durationMinutes,
+    groomerIds: groomers.map((g) => g.id),
+    booked,
+  });
 
   return c.json(slots);
 });
