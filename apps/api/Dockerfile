@@ -25,19 +25,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/api/package.json apps/api/
-COPY packages/db/package.json packages/db/
-COPY packages/types/package.json packages/types/
-RUN pnpm install --frozen-lockfile --prod
-
+COPY --from=builder /app/apps/api/package.json apps/api/
 COPY --from=builder /app/apps/api/dist apps/api/dist
+COPY --from=builder /app/packages/db/package.json packages/db/
 COPY --from=builder /app/packages/db/dist packages/db/dist
-COPY --from=builder /app/packages/db/package.json packages/db/package.json
+COPY --from=builder /app/packages/types/package.json packages/types/
 COPY --from=builder /app/packages/types/dist packages/types/dist
-COPY --from=builder /app/packages/types/package.json packages/types/package.json
-
-# Remove any TS source files that should not be in the runtime image
-RUN rm -rf packages/db/src packages/types/src
+RUN pnpm install --frozen-lockfile --prod
 
 EXPOSE 3000
 CMD ["node", "apps/api/dist/index.js"]
