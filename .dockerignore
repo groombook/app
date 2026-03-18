@@ -1,0 +1,9 @@
+node_modules
+.git
+*.md
+.github
+apps/e2e
+apps/web/dist
+apps/api/dist
+packages/db/dist
+packages/types/dist
