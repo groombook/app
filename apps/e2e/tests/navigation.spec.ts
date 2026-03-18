@@ -6,13 +6,36 @@ import { test, expect } from "@playwright/test";
  */
 
 test.beforeEach(async ({ page }) => {
-  // Intercept all API calls and return empty defaults so pages render
+  // Intercept all API calls and return empty defaults so pages render.
+  // Reports endpoints need shaped responses (not bare []) to avoid render crashes.
   await page.route("/api/**", (route) => {
     const url = route.request().url();
-    if (url.includes("/api/book/services")) {
-      return route.fulfill({ json: [] });
+    if (url.includes("/api/reports/summary")) {
+      return route.fulfill({
+        json: {
+          from: "",
+          to: "",
+          revenue: { totalCents: 0, paidInvoices: 0 },
+          appointments: { total: 0, completed: 0, cancelled: 0, noShow: 0 },
+          clients: { total: 0, new: 0 },
+        },
+      });
     }
-    // Appointments, clients, services, staff, invoices, reports, etc.
+    if (url.includes("/api/reports/revenue")) {
+      return route.fulfill({ json: { byPeriod: [], byGroomer: [] } });
+    }
+    if (url.includes("/api/reports/appointments")) {
+      return route.fulfill({ json: { byPeriod: [] } });
+    }
+    if (url.includes("/api/reports/services")) {
+      return route.fulfill({ json: { rows: [] } });
+    }
+    if (url.includes("/api/reports/clients")) {
+      return route.fulfill({
+        json: { newClients: [], activeInPeriodCount: 0, churnRisk: [], churnRiskTotal: 0 },
+      });
+    }
+    // Appointments, clients, services, staff, invoices, book, etc.
     return route.fulfill({ json: [] });
   });
 });
