@@ -14,7 +14,9 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 COPY packages/ packages/
 COPY apps/api/ apps/api/
-RUN pnpm --filter @groombook/api build
+RUN pnpm --filter @groombook/types build && \
+    pnpm --filter @groombook/db build && \
+    pnpm --filter @groombook/api build
 
 # Runtime
 FROM node:20-alpine AS runner
@@ -29,8 +31,10 @@ COPY packages/types/package.json packages/types/
 RUN pnpm install --frozen-lockfile --prod
 
 COPY --from=builder /app/apps/api/dist apps/api/dist
-COPY --from=builder /app/packages/db packages/db
-COPY --from=builder /app/packages/types packages/types
+COPY --from=builder /app/packages/db/dist packages/db/dist
+COPY --from=builder /app/packages/db/package.json packages/db/package.json
+COPY --from=builder /app/packages/types/dist packages/types/dist
+COPY --from=builder /app/packages/types/package.json packages/types/package.json
 
 EXPOSE 3000
 CMD ["node", "apps/api/dist/index.js"]
