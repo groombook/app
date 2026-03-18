@@ -16,6 +16,11 @@ import {
 
 export const reportsRouter = new Hono();
 
+reportsRouter.onError((err, c) => {
+  console.error("[reports] unhandled error:", err);
+  return c.json({ error: "Internal server error", message: err.message }, 500);
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseDate(value: string | undefined, fallback: Date): Date {

@@ -176,8 +176,23 @@ export function ReportsPage() {
         fetch(`/api/reports/clients?${qs}`),
       ]);
 
-      if (!summRes.ok || !revRes.ok || !apptRes.ok || !svcRes.ok || !clientRes.ok) {
-        throw new Error("Failed to load report data");
+      const failures = [
+        ["summary", summRes],
+        ["revenue", revRes],
+        ["appointments", apptRes],
+        ["services", svcRes],
+        ["clients", clientRes],
+      ].filter(([, r]) => !(r as Response).ok);
+      if (failures.length > 0) {
+        const details = await Promise.all(
+          failures.map(async ([name, r]) => {
+            const res = r as Response;
+            let body = "";
+            try { body = await res.text(); } catch { /* ignore */ }
+            return `${name} (HTTP ${res.status}${body ? `: ${body.slice(0, 120)}` : ""})`;
+          })
+        );
+        throw new Error(`Failed to load report data — ${details.join(", ")}`);
       }
 
       const [summData, revData, apptData, svcData, clientData] = await Promise.all([
