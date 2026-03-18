@@ -85,8 +85,21 @@ PORT=3000
 ### Running Tests
 
 ```bash
+# Unit tests (vitest)
 pnpm test
+
+# E2E tests (Playwright) — requires the full Docker Compose stack to be running
+docker compose up -d --wait
+pnpm --filter @groombook/e2e test
+
+# Open the Playwright UI (interactive test runner)
+pnpm --filter @groombook/e2e test:ui
+
+# View the last E2E test report
+pnpm --filter @groombook/e2e test:report
 ```
+
+E2E tests target the Docker Compose stack (`http://localhost:8080`). They use API route mocking where needed so happy-path tests are deterministic without requiring seed data.
 
 ### Building
 
