@@ -42,7 +42,7 @@ test.beforeEach(async ({ page }) => {
 
 test("customer portal loads at root", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Paws & Reflect")).toBeVisible();
+  await expect(page.getByRole("navigation").getByText("Paws & Reflect")).toBeVisible();
   await expect(page.locator("nav")).toBeVisible();
 });
 
