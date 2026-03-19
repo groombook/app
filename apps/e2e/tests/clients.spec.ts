@@ -40,18 +40,18 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("clients page shows client list", async ({ page }) => {
-  await page.goto("/clients");
+  await page.goto("/admin/clients");
   await expect(page.getByText("Alice Johnson")).toBeVisible();
   await expect(page.getByText("Bob Williams")).toBeVisible();
 });
 
 test("clients page shows search input", async ({ page }) => {
-  await page.goto("/clients");
+  await page.goto("/admin/clients");
   await expect(page.getByPlaceholder(/search/i)).toBeVisible();
 });
 
 test("clicking a client shows their details", async ({ page }) => {
-  await page.goto("/clients");
+  await page.goto("/admin/clients");
   await expect(page.getByText("Alice Johnson")).toBeVisible();
   await page.getByText("Alice Johnson").click();
   // Email appears in both the list row and the detail panel once selected

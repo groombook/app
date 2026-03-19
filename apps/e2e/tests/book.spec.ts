@@ -46,7 +46,7 @@ test("complete booking flow", async ({ page }) => {
 
   // ── Step 1: Select a service ──────────────────────────────────────────────
 
-  await page.goto("/book");
+  await page.goto("/admin/book");
   await expect(page.getByText("Book an Appointment")).toBeVisible();
   await expect(page.getByText("Choose a service")).toBeVisible();
 
@@ -99,7 +99,7 @@ test("booking form validation — required fields", async ({ page }) => {
     route.fulfill({ json: [MOCK_SLOT] })
   );
 
-  await page.goto("/book");
+  await page.goto("/admin/book");
   await page.getByText("Full Groom").click();
   await page.getByRole("button", { name: /\d{1,2}:\d{2}/ }).first().click();
   await page.getByRole("button", { name: "Continue" }).click();
@@ -115,6 +115,6 @@ test("no services available — shows message", async ({ page }) => {
     route.fulfill({ json: [] })
   );
 
-  await page.goto("/book");
+  await page.goto("/admin/book");
   await expect(page.getByText("No services available")).toBeVisible();
 });
