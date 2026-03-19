@@ -48,38 +48,38 @@ test("customer portal loads at root", async ({ page }) => {
 
 test("admin appointments page loads", async ({ page }) => {
   await page.goto("/admin");
-  await expect(page.getByText("Groom Book")).toBeVisible();
+  await expect(page.getByText("GroomBook")).toBeVisible();
   // Calendar/appointments view renders
   await expect(page.locator("nav")).toBeVisible();
 });
 
 test("admin clients page loads", async ({ page }) => {
   await page.goto("/admin/clients");
-  await expect(page.getByText("Groom Book")).toBeVisible();
+  await expect(page.getByText("GroomBook")).toBeVisible();
   await expect(page.getByRole("link", { name: "Clients" })).toBeVisible();
 });
 
 test("admin services page loads", async ({ page }) => {
   await page.goto("/admin/services");
-  await expect(page.getByText("Groom Book")).toBeVisible();
+  await expect(page.getByText("GroomBook")).toBeVisible();
   await expect(page.getByRole("link", { name: "Services" })).toBeVisible();
 });
 
 test("admin staff page loads", async ({ page }) => {
   await page.goto("/admin/staff");
-  await expect(page.getByText("Groom Book")).toBeVisible();
+  await expect(page.getByText("GroomBook")).toBeVisible();
   await expect(page.getByRole("link", { name: "Staff" })).toBeVisible();
 });
 
 test("admin invoices page loads", async ({ page }) => {
   await page.goto("/admin/invoices");
-  await expect(page.getByText("Groom Book")).toBeVisible();
+  await expect(page.getByText("GroomBook")).toBeVisible();
   await expect(page.getByRole("link", { name: "Invoices" })).toBeVisible();
 });
 
 test("admin reports page loads", async ({ page }) => {
   await page.goto("/admin/reports");
-  await expect(page.getByText("Groom Book")).toBeVisible();
+  await expect(page.getByText("GroomBook")).toBeVisible();
   await expect(page.getByRole("link", { name: "Reports" })).toBeVisible();
 });
 
