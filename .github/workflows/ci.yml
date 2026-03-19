@@ -115,8 +115,17 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      version: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Generate version tag
+        id: version
+        run: |
+          TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Image version: $TAG"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -136,7 +145,7 @@ jobs:
           target: runner
           push: true
           tags: |
-            ghcr.io/groombook/api:${{ github.sha }}
+            ghcr.io/groombook/api:${{ steps.version.outputs.tag }}
             ghcr.io/groombook/api:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -149,7 +158,7 @@ jobs:
           target: migrate
           push: true
           tags: |
-            ghcr.io/groombook/migrate:${{ github.sha }}
+            ghcr.io/groombook/migrate:${{ steps.version.outputs.tag }}
             ghcr.io/groombook/migrate:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -162,7 +171,7 @@ jobs:
           target: seed
           push: true
           tags: |
-            ghcr.io/groombook/seed:${{ github.sha }}
+            ghcr.io/groombook/seed:${{ steps.version.outputs.tag }}
             ghcr.io/groombook/seed:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -174,7 +183,7 @@ jobs:
           file: apps/web/Dockerfile
           push: true
           tags: |
-            ghcr.io/groombook/web:${{ github.sha }}
+            ghcr.io/groombook/web:${{ steps.version.outputs.tag }}
             ghcr.io/groombook/web:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -193,16 +202,21 @@ jobs:
           path: infra
 
       - name: Update image tags
+        env:
+          VERSION: ${{ needs.docker.outputs.version }}
         run: |
           cd infra
-          SHA="${{ github.sha }}"
-          sed -i "s|ghcr.io/groombook/api:[a-f0-9]\{40\}|ghcr.io/groombook/api:${SHA}|g" apps/groombook/api.yaml
-          sed -i "s|ghcr.io/groombook/web:[a-f0-9]\{40\}|ghcr.io/groombook/web:${SHA}|g" apps/groombook/web.yaml
-          sed -i "s|ghcr.io/groombook/migrate:[a-f0-9]\{40\}|ghcr.io/groombook/migrate:${SHA}|g" apps/groombook/migrate-job.yaml
-          sed -i "s|ghcr.io/groombook/seed:[a-f0-9]\{40\}|ghcr.io/groombook/seed:${SHA}|g" apps/groombook/seed-job.yaml
-          sed -i "s|groombook.dev/image-sha: \"[a-f0-9]\{40\}\"|groombook.dev/image-sha: \"${SHA}\"|g" apps/groombook/api.yaml apps/groombook/web.yaml
+          # Match any existing version tag (CalVer YYYY.MM.DD-sha or legacy 40-char SHA)
+          TAG_PATTERN='[0-9a-z][0-9a-z._-]*'
+          sed -i "s|ghcr.io/groombook/api:${TAG_PATTERN}|ghcr.io/groombook/api:${VERSION}|g" apps/groombook/api.yaml
+          sed -i "s|ghcr.io/groombook/web:${TAG_PATTERN}|ghcr.io/groombook/web:${VERSION}|g" apps/groombook/web.yaml
+          sed -i "s|ghcr.io/groombook/migrate:${TAG_PATTERN}|ghcr.io/groombook/migrate:${VERSION}|g" apps/groombook/migrate-job.yaml
+          sed -i "s|ghcr.io/groombook/seed:${TAG_PATTERN}|ghcr.io/groombook/seed:${VERSION}|g" apps/groombook/seed-job.yaml
+          sed -i "s|groombook.dev/image-version: \".*\"|groombook.dev/image-version: \"${VERSION}\"|g" apps/groombook/api.yaml apps/groombook/web.yaml
 
       - name: Commit and push
+        env:
+          VERSION: ${{ needs.docker.outputs.version }}
         run: |
           cd infra
           git config user.name "groombook-ci[bot]"
@@ -212,7 +226,7 @@ jobs:
             exit 0
           fi
           git add -A
-          git commit -m "deploy: update images to groombook/groombook@${GITHUB_SHA::7}
+          git commit -m "deploy: update images to v${VERSION}
 
           Source: https://github.com/groombook/groombook/commit/${GITHUB_SHA}"
           git push
