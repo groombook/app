@@ -57,6 +57,20 @@
       "when": 1773820800000,
       "tag": "0007_tip_splitting",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1773907200000,
+      "tag": "0008_business_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1773993600000,
+      "tag": "0009_client_soft_delete",
+      "breakpoints": true
     }
   ]
 }

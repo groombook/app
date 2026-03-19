@@ -13,12 +13,15 @@ const createClientSchema = z.object({
   notes: z.string().max(2000).optional(),
 });
 
-const updateClientSchema = createClientSchema.partial();
 
-// List all clients
+// List clients — defaults to active only, ?includeDisabled=true shows all
 clientsRouter.get("/", async (c) => {
   const db = getDb();
-  const rows = await db.select().from(clients).orderBy(clients.name);
+  const includeDisabled = c.req.query("includeDisabled") === "true";
+  const query = includeDisabled
+    ? db.select().from(clients).orderBy(clients.name)
+    : db.select().from(clients).where(eq(clients.status, "active")).orderBy(clients.name);
+  const rows = await query;
   return c.json(rows);
 });
 
@@ -41,16 +44,31 @@ clientsRouter.post("/", zValidator("json", createClientSchema), async (c) => {
   return c.json(row, 201);
 });
 
-// Update a client
+// Update a client (including status changes)
+const patchClientSchema = createClientSchema.partial().extend({
+  status: z.enum(["active", "disabled"]).optional(),
+});
+
 clientsRouter.patch(
   "/:id",
-  zValidator("json", updateClientSchema),
+  zValidator("json", patchClientSchema),
   async (c) => {
     const db = getDb();
     const body = c.req.valid("json");
+    const now = new Date();
+
+    const setValues: Record<string, unknown> = { ...body, updatedAt: now };
+
+    // When disabling, set disabledAt; when re-enabling, clear it
+    if (body.status === "disabled") {
+      setValues.disabledAt = now;
+    } else if (body.status === "active") {
+      setValues.disabledAt = null;
+    }
+
     const [row] = await db
       .update(clients)
-      .set({ ...body, updatedAt: new Date() })
+      .set(setValues)
       .where(eq(clients.id, c.req.param("id")))
       .returning();
     if (!row) return c.json({ error: "Not found" }, 404);
@@ -58,8 +76,16 @@ clientsRouter.patch(
   }
 );
 
-// Delete a client
+// Delete a client — requires ?confirm=true query param
 clientsRouter.delete("/:id", async (c) => {
+  const confirm = c.req.query("confirm");
+  if (confirm !== "true") {
+    return c.json(
+      { error: "Permanent deletion requires ?confirm=true. Consider disabling the client instead." },
+      400
+    );
+  }
+
   const db = getDb();
   const [row] = await db
     .delete(clients)

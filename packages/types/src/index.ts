@@ -8,6 +8,8 @@ export type AppointmentStatus =
   | "cancelled"
   | "no_show";
 
+export type ClientStatus = "active" | "disabled";
+
 export interface Client {
   id: string;
   name: string;
@@ -16,6 +18,8 @@ export interface Client {
   address: string | null;
   notes: string | null;
   emailOptOut: boolean;
+  status: ClientStatus;
+  disabledAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

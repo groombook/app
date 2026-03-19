@@ -42,6 +42,11 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "other",
 ]);
 
+export const clientStatusEnum = pgEnum("client_status", [
+  "active",
+  "disabled",
+]);
+
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
 export const clients = pgTable("clients", {
@@ -53,6 +58,8 @@ export const clients = pgTable("clients", {
   notes: text("notes"),
   // Set to true if the client has opted out of email reminders/notifications
   emailOptOut: boolean("email_opt_out").notNull().default(false),
+  status: clientStatusEnum("status").notNull().default("active"),
+  disabledAt: timestamp("disabled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

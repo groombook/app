@@ -64,6 +64,10 @@ export function ClientsPage() {
   const [savingPet, setSavingPet] = useState(false);
   const [deletingPetId, setDeletingPetId] = useState<string | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
+  const [disablingClient, setDisablingClient] = useState(false);
+  const [showDisabled, setShowDisabled] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
 
   // Visit log
   const [logPetId, setLogPetId] = useState<string | null>(null);
@@ -74,17 +78,18 @@ export function ClientsPage() {
   const [logFormError, setLogFormError] = useState<string | null>(null);
   const [savingLog, setSavingLog] = useState(false);
 
-  async function loadClients() {
-    const r = await fetch("/api/clients");
+  async function loadClients(includeDisabled = false) {
+    const url = includeDisabled ? "/api/clients?includeDisabled=true" : "/api/clients";
+    const r = await fetch(url);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     setClients((await r.json()) as Client[]);
   }
 
   useEffect(() => {
-    loadClients()
+    loadClients(showDisabled)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Unknown error"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [showDisabled]);
 
   async function loadPets(clientId: string) {
     setPetsLoading(true);
@@ -146,7 +151,7 @@ export function ClientsPage() {
       }
       const updated = (await res.json()) as Client;
       setShowClientForm(false);
-      await loadClients();
+      await loadClients(showDisabled);
       if (editingClient) setSelectedClient(updated);
     } catch (e: unknown) {
       setClientFormError(e instanceof Error ? e.message : "Failed to save");
@@ -198,18 +203,64 @@ export function ClientsPage() {
     }
   }
 
+  async function disableClient(clientId: string) {
+    if (!window.confirm("Disable this client? They will be hidden from the client list and booking flow.")) return;
+    setDisablingClient(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "disabled" }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const updated = (await res.json()) as Client;
+      setSelectedClient(updated);
+      await loadClients(showDisabled);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to disable client");
+    } finally {
+      setDisablingClient(false);
+    }
+  }
+
+  async function enableClient(clientId: string) {
+    setDisablingClient(true);
+    try {
+      const res = await fetch(`/api/clients/${clientId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const updated = (await res.json()) as Client;
+      setSelectedClient(updated);
+      await loadClients(showDisabled);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to re-enable client");
+    } finally {
+      setDisablingClient(false);
+    }
+  }
+
   async function deleteClient(clientId: string) {
-    if (!window.confirm("Delete this client and all their pets? This cannot be undone.")) return;
     setDeletingClient(true);
     try {
-      const res = await fetch(`/api/clients/${clientId}`, { method: "DELETE" });
+      const res = await fetch(`/api/clients/${clientId}?confirm=true`, { method: "DELETE" });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
       }
       setSelectedClient(null);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmName("");
       setPets([]);
-      await loadClients();
+      await loadClients(showDisabled);
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Failed to delete client");
     } finally {
@@ -324,8 +375,16 @@ export function ClientsPage() {
           placeholder="Search…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ ...inputStyle, marginBottom: "0.75rem" }}
+          style={{ ...inputStyle, marginBottom: "0.5rem" }}
         />
+        <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: 12, color: "#6b7280", marginBottom: "0.75rem", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={showDisabled}
+            onChange={(e) => setShowDisabled(e.target.checked)}
+          />
+          Show disabled clients
+        </label>
         {filtered.length === 0 && <p style={{ color: "#6b7280", fontSize: 14 }}>No clients found.</p>}
         {filtered.map((c) => (
           <div
@@ -337,7 +396,14 @@ export function ClientsPage() {
               border: selectedClient?.id === c.id ? "1px solid #bfdbfe" : "1px solid transparent",
             }}
           >
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
+            <div style={{ fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              {c.name}
+              {c.status === "disabled" && (
+                <span style={{ fontSize: 10, background: "#fef2f2", color: "#dc2626", padding: "0.1rem 0.4rem", borderRadius: 4, fontWeight: 500 }}>
+                  Disabled
+                </span>
+              )}
+            </div>
             {c.email && <div style={{ fontSize: 12, color: "#6b7280" }}>{c.email}</div>}
             {c.phone && <div style={{ fontSize: 12, color: "#6b7280" }}>{c.phone}</div>}
           </div>
@@ -349,7 +415,14 @@ export function ClientsPage() {
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "flex-start", marginBottom: "1rem" }}>
             <div>
-              <h2 style={{ margin: "0 0 0.2rem" }}>{selectedClient.name}</h2>
+              <h2 style={{ margin: "0 0 0.2rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {selectedClient.name}
+                {selectedClient.status === "disabled" && (
+                  <span style={{ fontSize: 12, background: "#fef2f2", color: "#dc2626", padding: "0.15rem 0.5rem", borderRadius: 4, fontWeight: 500 }}>
+                    Disabled
+                  </span>
+                )}
+              </h2>
               {selectedClient.email && <div style={{ fontSize: 14, color: "#6b7280" }}>{selectedClient.email}</div>}
               {selectedClient.phone && <div style={{ fontSize: 14, color: "#6b7280" }}>{selectedClient.phone}</div>}
               {selectedClient.address && <div style={{ fontSize: 13, color: "#6b7280" }}>{selectedClient.address}</div>}
@@ -364,17 +437,33 @@ export function ClientsPage() {
                 href={`/?impersonate=true&clientName=${encodeURIComponent(selectedClient.name)}&staffName=${encodeURIComponent("Staff")}&reason=${encodeURIComponent(`Support view for ${selectedClient.name}`)}`}
                 style={{ ...btnStyle, backgroundColor: "#fef3c7", color: "#92400e", borderColor: "#fde68a", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
               >
-                👁 View as Customer
+                View as Customer
               </a>
               <button onClick={() => openEditClient(selectedClient)} style={btnStyle}>
                 Edit client
               </button>
+              {selectedClient.status === "active" ? (
+                <button
+                  onClick={() => { void disableClient(selectedClient.id); }}
+                  disabled={disablingClient}
+                  style={{ ...btnStyle, color: "#d97706", borderColor: "#fde68a" }}
+                >
+                  {disablingClient ? "Disabling…" : "Disable client"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => { void enableClient(selectedClient.id); }}
+                  disabled={disablingClient}
+                  style={{ ...btnStyle, color: "#059669", borderColor: "#6ee7b7" }}
+                >
+                  {disablingClient ? "Enabling…" : "Re-enable client"}
+                </button>
+              )}
               <button
-                onClick={() => { void deleteClient(selectedClient.id); }}
-                disabled={deletingClient}
+                onClick={() => { setShowDeleteConfirm(true); setDeleteConfirmName(""); }}
                 style={{ ...btnStyle, color: "#dc2626", borderColor: "#fca5a5" }}
               >
-                {deletingClient ? "Deleting…" : "Delete client"}
+                Delete permanently
               </button>
             </div>
           </div>
@@ -649,6 +738,42 @@ export function ClientsPage() {
               <button type="button" onClick={() => setShowLogForm(false)} style={btnStyle}>Cancel</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* ── Delete confirmation modal ── */}
+      {showDeleteConfirm && selectedClient && (
+        <Modal onClose={() => setShowDeleteConfirm(false)}>
+          <h2 style={{ marginTop: 0, color: "#dc2626" }}>Permanently Delete Client</h2>
+          <p style={{ fontSize: 14, color: "#374151" }}>
+            This will permanently delete <strong>{selectedClient.name}</strong> and all their pets. This action cannot be undone.
+          </p>
+          <p style={{ fontSize: 14, color: "#374151" }}>
+            Consider disabling the client instead, which preserves their data for reporting.
+          </p>
+          <Field label={`Type "${selectedClient.name}" to confirm`}>
+            <input
+              value={deleteConfirmName}
+              onChange={(e) => setDeleteConfirmName(e.target.value)}
+              style={inputStyle}
+              placeholder={selectedClient.name}
+            />
+          </Field>
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+            <button
+              onClick={() => { void deleteClient(selectedClient.id); }}
+              disabled={deletingClient || deleteConfirmName !== selectedClient.name}
+              style={{
+                ...btnStyle,
+                backgroundColor: deleteConfirmName === selectedClient.name ? "#dc2626" : "#f3f4f6",
+                color: deleteConfirmName === selectedClient.name ? "#fff" : "#9ca3af",
+                borderColor: deleteConfirmName === selectedClient.name ? "#dc2626" : "#d1d5db",
+              }}
+            >
+              {deletingClient ? "Deleting…" : "Delete permanently"}
+            </button>
+            <button type="button" onClick={() => setShowDeleteConfirm(false)} style={btnStyle}>Cancel</button>
+          </div>
         </Modal>
       )}
     </div>

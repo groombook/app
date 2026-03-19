@@ -160,11 +160,11 @@ bookRouter.post(
       );
     }
 
-    // Find or create client by email
+    // Find or create client by email (skip disabled clients)
     let [client] = await db
       .select()
       .from(clients)
-      .where(eq(clients.email, body.clientEmail));
+      .where(and(eq(clients.email, body.clientEmail), eq(clients.status, "active")));
 
     if (!client) {
       const inserted = await db
