@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { PawPrint, Heart, Scissors, Syringe, AlertTriangle, CheckCircle, Clock, Upload, ChevronDown, ChevronRight, Edit3 } from "lucide-react";
+import { PawPrint, Heart, Scissors, Syringe, AlertTriangle, CheckCircle, Clock, Upload, Edit3 } from "lucide-react";
 import { PETS, PAST_APPOINTMENTS } from "../mockData.js";
-import type { Pet, Vaccination } from "../mockData.js";
+import type { Pet } from "../mockData.js";
 
 interface Props {
   readOnly: boolean;

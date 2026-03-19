@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Share2, Calendar, Smile, Frown, Meh, AlertCircle, ChevronRight } from "lucide-react";
+import { FileText, Share2, Calendar, Smile, Meh, AlertCircle, ChevronRight } from "lucide-react";
 import { REPORT_CARDS } from "../mockData.js";
 import type { ReportCard } from "../mockData.js";
 

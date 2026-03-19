@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CreditCard, Download, DollarSign, Package, Zap, Check, Plus, Trash2 } from "lucide-react";
+import { CreditCard, Download, DollarSign, Package, Zap, Plus, Trash2 } from "lucide-react";
 import { INVOICES, SAVED_PAYMENT_METHODS, PREPAID_PACKAGES } from "../mockData.js";
 
 interface Props {
