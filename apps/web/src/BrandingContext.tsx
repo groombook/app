@@ -32,7 +32,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
     fetch("/api/branding")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data) setBranding(data);
+        if (data && typeof data.businessName === "string") setBranding(data);
       })
       .catch(() => {});
   }, []);

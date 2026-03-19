@@ -13,6 +13,18 @@ beforeEach(() => {
         json: async () => ({ authDisabled: false }),
       } as Response);
     }
+    if (url === "/api/branding") {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          businessName: "GroomBook",
+          primaryColor: "#4f8a6f",
+          accentColor: "#8b7355",
+          logoBase64: null,
+          logoMimeType: null,
+        }),
+      } as Response);
+    }
     return Promise.resolve({
       ok: true,
       json: async () => [],
@@ -100,6 +112,18 @@ describe("Dev login selector", () => {
           }),
         } as Response);
       }
+      if (url === "/api/branding") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            businessName: "GroomBook",
+            primaryColor: "#4f8a6f",
+            accentColor: "#8b7355",
+            logoBase64: null,
+            logoMimeType: null,
+          }),
+        } as Response);
+      }
       return Promise.resolve({ ok: true, json: async () => [] } as Response);
     }) as unknown as typeof fetch;
 
@@ -123,6 +147,18 @@ describe("Dev login selector", () => {
         return Promise.resolve({
           ok: true,
           json: async () => ({ authDisabled: true }),
+        } as Response);
+      }
+      if (url === "/api/branding") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            businessName: "GroomBook",
+            primaryColor: "#4f8a6f",
+            accentColor: "#8b7355",
+            logoBase64: null,
+            logoMimeType: null,
+          }),
         } as Response);
       }
       return Promise.resolve({ ok: true, json: async () => [] } as Response);

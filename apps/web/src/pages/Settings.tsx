@@ -10,7 +10,7 @@ interface SettingsForm {
 }
 
 export function SettingsPage() {
-  const { branding, refresh } = useBranding();
+  const { refresh } = useBranding();
   const [form, setForm] = useState<SettingsForm>({
     businessName: "",
     primaryColor: "#4f8a6f",
