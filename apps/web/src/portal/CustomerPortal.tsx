@@ -1,4 +1,4 @@
-import { useState, useReducer, useCallback } from "react";
+import { useState, useReducer, useCallback, useEffect } from "react";
 import {
   Home, Calendar, PawPrint, FileText, CreditCard, MessageSquare,
   Settings, Eye, LogOut, Clock, Shield,
@@ -100,6 +100,27 @@ export function CustomerPortal() {
   const [showImpersonationSetup, setShowImpersonationSetup] = useState(false);
   const [impersonation, dispatchImpersonation] = useReducer(impersonationReducer, null);
   const { branding } = useBranding();
+
+  // Auto-start impersonation from URL params (staff flow from admin panel).
+  // Runs once on mount only — impersonation state is managed by the reducer after init.
+  const [impersonationInitDone, setImpersonationInitDone] = useState(false);
+  useEffect(() => {
+    if (impersonationInitDone) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("impersonate") === "true") {
+      const clientName = params.get("clientName") || "Unknown Customer";
+      const reason = params.get("reason") || `Viewing portal as ${clientName}`;
+      const staffName = params.get("staffName") || "Staff";
+      dispatchImpersonation({
+        type: "START",
+        staffName,
+        staffRole: "Admin",
+        reason,
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    setImpersonationInitDone(true);
+  }, [impersonationInitDone]);
 
   const logPageView = useCallback((page: string) => {
     if (impersonation?.active) {

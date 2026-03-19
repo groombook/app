@@ -360,6 +360,12 @@ export function ClientsPage() {
               )}
             </div>
             <div style={{ display: "flex", gap: "0.5rem", marginLeft: "auto" }}>
+              <a
+                href={`/?impersonate=true&clientName=${encodeURIComponent(selectedClient.name)}&staffName=${encodeURIComponent("Staff")}&reason=${encodeURIComponent(`Support view for ${selectedClient.name}`)}`}
+                style={{ ...btnStyle, backgroundColor: "#fef3c7", color: "#92400e", borderColor: "#fde68a", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+              >
+                👁 View as Customer
+              </a>
               <button onClick={() => openEditClient(selectedClient)} style={btnStyle}>
                 Edit client
               </button>
