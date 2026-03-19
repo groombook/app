@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, act } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../App.js";
 
@@ -11,30 +11,28 @@ beforeEach(() => {
   } as unknown as Response);
 });
 
-async function renderApp(route = "/") {
-  await act(async () => {
-    render(
-      <MemoryRouter initialEntries={[route]}>
-        <App />
-      </MemoryRouter>
-    );
-  });
+function renderApp(route = "/admin") {
+  render(
+    <MemoryRouter initialEntries={[route]}>
+      <App />
+    </MemoryRouter>
+  );
   return screen.getByRole("navigation");
 }
 
 describe("App navigation", () => {
-  it("renders the Groom Book brand", async () => {
-    const nav = await renderApp();
+  it("renders the Groom Book brand", () => {
+    const nav = renderApp();
     expect(within(nav).getByText("Groom Book")).toBeInTheDocument();
   });
 
-  it("renders the Book CTA button", async () => {
-    const nav = await renderApp();
+  it("renders the Book CTA button", () => {
+    const nav = renderApp();
     expect(within(nav).getByText("Book")).toBeInTheDocument();
   });
 
-  it("renders all primary nav links", async () => {
-    const nav = await renderApp();
+  it("renders all primary nav links", () => {
+    const nav = renderApp();
     const expectedLinks = [
       "Appointments",
       "Clients",
@@ -49,10 +47,20 @@ describe("App navigation", () => {
     });
   });
 
-  it("highlights the active route link", async () => {
-    const nav = await renderApp("/clients");
+  it("highlights the active route link", () => {
+    const nav = renderApp("/admin/clients");
     const clientsLink = within(nav).getByText("Clients");
     // Active links use fontWeight 600
     expect(clientsLink).toHaveStyle({ fontWeight: "600" });
+  });
+
+  it("renders customer portal at root", () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>
+    );
+    // Customer portal should render at root - no admin nav present
+    expect(screen.queryByText("Groom Book")).not.toBeInTheDocument();
   });
 });

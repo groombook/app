@@ -10,14 +10,14 @@ import { GroupBookingPage } from "./pages/GroupBooking.js";
 import { CustomerPortal } from "./portal/CustomerPortal.js";
 
 const NAV_LINKS = [
-  { to: "/", label: "Appointments" },
-  { to: "/clients", label: "Clients" },
-  { to: "/services", label: "Services" },
-  { to: "/staff", label: "Staff" },
-  { to: "/invoices", label: "Invoices" },
-  { to: "/group-bookings", label: "Group Bookings" },
-  { to: "/reports", label: "Reports" },
-  { to: "/portal", label: "Customer Portal" },
+  { to: "/admin", label: "Appointments" },
+  { to: "/admin/clients", label: "Clients" },
+  { to: "/admin/services", label: "Services" },
+  { to: "/admin/staff", label: "Staff" },
+  { to: "/admin/invoices", label: "Invoices" },
+  { to: "/admin/group-bookings", label: "Group Bookings" },
+  { to: "/admin/reports", label: "Reports" },
+  { to: "/", label: "Customer Portal" },
 ];
 
 function AdminLayout() {
@@ -36,7 +36,7 @@ function AdminLayout() {
       >
         <strong style={{ marginRight: "1rem", fontSize: 16 }}>Groom Book</strong>
         <Link
-          to="/book"
+          to="/admin/book"
           style={{
             padding: "0.35rem 0.75rem",
             borderRadius: 4,
@@ -52,7 +52,9 @@ function AdminLayout() {
         </Link>
         {NAV_LINKS.map(({ to, label }) => {
           const active =
-            to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
+            to === "/admin"
+              ? location.pathname === "/admin"
+              : location.pathname.startsWith(to);
           return (
             <Link
               key={to}
@@ -91,9 +93,13 @@ function AdminLayout() {
 export function App() {
   const location = useLocation();
 
-  if (location.pathname.startsWith("/portal")) {
-    return <CustomerPortal />;
+  if (location.pathname.startsWith("/admin")) {
+    return (
+      <Routes>
+        <Route path="/admin/*" element={<AdminLayout />} />
+      </Routes>
+    );
   }
 
-  return <AdminLayout />;
+  return <CustomerPortal />;
 }
