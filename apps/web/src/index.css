@@ -10,11 +10,13 @@ body {
   font-size: 16px;
   line-height: 1.5;
   color: #1a202c;
-  background: #f7fafc;
+  background: #f0f2f5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
-  color: #4f8a6f;
+  color: #3d7a5f;
   text-decoration: none;
 }
 
@@ -25,4 +27,48 @@ a:hover {
 h1 {
   font-size: 1.5rem;
   margin-top: 0;
+  letter-spacing: -0.01em;
+}
+
+h2, h3, h4 {
+  letter-spacing: -0.01em;
+}
+
+/* ─── Admin button polish ─── */
+button {
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+/* ─── Admin input / select focus states ─── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #4f8a6f;
+  box-shadow: 0 0 0 3px rgba(79, 138, 111, 0.12);
+}
+
+/* ─── Admin card-like containers (borders get subtle shadow) ─── */
+[style*="border: 1px solid"] {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* ─── Scrollbar polish ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

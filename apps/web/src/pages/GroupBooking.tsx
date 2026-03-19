@@ -287,7 +287,7 @@ function NewGroupBookingForm({
           <button
             type="submit"
             disabled={saving}
-            style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6" }}
+            style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}
           >
             {saving ? "Booking…" : "Create Group Booking"}
           </button>
@@ -471,7 +471,7 @@ export function GroupBookingPage() {
         </select>
         <button
           onClick={() => setShowCreate(true)}
-          style={{ ...btnStyle, marginLeft: "auto", backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6" }}
+          style={{ ...btnStyle, marginLeft: "auto", backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}
         >
           + New Group Booking
         </button>
@@ -558,25 +558,26 @@ function Field({
 }
 
 const btnStyle: React.CSSProperties = {
-  padding: "0.35rem 0.75rem",
+  padding: "0.4rem 0.85rem",
   border: "1px solid #d1d5db",
-  borderRadius: 4,
-  background: "#f9fafb",
+  borderRadius: 6,
+  background: "#fff",
   cursor: "pointer",
   fontSize: 13,
+  fontWeight: 500,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "0.4rem 0.5rem",
+  padding: "0.45rem 0.6rem",
   border: "1px solid #d1d5db",
-  borderRadius: 4,
+  borderRadius: 6,
   fontSize: 13,
   boxSizing: "border-box",
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "0.45rem 1rem",
-  borderBottom: "1px solid #f1f5f9",
+  padding: "0.5rem 1rem",
+  borderBottom: "1px solid #f3f4f6",
   color: "#374151",
 };

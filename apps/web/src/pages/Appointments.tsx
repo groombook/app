@@ -291,7 +291,7 @@ export function AppointmentsPage() {
         </button>
         <button
           onClick={() => openNewForm()}
-          style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", marginLeft: "auto", borderColor: "#3b82f6" }}
+          style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", marginLeft: "auto", borderColor: "#4f8a6f" }}
         >
           + New Appointment
         </button>
@@ -370,11 +370,11 @@ export function AppointmentsPage() {
         {days.map((day, i) => {
           const isToday = formatDate(day) === formatDate(new Date());
           return (
-            <div key={i} style={{ border: "1px solid #e2e8f0", borderRadius: 6, overflow: "hidden", minHeight: 180 }}>
+            <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", minHeight: 180, background: "#fff", boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)" }}>
               <div
                 style={{
-                  padding: "0.35rem 0.5rem",
-                  background: isToday ? "#3b82f6" : "#f8fafc",
+                  padding: "0.4rem 0.6rem",
+                  background: isToday ? "linear-gradient(135deg, #4f8a6f, #3d7a5f)" : "#f8fafc",
                   color: isToday ? "#fff" : "#374151",
                   fontWeight: 600,
                   fontSize: 12,
@@ -594,7 +594,7 @@ export function AppointmentsPage() {
               <button
                 type="submit"
                 disabled={saving}
-                style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6" }}
+                style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}
               >
                 {saving
                   ? "Saving…"
@@ -841,19 +841,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const btnStyle: React.CSSProperties = {
-  padding: "0.35rem 0.75rem",
+  padding: "0.4rem 0.85rem",
   border: "1px solid #d1d5db",
-  borderRadius: 4,
-  background: "#f9fafb",
+  borderRadius: 6,
+  background: "#fff",
   cursor: "pointer",
   fontSize: 13,
+  fontWeight: 500,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "0.4rem 0.5rem",
+  padding: "0.45rem 0.6rem",
   border: "1px solid #d1d5db",
-  borderRadius: 4,
+  borderRadius: 6,
   fontSize: 14,
   boxSizing: "border-box",
 };

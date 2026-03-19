@@ -78,7 +78,7 @@ export function StaffPage() {
     <div style={{ fontFamily: "system-ui, sans-serif" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
         <h1 style={{ margin: 0 }}>Staff</h1>
-        <button onClick={openNew} style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6", marginLeft: "auto" }}>
+        <button onClick={openNew} style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f", marginLeft: "auto" }}>
           + Add Staff
         </button>
       </div>
@@ -86,11 +86,12 @@ export function StaffPage() {
       {staff.length === 0 ? (
         <p>No staff members yet.</p>
       ) : (
+        <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", overflow: "hidden", boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr style={{ background: "#f8fafc" }}>
               {["Name", "Email", "Role", "Status", ""].map((h) => (
-                <th key={h} style={{ textAlign: "left", padding: "0.5rem 0.75rem", borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                <th key={h} style={{ textAlign: "left", padding: "0.55rem 0.75rem", borderBottom: "1px solid #e5e7eb", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -113,6 +114,7 @@ export function StaffPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {showForm && (
@@ -143,7 +145,7 @@ export function StaffPage() {
               </div>
               {formError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{formError}</p>}
               <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-                <button type="submit" disabled={saving} style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6" }}>
+                <button type="submit" disabled={saving} style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}>
                   {saving ? "Saving…" : editing ? "Save Changes" : "Add Staff"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)} style={btnStyle}>Cancel</button>
@@ -156,7 +158,7 @@ export function StaffPage() {
   );
 }
 
-const btnStyle: React.CSSProperties = { padding: "0.35rem 0.75rem", border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "pointer", fontSize: 13 };
-const inputStyle: React.CSSProperties = { width: "100%", padding: "0.4rem 0.5rem", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 14, boxSizing: "border-box" };
+const btnStyle: React.CSSProperties = { padding: "0.4rem 0.85rem", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 };
+const inputStyle: React.CSSProperties = { width: "100%", padding: "0.45rem 0.6rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" };
 const labelStyle: React.CSSProperties = { display: "block", fontWeight: 600, marginBottom: "0.25rem", fontSize: 13, color: "#374151" };
-const tdStyle: React.CSSProperties = { padding: "0.5rem 0.75rem", borderBottom: "1px solid #e2e8f0" };
+const tdStyle: React.CSSProperties = { padding: "0.55rem 0.75rem", borderBottom: "1px solid #f3f4f6" };

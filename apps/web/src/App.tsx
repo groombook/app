@@ -23,29 +23,42 @@ const NAV_LINKS = [
 function AdminLayout() {
   const location = useLocation();
   return (
-    <div style={{ minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", fontFamily: "system-ui, sans-serif", background: "#f0f2f5" }}>
       <nav
         style={{
-          padding: "0.75rem 1rem",
+          padding: "0 1.25rem",
+          height: 52,
           borderBottom: "1px solid #e2e8f0",
           display: "flex",
           alignItems: "center",
           gap: "0.25rem",
           background: "#fff",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)",
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
         }}
       >
-        <strong style={{ marginRight: "1rem", fontSize: 16 }}>Groom Book</strong>
+        <strong style={{
+          marginRight: "1.25rem",
+          fontSize: 17,
+          color: "#1a202c",
+          letterSpacing: "-0.02em",
+        }}>
+          <span style={{ color: "#4f8a6f" }}>Groom</span>Book
+        </strong>
         <Link
           to="/admin/book"
           style={{
-            padding: "0.35rem 0.75rem",
-            borderRadius: 4,
+            padding: "0.4rem 0.85rem",
+            borderRadius: 6,
             textDecoration: "none",
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: 600,
             color: "#fff",
-            background: "#4f8a6f",
+            background: "linear-gradient(135deg, #4f8a6f, #3d7a5f)",
             marginRight: "0.5rem",
+            boxShadow: "0 1px 2px rgba(79, 138, 111, 0.3)",
           }}
         >
           Book
@@ -60,13 +73,13 @@ function AdminLayout() {
               key={to}
               to={to}
               style={{
-                padding: "0.35rem 0.75rem",
-                borderRadius: 4,
+                padding: "0.4rem 0.75rem",
+                borderRadius: 6,
                 textDecoration: "none",
-                fontSize: 14,
-                fontWeight: active ? 600 : 400,
-                color: active ? "#1d4ed8" : "#374151",
-                background: active ? "#eff6ff" : "transparent",
+                fontSize: 13,
+                fontWeight: active ? 600 : 500,
+                color: active ? "#2d6a4f" : "#4b5563",
+                background: active ? "#ecfdf5" : "transparent",
               }}
             >
               {label}
@@ -74,7 +87,7 @@ function AdminLayout() {
           );
         })}
       </nav>
-      <main style={{ padding: "1rem 1.5rem" }}>
+      <main style={{ padding: "1.25rem 1.5rem" }}>
         <Routes>
           <Route path="/" element={<AppointmentsPage />} />
           <Route path="/clients" element={<ClientsPage />} />

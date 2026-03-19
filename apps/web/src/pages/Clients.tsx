@@ -315,7 +315,7 @@ export function ClientsPage() {
           <h1 style={{ margin: 0, fontSize: 20 }}>Clients</h1>
           <button
             onClick={openNewClient}
-            style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6", marginLeft: "auto", padding: "0.25rem 0.6rem" }}
+            style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f", marginLeft: "auto", padding: "0.3rem 0.7rem" }}
           >
             + New
           </button>
@@ -387,7 +387,7 @@ export function ClientsPage() {
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "0.75rem" }}>
               {pets.map((p) => (
-                <div key={p.id} style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.75rem" }}>
+                <div key={p.id} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: "0.85rem", background: "#fff", boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <strong style={{ fontSize: 15 }}>{p.name}</strong>
                     <div style={{ display: "flex", gap: "0.3rem" }}>
@@ -498,7 +498,7 @@ export function ClientsPage() {
             </Field>
             {clientFormError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{clientFormError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-              <button type="submit" disabled={savingClient} style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6" }}>
+              <button type="submit" disabled={savingClient} style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}>
                 {savingClient ? "Saving…" : editingClient ? "Save Changes" : "Create Client"}
               </button>
               <button type="button" onClick={() => setShowClientForm(false)} style={btnStyle}>Cancel</button>
@@ -637,7 +637,7 @@ export function ClientsPage() {
             </Field>
             {logFormError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{logFormError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-              <button type="submit" disabled={savingLog} style={{ ...btnStyle, backgroundColor: "#3b82f6", color: "#fff", borderColor: "#3b82f6" }}>
+              <button type="submit" disabled={savingLog} style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}>
                 {savingLog ? "Saving…" : "Save Visit Log"}
               </button>
               <button type="button" onClick={() => setShowLogForm(false)} style={btnStyle}>Cancel</button>
@@ -674,9 +674,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const btnStyle: React.CSSProperties = {
-  padding: "0.35rem 0.75rem", border: "1px solid #d1d5db", borderRadius: 4, background: "#f9fafb", cursor: "pointer", fontSize: 13,
+  padding: "0.4rem 0.85rem", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500,
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "0.4rem 0.5rem", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 14, boxSizing: "border-box",
+  width: "100%", padding: "0.45rem 0.6rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
 };

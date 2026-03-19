@@ -84,14 +84,15 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
     <div
       style={{
         background: "#fff",
-        border: "1px solid #e2e8f0",
-        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        borderRadius: 10,
         padding: "1rem 1.25rem",
         flex: 1,
         minWidth: 140,
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)",
       }}
     >
-      <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
         {label}
       </div>
       <div style={{ fontSize: 26, fontWeight: 700, margin: "0.25rem 0", color: "#111827" }}>{value}</div>
@@ -102,7 +103,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
-    <h2 style={{ fontSize: 16, fontWeight: 700, margin: "1.5rem 0 0.75rem", color: "#111827", borderBottom: "1px solid #e2e8f0", paddingBottom: "0.4rem" }}>
+    <h2 style={{ fontSize: 15, fontWeight: 700, margin: "1.75rem 0 0.75rem", color: "#1a202c", borderBottom: "2px solid #e5e7eb", paddingBottom: "0.5rem" }}>
       {children}
     </h2>
   );
@@ -110,35 +111,37 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 
 function Table({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) {
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-      <thead>
-        <tr style={{ background: "#f8fafc" }}>
-          {headers.map((h) => (
-            <th key={h} style={{ textAlign: "left", padding: "0.4rem 0.75rem", borderBottom: "1px solid #e2e8f0", fontWeight: 600, color: "#374151" }}>
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => (
-          <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
-            {row.map((cell, j) => (
-              <td key={j} style={{ padding: "0.4rem 0.75rem", color: "#374151" }}>
-                {cell}
-              </td>
+    <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", overflow: "hidden", boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: "#f8fafc" }}>
+            {headers.map((h) => (
+              <th key={h} style={{ textAlign: "left", padding: "0.5rem 0.75rem", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                {h}
+              </th>
             ))}
           </tr>
-        ))}
-        {rows.length === 0 && (
-          <tr>
-            <td colSpan={headers.length} style={{ padding: "1rem 0.75rem", color: "#9ca3af" }}>
-              No data for this period.
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              {row.map((cell, j) => (
+                <td key={j} style={{ padding: "0.5rem 0.75rem", color: "#374151" }}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={headers.length} style={{ padding: "1.5rem 0.75rem", color: "#9ca3af", textAlign: "center" }}>
+                No data for this period.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -267,7 +270,7 @@ export function ReportsPage() {
             <option value="month">Month</option>
           </select>
         </label>
-        <button onClick={loadAll} style={{ ...btnStyle, background: "#1d4ed8", color: "#fff", borderColor: "#1d4ed8" }}>
+        <button onClick={loadAll} style={{ ...btnStyle, background: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}>
           {loading ? "Loading…" : "Refresh"}
         </button>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>
@@ -390,19 +393,19 @@ export function ReportsPage() {
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
 const btnStyle: React.CSSProperties = {
-  padding: "0.35rem 0.75rem",
+  padding: "0.4rem 0.85rem",
   border: "1px solid #d1d5db",
-  borderRadius: 4,
-  background: "#f9fafb",
+  borderRadius: 6,
+  background: "#fff",
   cursor: "pointer",
   fontSize: 13,
   fontWeight: 500,
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: "0.3rem 0.4rem",
+  padding: "0.35rem 0.5rem",
   border: "1px solid #d1d5db",
-  borderRadius: 4,
+  borderRadius: 6,
   fontSize: 13,
   marginLeft: "0.25rem",
 };
