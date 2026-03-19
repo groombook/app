@@ -115,8 +115,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      version: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -187,46 +185,3 @@ jobs:
             ghcr.io/groombook/web:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  deploy:
-    name: Update Infra Image Tags
-    runs-on: ubuntu-latest
-    needs: [docker]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout infra repo
-        uses: actions/checkout@v4
-        with:
-          repository: groombook/infra
-          token: ${{ secrets.INFRA_DEPLOY_TOKEN }}
-          path: infra
-
-      - name: Update image tags
-        env:
-          VERSION: ${{ needs.docker.outputs.version }}
-        run: |
-          cd infra
-          # Match any existing version tag (CalVer YYYY.MM.DD-sha or legacy 40-char SHA)
-          TAG_PATTERN='[0-9a-z][0-9a-z._-]*'
-          sed -i "s|ghcr.io/groombook/api:${TAG_PATTERN}|ghcr.io/groombook/api:${VERSION}|g" apps/groombook/api.yaml
-          sed -i "s|ghcr.io/groombook/web:${TAG_PATTERN}|ghcr.io/groombook/web:${VERSION}|g" apps/groombook/web.yaml
-          sed -i "s|ghcr.io/groombook/migrate:${TAG_PATTERN}|ghcr.io/groombook/migrate:${VERSION}|g" apps/groombook/migrate-job.yaml
-          sed -i "s|ghcr.io/groombook/seed:${TAG_PATTERN}|ghcr.io/groombook/seed:${VERSION}|g" apps/groombook/seed-job.yaml
-          sed -i "s|groombook.dev/image-version: \".*\"|groombook.dev/image-version: \"${VERSION}\"|g" apps/groombook/api.yaml apps/groombook/web.yaml
-
-      - name: Commit and push
-        env:
-          VERSION: ${{ needs.docker.outputs.version }}
-        run: |
-          cd infra
-          git config user.name "groombook-ci[bot]"
-          git config user.email "ci@groombook.dev"
-          if git diff --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git add -A
-          git commit -m "deploy: update images to v${VERSION}
-
-          Source: https://github.com/groombook/groombook/commit/${GITHUB_SHA}"
-          git push
