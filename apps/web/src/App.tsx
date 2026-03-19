@@ -20,7 +20,7 @@ const NAV_LINKS = [
   { to: "/portal", label: "Customer Portal" },
 ];
 
-export function App() {
+function AdminLayout() {
   const location = useLocation();
   return (
     <div style={{ minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
@@ -82,9 +82,18 @@ export function App() {
           <Route path="/book" element={<BookPage />} />
           <Route path="/group-bookings" element={<GroupBookingPage />} />
           <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/portal" element={<CustomerPortal />} />
         </Routes>
       </main>
     </div>
   );
+}
+
+export function App() {
+  const location = useLocation();
+
+  if (location.pathname.startsWith("/portal")) {
+    return <CustomerPortal />;
+  }
+
+  return <AdminLayout />;
 }
