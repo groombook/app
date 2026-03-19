@@ -178,3 +178,41 @@ jobs:
             ghcr.io/groombook/web:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    name: Update Infra Image Tags
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout infra repo
+        uses: actions/checkout@v4
+        with:
+          repository: groombook/infra
+          token: ${{ secrets.INFRA_DEPLOY_TOKEN }}
+          path: infra
+
+      - name: Update image tags
+        run: |
+          cd infra
+          SHA="${{ github.sha }}"
+          sed -i "s|ghcr.io/groombook/api:[a-f0-9]\{40\}|ghcr.io/groombook/api:${SHA}|g" apps/groombook/api.yaml
+          sed -i "s|ghcr.io/groombook/web:[a-f0-9]\{40\}|ghcr.io/groombook/web:${SHA}|g" apps/groombook/web.yaml
+          sed -i "s|ghcr.io/groombook/migrate:[a-f0-9]\{40\}|ghcr.io/groombook/migrate:${SHA}|g" apps/groombook/migrate-job.yaml
+          sed -i "s|ghcr.io/groombook/seed:[a-f0-9]\{40\}|ghcr.io/groombook/seed:${SHA}|g" apps/groombook/seed-job.yaml
+          sed -i "s|groombook.dev/image-sha: \"[a-f0-9]\{40\}\"|groombook.dev/image-sha: \"${SHA}\"|g" apps/groombook/api.yaml apps/groombook/web.yaml
+
+      - name: Commit and push
+        run: |
+          cd infra
+          git config user.name "groombook-ci[bot]"
+          git config user.email "ci@groombook.dev"
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add -A
+          git commit -m "deploy: update images to groombook/groombook@${GITHUB_SHA::7}
+
+          Source: https://github.com/groombook/groombook/commit/${GITHUB_SHA}"
+          git push
