@@ -281,4 +281,35 @@ describe("CustomerPortal session loading", () => {
     expect(impersonationFetches).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /End Session/i })).not.toBeInTheDocument();
   });
+
+  it("redirects to /admin/clients after ending impersonation session", async () => {
+    // Mock window.location.href
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      value: { href: "" },
+      writable: true,
+    });
+
+    const { CustomerPortal } = await import("../portal/CustomerPortal.js");
+    render(
+      <MemoryRouter initialEntries={["/?sessionId=sess-1"]}>
+        <CustomerPortal />
+      </MemoryRouter>
+    );
+
+    // Wait for banner to appear
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /End Session/i })).toBeInTheDocument();
+    });
+
+    // Click "End Session" — this triggers handleEnd which calls the API then redirects
+    fireEvent.click(screen.getByRole("button", { name: /End Session/i }));
+
+    await waitFor(() => {
+      expect(window.location.href).toBe("/admin/clients");
+    });
+
+    // Restore
+    Object.defineProperty(window, "location", { value: originalLocation, writable: true });
+  });
 });

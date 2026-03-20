@@ -73,6 +73,7 @@ export function CustomerPortal() {
     }
     setSession(null);
     setSessionExtended(false);
+    window.location.href = "/admin/clients";
   }, [session]);
 
   const handleExtend = useCallback(async () => {
