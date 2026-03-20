@@ -12,6 +12,7 @@ import { bookRouter } from "./routes/book.js";
 import { reportsRouter } from "./routes/reports.js";
 import { appointmentGroupsRouter } from "./routes/appointmentGroups.js";
 import { groomingLogsRouter } from "./routes/groomingLogs.js";
+import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { getDb, businessSettings } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
@@ -66,6 +67,7 @@ api.route("/invoices", invoicesRouter);
 api.route("/reports", reportsRouter);
 api.route("/appointment-groups", appointmentGroupsRouter);
 api.route("/grooming-logs", groomingLogsRouter);
+api.route("/impersonation", impersonationRouter);
 api.route("/admin/settings", settingsRouter);
 
 const port = Number(process.env.PORT ?? 3000);

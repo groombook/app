@@ -149,6 +149,31 @@ export interface Invoice {
   tipSplits?: InvoiceTipSplit[];
 }
 
+// ─── Impersonation ──────────────────────────────────────────────────────────
+
+export type ImpersonationSessionStatus = "active" | "ended" | "expired";
+
+export interface ImpersonationSession {
+  id: string;
+  staffId: string;
+  clientId: string;
+  reason: string | null;
+  status: ImpersonationSessionStatus;
+  startedAt: string;
+  endedAt: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface ImpersonationAuditLog {
+  id: string;
+  sessionId: string;
+  action: string;
+  pageVisited: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export interface BusinessSettings {
   id: string;
   businessName: string;
