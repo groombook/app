@@ -1,7 +1,8 @@
-import { useState, useReducer, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Home, Calendar, PawPrint, FileText, CreditCard, MessageSquare,
-  Settings, Eye, LogOut, Clock, Shield,
+  Settings, LogOut, Shield,
 } from "lucide-react";
 import { Dashboard } from "./sections/Dashboard.js";
 import { AppointmentsSection } from "./sections/Appointments.js";
@@ -12,9 +13,9 @@ import { Communication } from "./sections/Communication.js";
 import { AccountSettings } from "./sections/AccountSettings.js";
 import { ImpersonationBanner } from "./ImpersonationBanner.js";
 import { AuditLogViewer } from "./AuditLogViewer.js";
-import type { ImpersonationSession, AuditEntry } from "./mockData.js";
 import { CUSTOMER } from "./mockData.js";
 import { useBranding } from "../BrandingContext.js";
+import type { ImpersonationSession } from "@groombook/types";
 
 type Section = "dashboard" | "appointments" | "pets" | "reports" | "billing" | "messages" | "settings";
 
@@ -28,121 +29,84 @@ const NAV_ITEMS: { id: Section; label: string; icon: typeof Home }[] = [
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
-type ImpersonationAction =
-  | { type: "START"; staffName: string; staffRole: string; reason: string }
-  | { type: "END" }
-  | { type: "EXTEND" }
-  | { type: "LOG"; entry: AuditEntry };
-
-function impersonationReducer(
-  state: ImpersonationSession | null,
-  action: ImpersonationAction
-): ImpersonationSession | null {
-  switch (action.type) {
-    case "START": {
-      const now = new Date();
-      const expires = new Date(now.getTime() + 30 * 60 * 1000);
-      return {
-        active: true,
-        staffName: action.staffName,
-        staffRole: action.staffRole,
-        customerName: CUSTOMER.name,
-        reason: action.reason,
-        startedAt: now.toISOString(),
-        expiresAt: expires.toISOString(),
-        extended: false,
-        readOnly: true,
-        auditLog: [{
-          id: "audit-0",
-          timestamp: now.toISOString(),
-          action: "session_start",
-          detail: `Impersonation started by ${action.staffName} (${action.staffRole}). Reason: ${action.reason}`,
-        }],
-      };
-    }
-    case "END":
-      if (!state) return null;
-      return {
-        ...state,
-        active: false,
-        auditLog: [...state.auditLog, {
-          id: `audit-${state.auditLog.length}`,
-          timestamp: new Date().toISOString(),
-          action: "session_end",
-          detail: "Impersonation session ended",
-        }],
-      };
-    case "EXTEND":
-      if (!state) return null;
-      return {
-        ...state,
-        expiresAt: new Date(new Date(state.expiresAt).getTime() + 30 * 60 * 1000).toISOString(),
-        extended: true,
-        auditLog: [...state.auditLog, {
-          id: `audit-${state.auditLog.length}`,
-          timestamp: new Date().toISOString(),
-          action: "session_extended",
-          detail: "Session extended by 30 minutes",
-        }],
-      };
-    case "LOG":
-      if (!state) return null;
-      return { ...state, auditLog: [...state.auditLog, action.entry] };
-    default:
-      return state;
-  }
-}
-
 export function CustomerPortal() {
   const [activeSection, setActiveSection] = useState<Section>("dashboard");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
-  const [showImpersonationSetup, setShowImpersonationSetup] = useState(false);
-  const [impersonation, dispatchImpersonation] = useReducer(impersonationReducer, null);
+  const [session, setSession] = useState<ImpersonationSession | null>(null);
+  const [sessionExtended, setSessionExtended] = useState(false);
   const { branding } = useBranding();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Auto-start impersonation from URL params (staff flow from admin panel).
-  // Runs once on mount only — impersonation state is managed by the reducer after init.
-  const [impersonationInitDone, setImpersonationInitDone] = useState(false);
+  // On mount: load session from ?sessionId= URL param
+  const initDone = useRef(false);
   useEffect(() => {
-    if (impersonationInitDone) return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("impersonate") === "true") {
-      const clientName = params.get("clientName") || "Unknown Customer";
-      const reason = params.get("reason") || `Viewing portal as ${clientName}`;
-      const staffName = params.get("staffName") || "Staff";
-      dispatchImpersonation({
-        type: "START",
-        staffName,
-        staffRole: "Admin",
-        reason,
+    if (initDone.current) return;
+    initDone.current = true;
+
+    const sessionId = searchParams.get("sessionId");
+    if (!sessionId) return;
+
+    fetch(`/api/impersonation/sessions/${sessionId}`)
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json() as Promise<ImpersonationSession>;
+      })
+      .then((s) => {
+        if (s && s.status === "active") {
+          setSession(s);
+        }
+        // Clean sessionId from URL
+        setSearchParams({}, { replace: true });
+      })
+      .catch(() => {
+        setSearchParams({}, { replace: true });
       });
-      window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
+  const handleEnd = useCallback(async () => {
+    if (!session) return;
+    try {
+      await fetch(`/api/impersonation/sessions/${session.id}/end`, { method: "POST" });
+    } catch {
+      // Ignore — session ends on the client regardless
     }
-    setImpersonationInitDone(true);
-  }, [impersonationInitDone]);
+    setSession(null);
+    setSessionExtended(false);
+  }, [session]);
+
+  const handleExtend = useCallback(async () => {
+    if (!session) return;
+    try {
+      const r = await fetch(`/api/impersonation/sessions/${session.id}/extend`, { method: "POST" });
+      if (r.ok) {
+        const updated = await r.json() as ImpersonationSession;
+        setSession(updated);
+        setSessionExtended(true);
+      }
+    } catch {
+      // Best-effort
+    }
+  }, [session]);
 
   const logPageView = useCallback((page: string) => {
-    if (impersonation?.active) {
-      dispatchImpersonation({
-        type: "LOG",
-        entry: {
-          id: `audit-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          action: "page_view",
-          detail: `Viewed: ${page}`,
-        },
-      });
-    }
-  }, [impersonation?.active]);
+    if (!session) return;
+    void fetch(`/api/impersonation/sessions/${session.id}/log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "page_view", pageVisited: page }),
+    });
+  }, [session]);
 
   const handleNavClick = (section: Section) => {
     setActiveSection(section);
     setMobileNavOpen(false);
-    logPageView(section);
+    if (session?.status === "active") {
+      logPageView(section);
+    }
   };
 
-  const isReadOnly = impersonation?.active && impersonation.readOnly;
+  const isReadOnly = session?.status === "active";
 
   const renderSection = () => {
     switch (activeSection) {
@@ -166,14 +130,15 @@ export function CustomerPortal() {
   return (
     <div
       className="min-h-screen bg-[#faf8f5] font-sans"
-      style={impersonation?.active ? { border: "3px solid #f59e0b" } : undefined}
+      style={session?.status === "active" ? { border: "3px solid #f59e0b" } : undefined}
     >
-      {impersonation?.active && (
+      {session?.status === "active" && (
         <>
           <ImpersonationBanner
-            session={impersonation}
-            onEnd={() => dispatchImpersonation({ type: "END" })}
-            onExtend={() => dispatchImpersonation({ type: "EXTEND" })}
+            session={session}
+            isExtended={sessionExtended}
+            onEnd={() => { void handleEnd(); }}
+            onExtend={() => { void handleExtend(); }}
             onShowAudit={() => setShowAuditLog(true)}
           />
           {/* Watermark */}
@@ -185,9 +150,9 @@ export function CustomerPortal() {
         </>
       )}
 
-      {showAuditLog && impersonation && (
+      {showAuditLog && session && (
         <AuditLogViewer
-          auditLog={impersonation.auditLog}
+          sessionId={session.id}
           onClose={() => setShowAuditLog(false)}
         />
       )}
@@ -257,19 +222,11 @@ export function CustomerPortal() {
             })}
           </div>
 
-          {/* Demo Controls */}
+          {/* Session controls (only shown during active impersonation) */}
           <div className="border-t border-stone-100 p-4 space-y-2">
-            {!impersonation?.active ? (
+            {session?.status === "active" && (
               <button
-                onClick={() => setShowImpersonationSetup(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
-              >
-                <Eye size={14} />
-                Demo: Staff Impersonation
-              </button>
-            ) : (
-              <button
-                onClick={() => dispatchImpersonation({ type: "END" })}
+                onClick={() => { void handleEnd(); }}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
               >
                 <LogOut size={14} />
@@ -310,65 +267,6 @@ export function CustomerPortal() {
             {renderSection()}
           </div>
         </main>
-      </div>
-
-      {/* Impersonation Setup Modal */}
-      {showImpersonationSetup && <ImpersonationSetupModal
-        onStart={(reason) => {
-          dispatchImpersonation({ type: "START", staffName: "Chris", staffRole: "Admin", reason });
-          setShowImpersonationSetup(false);
-        }}
-        onCancel={() => setShowImpersonationSetup(false)}
-      />}
-    </div>
-  );
-}
-
-function ImpersonationSetupModal({ onStart, onCancel }: { onStart: (reason: string) => void; onCancel: () => void }) {
-  const [reason, setReason] = useState("");
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-            <Eye size={20} className="text-amber-700" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-stone-800">Start Staff Impersonation</h2>
-            <p className="text-sm text-stone-500">View portal as {CUSTOMER.name}</p>
-          </div>
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-stone-700 mb-1">
-            Reason for impersonation <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-            rows={3}
-            placeholder="e.g., Customer reports they can't see their upcoming appointment"
-            value={reason}
-            onChange={e => setReason(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-amber-50 rounded-lg">
-          <Clock size={14} className="text-amber-600" />
-          <span className="text-xs text-amber-700">Session will auto-expire after 30 minutes</span>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-2 border border-stone-300 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => reason.trim() && onStart(reason.trim())}
-            disabled={!reason.trim()}
-            className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Start Session
-          </button>
-        </div>
       </div>
     </div>
   );

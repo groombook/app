@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import { Eye, Clock, LogOut, FileSearch } from "lucide-react";
-import type { ImpersonationSession } from "./mockData.js";
+import type { ImpersonationSession } from "@groombook/types";
 
 interface Props {
   session: ImpersonationSession;
+  isExtended: boolean;
   onEnd: () => void;
   onExtend: () => void;
   onShowAudit: () => void;
 }
 
-export function ImpersonationBanner({ session, onEnd, onExtend, onShowAudit }: Props) {
+export function ImpersonationBanner({ session, isExtended, onEnd, onExtend, onShowAudit }: Props) {
   const [remaining, setRemaining] = useState("");
   const [showWarning, setShowWarning] = useState(false);
 
@@ -33,20 +34,17 @@ export function ImpersonationBanner({ session, onEnd, onExtend, onShowAudit }: P
     return () => clearInterval(id);
   }, [session.expiresAt, onEnd]);
 
-  if (!session.active) return null;
-
   return (
     <div className="sticky top-0 z-40 bg-amber-500 text-amber-950 px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium shadow-md">
       <span className="flex items-center gap-1.5">
         <Eye size={16} />
         STAFF VIEW
       </span>
-      <span className="hidden sm:inline">
-        Viewing as <strong>{session.customerName}</strong>
-      </span>
-      <span className="hidden md:inline text-amber-800 text-xs">
-        Reason: {session.reason}
-      </span>
+      {session.reason && (
+        <span className="hidden md:inline text-amber-800 text-xs">
+          Reason: {session.reason}
+        </span>
+      )}
       <span className="hidden sm:inline text-amber-800 text-xs">
         Started {new Date(session.startedAt).toLocaleTimeString()}
       </span>
@@ -55,7 +53,7 @@ export function ImpersonationBanner({ session, onEnd, onExtend, onShowAudit }: P
           <Clock size={14} />
           {remaining}
         </span>
-        {showWarning && !session.extended && (
+        {showWarning && !isExtended && (
           <button
             onClick={onExtend}
             className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700"

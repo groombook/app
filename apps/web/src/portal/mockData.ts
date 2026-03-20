@@ -93,26 +93,6 @@ export interface Groomer {
   avatar: string;
 }
 
-export interface ImpersonationSession {
-  active: boolean;
-  staffName: string;
-  staffRole: string;
-  customerName: string;
-  reason: string;
-  startedAt: string;
-  expiresAt: string;
-  extended: boolean;
-  readOnly: boolean;
-  auditLog: AuditEntry[];
-}
-
-export interface AuditEntry {
-  id: string;
-  timestamp: string;
-  action: string;
-  detail: string;
-}
-
 export interface LoyaltyInfo {
   points: number;
   nextRewardAt: number;

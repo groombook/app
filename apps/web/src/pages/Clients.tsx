@@ -65,6 +65,7 @@ export function ClientsPage() {
   const [deletingPetId, setDeletingPetId] = useState<string | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
   const [disablingClient, setDisablingClient] = useState(false);
+  const [startingImpersonation, setStartingImpersonation] = useState(false);
   const [showDisabled, setShowDisabled] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
@@ -433,12 +434,40 @@ export function ClientsPage() {
               )}
             </div>
             <div style={{ display: "flex", gap: "0.5rem", marginLeft: "auto" }}>
-              <a
-                href={`/?impersonate=true&clientName=${encodeURIComponent(selectedClient.name)}&staffName=${encodeURIComponent("Staff")}&reason=${encodeURIComponent(`Support view for ${selectedClient.name}`)}`}
-                style={{ ...btnStyle, backgroundColor: "#fef3c7", color: "#92400e", borderColor: "#fde68a", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+              <button
+                disabled={startingImpersonation}
+                onClick={async () => {
+                  if (!selectedClient) return;
+                  setStartingImpersonation(true);
+                  try {
+                    const res = await fetch("/api/impersonation/sessions", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        clientId: selectedClient.id,
+                        reason: `Support view for ${selectedClient.name}`,
+                      }),
+                    });
+                    if (res.ok) {
+                      const session = await res.json() as { id: string };
+                      window.location.href = `/?sessionId=${encodeURIComponent(session.id)}`;
+                    } else {
+                      const err = await res.json() as { error?: string; sessionId?: string };
+                      if (res.status === 409 && err.sessionId) {
+                        // Already have an active session — navigate to it
+                        window.location.href = `/?sessionId=${encodeURIComponent(err.sessionId)}`;
+                      } else {
+                        alert(`Could not start impersonation: ${err.error ?? res.statusText}`);
+                      }
+                    }
+                  } finally {
+                    setStartingImpersonation(false);
+                  }
+                }}
+                style={{ ...btnStyle, backgroundColor: "#fef3c7", color: "#92400e", borderColor: "#fde68a", display: "inline-flex", alignItems: "center", gap: "0.3rem", opacity: startingImpersonation ? 0.6 : 1, cursor: startingImpersonation ? "not-allowed" : "pointer" }}
               >
-                View as Customer
-              </a>
+                {startingImpersonation ? "Starting…" : "View as Customer"}
+              </button>
               <button onClick={() => openEditClient(selectedClient)} style={btnStyle}>
                 Edit client
               </button>
