@@ -11,6 +11,7 @@ Open source, self-hostable pet grooming business management and customer relatio
 - **POS & invoicing** — payments, tips, and receipt generation
 - **Automated reminders** — SMS and email notifications
 - **Reporting dashboard** — revenue, utilization, and trend analytics
+- **Staff impersonation** — managers can view the customer portal as any client, with full audit logging and session controls
 - **PWA** — installable on mobile devices, works offline
 
 ## Tech Stack
