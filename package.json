@@ -10,7 +10,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --filter='!@groombook/e2e' test",
     "db:migrate": "pnpm --filter @groombook/db migrate",
-    "db:seed": "pnpm --filter @groombook/db seed"
+    "db:seed": "pnpm --filter @groombook/db seed",
+    "db:reset": "pnpm --filter @groombook/db reset"
   },
   "engines": {
     "node": ">=20",

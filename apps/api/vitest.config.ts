@@ -4,6 +4,7 @@ import path from "path";
 export default defineConfig({
   resolve: {
     alias: {
+      "@groombook/db/factories": path.resolve(__dirname, "../../packages/db/src/factories.ts"),
       "@groombook/db": path.resolve(__dirname, "../../packages/db/src/index.ts"),
     },
   },

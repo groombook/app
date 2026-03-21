@@ -1,13 +1,16 @@
 /**
- * Seed script — generates realistic test data for Groom Book development.
+ * Seed script — generates deterministic, PII-free test data for Groom Book.
  *
  * Creates:
- *  - 3 groomers + 3 bathers (staff)
+ *  - 1 manager + 1 receptionist + 3 groomers + 3 bathers (8 staff total)
  *  - 10 services
  *  - 500 clients, each with 1-3 dogs
  *  - ~2 500 appointments spread across the past 12 months
  *  - Invoices for completed appointments with line items and tip splits
  *  - Grooming visit logs for completed appointments
+ *
+ * Output is fully deterministic: the same seed value always produces the
+ * same rows with the same IDs.
  *
  * Usage:
  *   DATABASE_URL=postgres://... npx tsx packages/db/src/seed.ts
@@ -17,29 +20,61 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema.js";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Deterministic PRNG (Mulberry32) ──────────────────────────────────────────
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!;
+/**
+ * Returns a seeded pseudo-random number generator.
+ * Same seed → identical sequence of numbers every run.
+ */
+function createPrng(seed: number): () => number {
+  let s = seed | 0;
+  return function (): number {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
+const rand = createPrng(42);
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Return a random element from an array using the seeded PRNG. */
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(rand() * arr.length)]!;
+}
+
+/** Return n distinct random elements from an array. */
 function pickN<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => Math.random() - 0.5);
+  const shuffled = [...arr].sort(() => rand() - 0.5);
   return shuffled.slice(0, n);
 }
 
 function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(rand() * (max - min + 1)) + min;
 }
 
 function randDate(start: Date, end: Date): Date {
-  return new Date(
-    start.getTime() + Math.random() * (end.getTime() - start.getTime())
-  );
+  return new Date(start.getTime() + rand() * (end.getTime() - start.getTime()));
 }
 
+/**
+ * Generate a deterministic UUID v4 from the seeded PRNG.
+ * Conforms to RFC 4122 §4.4 (variant bits set correctly).
+ */
 function uuid(): string {
-  return crypto.randomUUID();
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  const bytes = Array.from({ length: 16 }, () => Math.floor(rand() * 256));
+  bytes[6] = ((bytes[6]! & 0x0f) | 0x40);   // version 4
+  bytes[8] = ((bytes[8]! & 0x3f) | 0x80);   // variant bits
+  return [
+    bytes.slice(0, 4).map(hex).join(""),
+    bytes.slice(4, 6).map(hex).join(""),
+    bytes.slice(6, 8).map(hex).join(""),
+    bytes.slice(8, 10).map(hex).join(""),
+    bytes.slice(10, 16).map(hex).join(""),
+  ].join("-");
 }
 
 // ── Data pools ───────────────────────────────────────────────────────────────
@@ -227,6 +262,15 @@ async function seed() {
   console.log("Seeding Groom Book database...\n");
 
   // ── Staff ──
+  // Deterministic staff IDs so they can be referenced in scripts/tests
+  const managerStaff = [
+    { id: uuid(), name: "Jordan Lee", email: "jordan@groombook.dev", role: "manager" as const },
+  ];
+
+  const receptionistStaff = [
+    { id: uuid(), name: "Sam Rivera", email: "sam@groombook.dev", role: "receptionist" as const },
+  ];
+
   const groomers = [
     { id: uuid(), name: "Sarah Mitchell", email: "sarah@groombook.dev", role: "groomer" as const },
     { id: uuid(), name: "James Park", email: "james@groombook.dev", role: "groomer" as const },
@@ -240,7 +284,7 @@ async function seed() {
     { id: uuid(), name: "Devon Williams", email: "devon@groombook.dev", role: "groomer" as const },
   ];
 
-  const allStaff = [...groomers, ...bathers];
+  const allStaff = [...managerStaff, ...receptionistStaff, ...groomers, ...bathers];
   for (const s of allStaff) {
     await db.insert(schema.staff).values({
       id: s.id,
@@ -250,7 +294,7 @@ async function seed() {
       active: true,
     });
   }
-  console.log(`✓ Created ${allStaff.length} staff (3 groomers, 3 bathers)`);
+  console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
 
   // ── Services ──
   const serviceIds: string[] = [];
@@ -274,7 +318,7 @@ async function seed() {
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
   interface ClientRecord { id: string; name: string }
-  interface PetRecord { id: string; clientId: string; name: string }
+  interface PetRecord { id: string; clientId: string }
 
   const clientRecords: ClientRecord[] = [];
   const petRecords: PetRecord[] = [];
@@ -301,14 +345,14 @@ async function seed() {
         email,
         phone,
         address: addr,
-        notes: Math.random() < 0.2 ? pick(["Prefers morning appointments", "Always pays cash", "VIP client", "Referred by a friend", "Has multiple pets — check all in"]) : null,
-        emailOptOut: Math.random() < 0.1,
+        notes: rand() < 0.2 ? pick(["Prefers morning appointments", "Always pays cash", "VIP client", "Referred by a friend", "Has multiple pets — check all in"]) : null,
+        emailOptOut: rand() < 0.1,
       });
 
       clientRecords.push({ id: clientId, name });
 
       // 1-3 pets per client
-      const petCount = Math.random() < 0.5 ? 1 : Math.random() < 0.7 ? 2 : 3;
+      const petCount = rand() < 0.5 ? 1 : rand() < 0.7 ? 2 : 3;
       for (let p = 0; p < petCount; p++) {
         const petId = uuid();
         const breed = pick(dogBreeds);
@@ -322,17 +366,17 @@ async function seed() {
           name: pick(dogNames),
           species: "Dog",
           breed,
-          weightKg: String(randInt(3, 60) + Math.random().toFixed(1).slice(1)),
+          weightKg: String(randInt(3, 60) + rand().toFixed(1).slice(1)),
           dateOfBirth: dob,
           healthAlerts: pick(healthAlerts),
           groomingNotes: pick(groomingNotes),
           cutStyle: pick(cutStyles),
           shampooPreference: pick(shampoos),
-          specialCareNotes: Math.random() < 0.1 ? "Vet clearance required before grooming" : null,
+          specialCareNotes: rand() < 0.1 ? "Vet clearance required before grooming" : null,
           customFields: {},
         });
 
-        petRecords.push({ id: petId, clientId, name: "" });
+        petRecords.push({ id: petId, clientId });
       }
     }
 
@@ -387,13 +431,13 @@ async function seed() {
   // Group pets by client for efficient appointment generation
   const petsByClient = new Map<string, string[]>();
   for (const pet of petRecords) {
-    const arr = petsByClient.get(pet.clientId) || [];
+    const arr = petsByClient.get(pet.clientId) ?? [];
     arr.push(pet.id);
     petsByClient.set(pet.clientId, arr);
   }
 
   for (const client of clientRecords) {
-    const pets = petsByClient.get(client.id) || [];
+    const pets = petsByClient.get(client.id) ?? [];
     // Each client visits ~3-8 times over the year
     const visitCount = randInt(3, 8);
 
@@ -404,7 +448,7 @@ async function seed() {
       const serviceId = serviceIds[serviceIdx]!;
       const svc = servicesDef[serviceIdx]!;
       const groomer = pick(groomers);
-      const bather = Math.random() < 0.6 ? pick(bathers) : null;
+      const bather = rand() < 0.6 ? pick(bathers) : null;
       const status = pick(statuses);
 
       // Schedule within the past year, or next 2 weeks for upcoming
@@ -419,7 +463,7 @@ async function seed() {
       const endTime = new Date(startTime.getTime() + svc.dur * 60 * 1000);
 
       const apptId = uuid();
-      const priceCents = Math.random() < 0.2 ? svc.price + randInt(-500, 1000) : null;
+      const priceCents = rand() < 0.2 ? svc.price + randInt(-500, 1000) : null;
       const effectivePrice = priceCents ?? svc.price;
 
       apptBatch.push({
@@ -440,11 +484,11 @@ async function seed() {
       // Create invoice for completed appointments
       if (status === "completed") {
         const invoiceId = uuid();
-        const tipCents = Math.random() < 0.7 ? randInt(200, 3000) : 0;
+        const tipCents = rand() < 0.7 ? randInt(200, 3000) : 0;
         const taxCents = Math.round(effectivePrice * 0.08);
         const totalCents = effectivePrice + taxCents + tipCents;
 
-        const invoiceStatus = Math.random() < 0.95 ? "paid" as const : "pending" as const;
+        const invoiceStatus = rand() < 0.95 ? "paid" as const : "pending" as const;
         const paidAt = invoiceStatus === "paid" ? new Date(endTime.getTime() + randInt(5, 30) * 60 * 1000) : null;
 
         invoiceBatch.push({
@@ -458,7 +502,7 @@ async function seed() {
           status: invoiceStatus,
           paymentMethod: invoiceStatus === "paid" ? pick(["cash", "card", "card", "card", "check"]) as "cash" | "card" | "check" : null,
           paidAt,
-          notes: Math.random() < 0.05 ? "Added extra service at checkout" : null,
+          notes: rand() < 0.05 ? "Added extra service at checkout" : null,
         });
 
         // Line item

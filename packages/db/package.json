@@ -9,6 +9,10 @@
     ".": {
       "default": "./dist/index.js",
       "types": "./src/index.ts"
+    },
+    "./factories": {
+      "default": "./src/factories.ts",
+      "types": "./src/factories.ts"
     }
   },
   "scripts": {
@@ -16,6 +20,7 @@
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "seed": "tsx src/seed.ts",
+    "reset": "tsx src/reset.ts && drizzle-kit migrate && tsx src/seed.ts",
     "studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit"
   },

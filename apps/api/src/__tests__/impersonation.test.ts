@@ -2,22 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
 import type { JwtPayload } from "../middleware/auth.js";
 import type { AppEnv, StaffRow } from "../middleware/rbac.js";
+import { buildStaff } from "@groombook/db/factories";
 
-// ─── Mock data ───────────────────────────────────────────────────────────────
+// ─── Mock data (built with factories for schema-safe defaults) ────────────────
 
-const MANAGER_STAFF = {
-  id: "staff-manager-id",
-  oidcSub: "oidc-manager-sub",
-  role: "manager",
-  name: "Manager",
-};
-
-const GROOMER_STAFF = {
-  id: "staff-groomer-id",
-  oidcSub: "oidc-groomer-sub",
-  role: "groomer",
-  name: "Groomer",
-};
+const MANAGER_STAFF = buildStaff({ id: "staff-manager-id", oidcSub: "oidc-manager-sub", role: "manager", name: "Manager" });
+const GROOMER_STAFF = buildStaff({ id: "staff-groomer-id", oidcSub: "oidc-groomer-sub", role: "groomer", name: "Groomer" });
 
 const CLIENT = { id: "aabbccdd-1111-2222-3333-444444444444", name: "Fido Owner" };
 
