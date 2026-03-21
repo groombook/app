@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
 import type { JwtPayload } from "../middleware/auth.js";
+import type { AppEnv, StaffRow } from "../middleware/rbac.js";
 
 // ─── Mock data ───────────────────────────────────────────────────────────────
 
@@ -160,13 +161,29 @@ vi.mock("@groombook/db", () => {
 // ─── App setup ───────────────────────────────────────────────────────────────
 
 const { impersonationRouter } = await import("../routes/impersonation.js");
+const { requireRole } = await import("../middleware/rbac.js");
 
-function createApp(sub: string) {
-  const app = new Hono<{ Variables: { jwtPayload: JwtPayload } }>();
+/**
+ * Build a test app. If staffRow is null the middleware simulates
+ * resolveStaffMiddleware returning 403 (staff not found). An optional
+ * roleGuard applies requireRole(...roles) before the router.
+ */
+function createApp(
+  staffRow: (typeof MANAGER_STAFF) | null,
+  roleGuard?: string[]
+) {
+  const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
-    c.set("jwtPayload", { sub } as JwtPayload);
+    if (!staffRow) {
+      return c.json({ error: "Forbidden: no staff record found for authenticated user" }, 403);
+    }
+    c.set("jwtPayload", { sub: staffRow.oidcSub } as JwtPayload);
+    c.set("staff", staffRow as unknown as StaffRow);
     await next();
   });
+  if (roleGuard && roleGuard.length > 0) {
+    app.use("*", requireRole(...(roleGuard as Parameters<typeof requireRole>)) as never);
+  }
   app.route("/impersonation", impersonationRouter);
   return app;
 }
@@ -187,9 +204,8 @@ beforeEach(() => resetMock());
 
 describe("POST /impersonation/sessions", () => {
   it("creates a session for a manager", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF, ["manager"]);
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [CLIENT], // client lookup
       [], // expireTimedOutSessions active query
       [] // existing active check
@@ -205,9 +221,8 @@ describe("POST /impersonation/sessions", () => {
     expect(insertedValues.some((v) => v.table === "auditLogs")).toBe(true);
   });
 
-  it("rejects non-managers", async () => {
-    const app = createApp("oidc-groomer-sub");
-    selectQueue.push([GROOMER_STAFF]);
+  it("rejects non-managers via requireRole guard", async () => {
+    const app = createApp(GROOMER_STAFF, ["manager"]);
 
     const res = await app.request(
       "/impersonation/sessions",
@@ -216,12 +231,11 @@ describe("POST /impersonation/sessions", () => {
 
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toMatch(/only managers/i);
+    expect(body.error).toMatch(/forbidden/i);
   });
 
   it("returns 403 when staff record not found", async () => {
-    const app = createApp("unknown-sub");
-    selectQueue.push([]);
+    const app = createApp(null);
 
     const res = await app.request(
       "/impersonation/sessions",
@@ -232,9 +246,8 @@ describe("POST /impersonation/sessions", () => {
   });
 
   it("returns 404 when client not found", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF, ["manager"]);
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [] // client not found
     );
 
@@ -247,10 +260,9 @@ describe("POST /impersonation/sessions", () => {
   });
 
   it("returns 409 when active session already exists", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF, ["manager"]);
     const existing = makeSession();
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [CLIENT], // client lookup
       [], // expireTimedOutSessions
       [existing] // existing active session
@@ -271,10 +283,9 @@ describe("POST /impersonation/sessions", () => {
 
 describe("GET /impersonation/sessions/:id", () => {
   it("returns session for the owning staff member", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession();
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [session] // session lookup
     );
 
@@ -283,10 +294,9 @@ describe("GET /impersonation/sessions/:id", () => {
   });
 
   it("returns 403 for a different staff member", async () => {
-    const app = createApp("oidc-groomer-sub");
+    const app = createApp(GROOMER_STAFF);
     const session = makeSession(); // owned by manager
     selectQueue.push(
-      [GROOMER_STAFF], // resolveStaff
       [session] // session lookup
     );
 
@@ -297,9 +307,8 @@ describe("GET /impersonation/sessions/:id", () => {
   });
 
   it("returns 404 for nonexistent session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [] // no session
     );
 
@@ -308,10 +317,9 @@ describe("GET /impersonation/sessions/:id", () => {
   });
 
   it("auto-expires a timed-out session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession({ expiresAt: pastDate() });
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [session] // session lookup
     );
 
@@ -329,10 +337,9 @@ describe("GET /impersonation/sessions/:id", () => {
 
 describe("POST /impersonation/sessions/:id/extend", () => {
   it("extends an active non-expired session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession();
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [session] // session lookup
     );
 
@@ -350,10 +357,9 @@ describe("POST /impersonation/sessions/:id/extend", () => {
   });
 
   it("returns 400 when extending a time-expired session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession({ expiresAt: pastDate() });
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [session] // session lookup
     );
 
@@ -367,10 +373,9 @@ describe("POST /impersonation/sessions/:id/extend", () => {
   });
 
   it("returns 403 for non-owner", async () => {
-    const app = createApp("oidc-groomer-sub");
+    const app = createApp(GROOMER_STAFF);
     const session = makeSession();
     selectQueue.push(
-      [GROOMER_STAFF], // resolveStaff
       [session] // owned by manager
     );
 
@@ -382,10 +387,9 @@ describe("POST /impersonation/sessions/:id/extend", () => {
   });
 
   it("returns 400 for an ended session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession({ status: "ended" });
     selectQueue.push(
-      [MANAGER_STAFF],
       [session]
     );
 
@@ -403,10 +407,9 @@ describe("POST /impersonation/sessions/:id/extend", () => {
 
 describe("POST /impersonation/sessions/:id/end", () => {
   it("ends an active non-expired session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession();
     selectQueue.push(
-      [MANAGER_STAFF],
       [session]
     );
 
@@ -420,10 +423,9 @@ describe("POST /impersonation/sessions/:id/end", () => {
   });
 
   it("returns 400 when ending a time-expired session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession({ expiresAt: pastDate() });
     selectQueue.push(
-      [MANAGER_STAFF],
       [session]
     );
 
@@ -437,10 +439,9 @@ describe("POST /impersonation/sessions/:id/end", () => {
   });
 
   it("returns 403 for non-owner", async () => {
-    const app = createApp("oidc-groomer-sub");
+    const app = createApp(GROOMER_STAFF);
     const session = makeSession();
     selectQueue.push(
-      [GROOMER_STAFF],
       [session]
     );
 
@@ -458,10 +459,9 @@ describe("POST /impersonation/sessions/:id/log", () => {
   const logBody = { action: "page_visit", pageVisited: "/dashboard" };
 
   it("logs an audit entry for the session owner", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession();
     selectQueue.push(
-      [MANAGER_STAFF],
       [session]
     );
 
@@ -474,10 +474,9 @@ describe("POST /impersonation/sessions/:id/log", () => {
   });
 
   it("returns 403 for non-owner", async () => {
-    const app = createApp("oidc-groomer-sub");
+    const app = createApp(GROOMER_STAFF);
     const session = makeSession();
     selectQueue.push(
-      [GROOMER_STAFF],
       [session]
     );
 
@@ -491,10 +490,9 @@ describe("POST /impersonation/sessions/:id/log", () => {
   });
 
   it("returns 400 when session has expired by time", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession({ expiresAt: pastDate() });
     selectQueue.push(
-      [MANAGER_STAFF],
       [session]
     );
 
@@ -508,10 +506,9 @@ describe("POST /impersonation/sessions/:id/log", () => {
   });
 
   it("returns 400 for an ended session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession({ status: "ended" });
     selectQueue.push(
-      [MANAGER_STAFF],
       [session]
     );
 
@@ -529,11 +526,10 @@ describe("POST /impersonation/sessions/:id/log", () => {
 
 describe("GET /impersonation/sessions/:id/audit-log", () => {
   it("returns audit logs for the session owner", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     const session = makeSession();
     const logs = [makeAuditLog(), makeAuditLog({ id: "audit-uuid-2", action: "page_visit" })];
     selectQueue.push(
-      [MANAGER_STAFF], // resolveStaff
       [session], // session lookup
       logs // audit logs query (where + orderBy chain)
     );
@@ -547,10 +543,9 @@ describe("GET /impersonation/sessions/:id/audit-log", () => {
   });
 
   it("returns 403 for non-owner", async () => {
-    const app = createApp("oidc-groomer-sub");
+    const app = createApp(GROOMER_STAFF);
     const session = makeSession();
     selectQueue.push(
-      [GROOMER_STAFF],
       [session]
     );
 
@@ -563,9 +558,8 @@ describe("GET /impersonation/sessions/:id/audit-log", () => {
   });
 
   it("returns 404 for nonexistent session", async () => {
-    const app = createApp("oidc-manager-sub");
+    const app = createApp(MANAGER_STAFF);
     selectQueue.push(
-      [MANAGER_STAFF],
       []
     );
 
