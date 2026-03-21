@@ -7,15 +7,12 @@ import {
   getDb,
   impersonationSessions,
   impersonationAuditLogs,
-  staff,
   clients,
   desc,
 } from "@groombook/db";
-import type { JwtPayload } from "../middleware/auth.js";
+import type { AppEnv } from "../middleware/rbac.js";
 
-type Env = { Variables: { jwtPayload: JwtPayload } };
-
-export const impersonationRouter = new Hono<Env>();
+export const impersonationRouter = new Hono<AppEnv>();
 
 const SESSION_TIMEOUT_MINUTES = 30;
 
@@ -23,16 +20,6 @@ const SESSION_TIMEOUT_MINUTES = 30;
 
 function expiresAt(minutes = SESSION_TIMEOUT_MINUTES) {
   return new Date(Date.now() + minutes * 60_000);
-}
-
-/** Resolve the staff row for the authenticated OIDC subject. */
-async function resolveStaff(sub: string) {
-  const db = getDb();
-  const [row] = await db
-    .select()
-    .from(staff)
-    .where(eq(staff.oidcSub, sub));
-  return row ?? null;
 }
 
 /** Expire any timed-out active sessions for a given staff member. */
@@ -76,7 +63,8 @@ async function checkAndExpireSession(
   return true;
 }
 
-// ─── POST / — Start a new impersonation session ─────────────────────────────
+// ─── POST /sessions — Start a new impersonation session ─────────────────────
+// requireRole("manager") is enforced by index.ts middleware on /impersonation/*
 
 const startSessionSchema = z.object({
   clientId: z.string().uuid(),
@@ -88,15 +76,8 @@ impersonationRouter.post(
   zValidator("json", startSessionSchema),
   async (c) => {
     const db = getDb();
-    const jwt = c.get("jwtPayload") as JwtPayload;
+    const staffRow = c.get("staff");
     const body = c.req.valid("json");
-
-    // Resolve authenticated staff
-    const staffRow = await resolveStaff(jwt.sub);
-    if (!staffRow) return c.json({ error: "Staff record not found" }, 403);
-    if (staffRow.role !== "manager") {
-      return c.json({ error: "Only managers can impersonate clients" }, 403);
-    }
 
     // Verify client exists
     const [client] = await db
@@ -150,9 +131,7 @@ impersonationRouter.post(
 
 impersonationRouter.get("/sessions/:id", async (c) => {
   const db = getDb();
-  const jwt = c.get("jwtPayload") as JwtPayload;
-  const staffRow = await resolveStaff(jwt.sub);
-  if (!staffRow) return c.json({ error: "Staff record not found" }, 403);
+  const staffRow = c.get("staff");
 
   const [session] = await db
     .select()
@@ -176,9 +155,7 @@ impersonationRouter.get("/sessions/:id", async (c) => {
 
 impersonationRouter.post("/sessions/:id/extend", async (c) => {
   const db = getDb();
-  const jwt = c.get("jwtPayload") as JwtPayload;
-  const staffRow = await resolveStaff(jwt.sub);
-  if (!staffRow) return c.json({ error: "Staff record not found" }, 403);
+  const staffRow = c.get("staff");
 
   const [session] = await db
     .select()
@@ -217,9 +194,7 @@ impersonationRouter.post("/sessions/:id/extend", async (c) => {
 
 impersonationRouter.post("/sessions/:id/end", async (c) => {
   const db = getDb();
-  const jwt = c.get("jwtPayload") as JwtPayload;
-  const staffRow = await resolveStaff(jwt.sub);
-  if (!staffRow) return c.json({ error: "Staff record not found" }, 403);
+  const staffRow = c.get("staff");
 
   const [session] = await db
     .select()
@@ -266,11 +241,8 @@ impersonationRouter.post(
   zValidator("json", logEntrySchema),
   async (c) => {
     const db = getDb();
-    const jwt = c.get("jwtPayload") as JwtPayload;
+    const staffRow = c.get("staff");
     const body = c.req.valid("json");
-
-    const staffRow = await resolveStaff(jwt.sub);
-    if (!staffRow) return c.json({ error: "Staff record not found" }, 403);
 
     const [session] = await db
       .select()
@@ -307,9 +279,7 @@ impersonationRouter.post(
 
 impersonationRouter.get("/sessions/:id/audit-log", async (c) => {
   const db = getDb();
-  const jwt = c.get("jwtPayload") as JwtPayload;
-  const staffRow = await resolveStaff(jwt.sub);
-  if (!staffRow) return c.json({ error: "Staff record not found" }, 403);
+  const staffRow = c.get("staff");
 
   const [session] = await db
     .select()

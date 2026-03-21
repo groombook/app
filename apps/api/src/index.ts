@@ -16,6 +16,7 @@ import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { getDb, businessSettings } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
+import { resolveStaffMiddleware, requireRole } from "./middleware/rbac.js";
 import { devRouter } from "./routes/dev.js";
 import { startReminderScheduler } from "./services/reminders.js";
 
@@ -57,6 +58,34 @@ app.get("/api/branding", async (c) => {
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
+api.use("*", resolveStaffMiddleware);
+
+// ── Role guards ────────────────────────────────────────────────────────────────
+// Manager-only: staff, admin settings, reports, invoices, impersonation
+api.use("/staff/*", requireRole("manager"));
+api.use("/admin/*", requireRole("manager"));
+api.use("/reports/*", requireRole("manager"));
+api.use("/invoices/*", requireRole("manager"));
+api.use("/impersonation/*", requireRole("manager"));
+
+// Manager + Receptionist only (groomers have no access): appointment-groups, grooming-logs
+api.use("/appointment-groups/*", requireRole("manager", "receptionist"));
+api.use("/grooming-logs/*", requireRole("manager", "receptionist"));
+
+// Clients, pets, appointments: all roles may read; only manager + receptionist may write
+api.on(
+  ["POST", "PUT", "PATCH", "DELETE"],
+  ["/clients/*", "/pets/*", "/appointments/*"],
+  requireRole("manager", "receptionist")
+);
+
+// Services: all roles may read; only managers may write
+api.on(
+  ["POST", "PUT", "PATCH", "DELETE"],
+  "/services/*",
+  requireRole("manager")
+);
+// ──────────────────────────────────────────────────────────────────────────────
 
 api.route("/clients", clientsRouter);
 api.route("/pets", petsRouter);
