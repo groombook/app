@@ -270,7 +270,7 @@ export function ReportsPage() {
             <option value="month">Month</option>
           </select>
         </label>
-        <button onClick={loadAll} style={{ ...btnStyle, background: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}>
+        <button onClick={loadAll} style={{ ...btnStyle, background: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}>
           {loading ? "Loading…" : "Refresh"}
         </button>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem" }}>

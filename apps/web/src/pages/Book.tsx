@@ -66,8 +66,8 @@ function StepIndicator({ step }: { step: number }) {
               padding: "0.5rem 0.25rem",
               fontSize: 12,
               fontWeight: active ? 700 : 400,
-              color: active ? "#4f8a6f" : done ? "#4f8a6f" : "#9ca3af",
-              borderBottom: `3px solid ${active ? "#4f8a6f" : done ? "#4f8a6f" : "#e5e7eb"}`,
+              color: active ? "var(--color-primary)" : done ? "var(--color-primary)" : "#9ca3af",
+              borderBottom: `3px solid ${active ? "var(--color-primary)" : done ? "var(--color-primary)" : "#e5e7eb"}`,
             }}
           >
             <span
@@ -78,7 +78,7 @@ function StepIndicator({ step }: { step: number }) {
                 width: 22,
                 height: 22,
                 borderRadius: "50%",
-                background: active ? "#4f8a6f" : done ? "#4f8a6f" : "#e5e7eb",
+                background: active ? "var(--color-primary)" : done ? "var(--color-primary)" : "#e5e7eb",
                 color: active || done ? "#fff" : "#6b7280",
                 fontSize: 12,
                 fontWeight: 700,
@@ -218,7 +218,7 @@ export function BookPage() {
 
   const selectedCard: React.CSSProperties = {
     ...card,
-    border: "2px solid #4f8a6f",
+    border: "2px solid var(--color-primary)",
     background: "#f0faf5",
   };
 
@@ -250,7 +250,7 @@ export function BookPage() {
 
   const primaryBtn: React.CSSProperties = {
     ...btn,
-    background: "#4f8a6f",
+    background: "var(--color-primary)",
     color: "#fff",
   };
 
@@ -301,7 +301,7 @@ export function BookPage() {
                     )}
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0, marginLeft: "1rem" }}>
-                    <div style={{ fontWeight: 700, color: "#4f8a6f", fontSize: 15 }}>
+                    <div style={{ fontWeight: 700, color: "var(--color-primary)", fontSize: 15 }}>
                       {fmtPrice(svc.basePriceCents)}
                     </div>
                     <div style={{ fontSize: 12, color: "#9ca3af" }}>{fmtDuration(svc.durationMinutes)}</div>
@@ -349,8 +349,8 @@ export function BookPage() {
                     style={{
                       padding: "0.4rem 0.85rem",
                       borderRadius: 6,
-                      border: `2px solid ${selectedSlot === slot ? "#4f8a6f" : "#d1d5db"}`,
-                      background: selectedSlot === slot ? "#4f8a6f" : "#fff",
+                      border: `2px solid ${selectedSlot === slot ? "var(--color-primary)" : "#d1d5db"}`,
+                      background: selectedSlot === slot ? "var(--color-primary)" : "#fff",
                       color: selectedSlot === slot ? "#fff" : "#374151",
                       fontSize: 13,
                       fontWeight: 500,

@@ -78,7 +78,7 @@ export function StaffPage() {
     <div style={{ fontFamily: "system-ui, sans-serif" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
         <h1 style={{ margin: 0 }}>Staff</h1>
-        <button onClick={openNew} style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f", marginLeft: "auto" }}>
+        <button onClick={openNew} style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)", marginLeft: "auto" }}>
           + Add Staff
         </button>
       </div>
@@ -145,7 +145,7 @@ export function StaffPage() {
               </div>
               {formError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{formError}</p>}
               <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-                <button type="submit" disabled={saving} style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}>
+                <button type="submit" disabled={saving} style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}>
                   {saving ? "Saving…" : editing ? "Save Changes" : "Add Staff"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)} style={btnStyle}>Cancel</button>

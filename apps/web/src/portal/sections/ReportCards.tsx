@@ -33,7 +33,7 @@ export function ReportCards() {
               className="w-full bg-white rounded-2xl border border-stone-200 p-5 shadow-sm text-left hover:border-stone-300 transition-colors"
             >
               <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-xl bg-[#f0ebe4] flex items-center justify-center text-[#8b7355]">
+                <div className="w-14 h-14 rounded-xl bg-(--color-accent-light) flex items-center justify-center text-(--color-accent)">
                   <FileText size={24} />
                 </div>
                 <div className="flex-1">
@@ -70,13 +70,13 @@ function ReportCardDetail({ card, onBack }: { card: ReportCard; onBack: () => vo
 
   return (
     <div className="space-y-6">
-      <button onClick={onBack} className="text-sm text-[#6b5a42] font-medium hover:underline">
+      <button onClick={onBack} className="text-sm text-(--color-accent-dark) font-medium hover:underline">
         ← Back to Report Cards
       </button>
 
       <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#f0ebe4] to-[#e8e0d5] p-6">
+        <div className="bg-gradient-to-r from-(--color-accent-light) to-(--color-accent-light) p-6">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-xl font-semibold text-stone-800">{card.petName}'s Grooming Report</h2>
             <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/80 text-stone-700 rounded-lg text-sm font-medium hover:bg-white">
@@ -101,9 +101,9 @@ function ReportCardDetail({ card, onBack }: { card: ReportCard; onBack: () => vo
                 </div>
                 <p className="text-sm text-stone-600">{card.beforeDescription}</p>
               </div>
-              <div className="rounded-xl bg-[#faf5ef] p-4">
-                <p className="text-xs font-medium text-[#8b7355] uppercase mb-2">After</p>
-                <div className="w-full h-32 bg-[#f0ebe4] rounded-lg flex items-center justify-center text-[#8b7355] text-sm mb-2">
+              <div className="rounded-xl bg-(--color-accent-lighter) p-4">
+                <p className="text-xs font-medium text-(--color-accent) uppercase mb-2">After</p>
+                <div className="w-full h-32 bg-(--color-accent-light) rounded-lg flex items-center justify-center text-(--color-accent) text-sm mb-2">
                   Photo placeholder
                 </div>
                 <p className="text-sm text-stone-700">{card.afterDescription}</p>
@@ -148,7 +148,7 @@ function ReportCardDetail({ card, onBack }: { card: ReportCard; onBack: () => vo
           )}
 
           {/* Groomer's Note */}
-          <div className="bg-[#faf5ef] rounded-xl p-4">
+          <div className="bg-(--color-accent-lighter) rounded-xl p-4">
             <h3 className="font-medium text-stone-800 mb-2">A Note from {card.groomerName}</h3>
             <p className="text-sm text-stone-700 italic leading-relaxed">"{card.groomerNote}"</p>
           </div>
@@ -161,7 +161,7 @@ function ReportCardDetail({ card, onBack }: { card: ReportCard; onBack: () => vo
                 {new Date(card.nextRecommendedDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
               </p>
             </div>
-            <button className="px-4 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium hover:bg-[#7a6549]">
+            <button className="px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)">
               Rebook Now
             </button>
           </div>

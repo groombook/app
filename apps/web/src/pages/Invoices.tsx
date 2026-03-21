@@ -129,7 +129,7 @@ function CreateFromAppointmentForm({
           <button
             type="submit"
             disabled={saving || !selectedApptId}
-            style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}
+            style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}
           >
             {saving ? "Creating…" : "Create Invoice"}
           </button>
@@ -540,7 +540,7 @@ export function InvoicesPage() {
         </select>
         <button
           onClick={() => setShowCreate(true)}
-          style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f", marginLeft: "auto" }}
+          style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)", marginLeft: "auto" }}
         >
           + Create Invoice
         </button>

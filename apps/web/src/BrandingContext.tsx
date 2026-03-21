@@ -45,6 +45,14 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.style.setProperty("--color-primary", branding.primaryColor);
     document.documentElement.style.setProperty("--color-accent", branding.accentColor);
+    // Keep PWA theme-color meta tag in sync with primary color
+    let metaThemeColor = document.querySelector<HTMLMetaElement>("meta[name='theme-color']");
+    if (!metaThemeColor) {
+      metaThemeColor = document.createElement("meta");
+      metaThemeColor.name = "theme-color";
+      document.head.appendChild(metaThemeColor);
+    }
+    metaThemeColor.content = branding.primaryColor;
   }, [branding.primaryColor, branding.accentColor]);
 
   return (
