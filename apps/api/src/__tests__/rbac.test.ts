@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Hono } from "hono";
-import type { AppEnv } from "../middleware/rbac.js";
+import type { Context, MiddlewareHandler } from "hono";
+import type { AppEnv, StaffRow } from "../middleware/rbac.js";
 
 // ─── Mock staff data ──────────────────────────────────────────────────────────
 
-const MANAGER = {
+const MANAGER: StaffRow = {
   id: "staff-manager-id",
   oidcSub: "oidc-manager-sub",
-  role: "manager" as const,
+  role: "manager",
   name: "Manager McManager",
   email: "manager@example.com",
   active: true,
@@ -15,28 +16,28 @@ const MANAGER = {
   updatedAt: new Date(),
 };
 
-const RECEPTIONIST = {
+const RECEPTIONIST: StaffRow = {
   ...MANAGER,
   id: "staff-receptionist-id",
   oidcSub: "oidc-receptionist-sub",
-  role: "receptionist" as const,
+  role: "receptionist",
   name: "Receptionist Rita",
   email: "receptionist@example.com",
 };
 
-const GROOMER = {
+const GROOMER: StaffRow = {
   ...MANAGER,
   id: "staff-groomer-id",
   oidcSub: "oidc-groomer-sub",
-  role: "groomer" as const,
+  role: "groomer",
   name: "Groomer Gary",
   email: "groomer@example.com",
 };
 
 // ─── Mock DB ──────────────────────────────────────────────────────────────────
 
-let staffLookupResult: typeof MANAGER | null = null;
-let managerFallbackResult: typeof MANAGER | null = MANAGER;
+let staffLookupResult: StaffRow | null = null;
+let managerFallbackResult: StaffRow | null = MANAGER;
 
 vi.mock("@groombook/db", () => {
   const staff = new Proxy(
@@ -59,8 +60,6 @@ vi.mock("@groombook/db", () => {
               // dev mode fallback to first manager
               return managerFallbackResult ? [managerFallbackResult] : [];
             },
-            // direct .where() termination (oidcSub lookup)
-            then: undefined,
             [Symbol.iterator]: function* () {
               if (staffLookupResult) yield staffLookupResult;
             },
@@ -71,7 +70,7 @@ vi.mock("@groombook/db", () => {
       }),
     }),
     staff,
-    eq: vi.fn((_col, _val) => ({ col: _col, val: _val })),
+    eq: vi.fn((_col: unknown, _val: unknown) => ({ col: _col, val: _val })),
   };
 });
 
@@ -82,24 +81,41 @@ function resetMocks() {
   managerFallbackResult = MANAGER;
 }
 
-/** Build a minimal Hono app with jwtPayload already set, then apply the given middleware. */
+/** Build a minimal Hono app with jwtPayload pre-set, then apply a middleware. */
 function buildApp(
-  middleware: Parameters<Hono<AppEnv>["use"]>[1],
-  handler?: (c: Parameters<Parameters<Hono<AppEnv>["get"]>[1]>[0]) => Response | Promise<Response>
+  middleware: MiddlewareHandler<AppEnv>,
+  handler?: (c: Context<AppEnv>) => Response | Promise<Response>
 ) {
   const app = new Hono<AppEnv>();
-  // Inject jwtPayload as if authMiddleware already ran
   app.use("*", async (c, next) => {
     c.set("jwtPayload", { sub: staffLookupResult?.oidcSub ?? "unknown-sub" });
     await next();
   });
-  app.use("*", middleware as never);
-  app.get("/test", handler ?? ((c) => c.json({ ok: true })));
-  app.post("/test", handler ?? ((c) => c.json({ ok: true })));
+  app.use("*", middleware);
+  const h = handler ?? ((c: Context<AppEnv>) => c.json({ ok: true }));
+  app.get("/test", h);
+  app.post("/test", h);
   return app;
 }
 
-// ─── resolveStaffMiddleware tests ─────────────────────────────────────────────
+/** Build app with staff pre-set in context (skips resolveStaffMiddleware). */
+function buildWithStaff(
+  staffRow: StaffRow,
+  guard: MiddlewareHandler<AppEnv>
+) {
+  const app = new Hono<AppEnv>();
+  app.use("*", async (c, next) => {
+    c.set("jwtPayload", { sub: staffRow.oidcSub ?? "" });
+    c.set("staff", staffRow);
+    await next();
+  });
+  app.use("*", guard);
+  app.get("/test", (c) => c.json({ ok: true }));
+  app.post("/test", (c) => c.json({ ok: true }));
+  return app;
+}
+
+// ─── Import middleware ────────────────────────────────────────────────────────
 
 const { resolveStaffMiddleware, requireRole } = await import(
   "../middleware/rbac.js"
@@ -111,10 +127,12 @@ afterEach(() => {
   delete process.env.AUTH_DISABLED;
 });
 
+// ─── resolveStaffMiddleware tests ─────────────────────────────────────────────
+
 describe("resolveStaffMiddleware", () => {
   it("resolves staff from DB and sets it on context", async () => {
     staffLookupResult = MANAGER;
-    let capturedStaff: unknown = null;
+    let capturedStaff: StaffRow | null = null;
     const app = buildApp(resolveStaffMiddleware, (c) => {
       capturedStaff = c.get("staff");
       return c.json({ ok: true });
@@ -122,8 +140,8 @@ describe("resolveStaffMiddleware", () => {
 
     const res = await app.request("/test");
     expect(res.status).toBe(200);
-    expect(capturedStaff).toBeTruthy();
-    expect((capturedStaff as typeof MANAGER).id).toBe(MANAGER.id);
+    expect(capturedStaff).not.toBeNull();
+    expect(capturedStaff!.id).toBe(MANAGER.id);
   });
 
   it("returns 403 when no staff record found for the OIDC sub", async () => {
@@ -139,23 +157,23 @@ describe("resolveStaffMiddleware", () => {
   it("dev mode: resolves staff by X-Dev-User-Id header", async () => {
     process.env.AUTH_DISABLED = "true";
     staffLookupResult = GROOMER;
-    let capturedStaff: unknown = null;
+    let capturedStaff: StaffRow | null = null;
     const app = buildApp(resolveStaffMiddleware, (c) => {
       capturedStaff = c.get("staff");
       return c.json({ ok: true });
     });
 
     const res = await app.request("/test", {
-      headers: { "X-Dev-User-Id": GROOMER.oidcSub },
+      headers: { "X-Dev-User-Id": GROOMER.oidcSub! },
     });
     expect(res.status).toBe(200);
-    expect((capturedStaff as typeof GROOMER).role).toBe("groomer");
+    expect(capturedStaff!.role).toBe("groomer");
   });
 
   it("dev mode: falls back to first manager when no X-Dev-User-Id header", async () => {
     process.env.AUTH_DISABLED = "true";
     managerFallbackResult = MANAGER;
-    let capturedStaff: unknown = null;
+    let capturedStaff: StaffRow | null = null;
     const app = buildApp(resolveStaffMiddleware, (c) => {
       capturedStaff = c.get("staff");
       return c.json({ ok: true });
@@ -163,7 +181,7 @@ describe("resolveStaffMiddleware", () => {
 
     const res = await app.request("/test");
     expect(res.status).toBe(200);
-    expect((capturedStaff as typeof MANAGER).role).toBe("manager");
+    expect(capturedStaff!.role).toBe("manager");
   });
 
   it("dev mode: returns 403 when no manager exists and no header provided", async () => {
@@ -181,23 +199,6 @@ describe("resolveStaffMiddleware", () => {
 // ─── requireRole tests ────────────────────────────────────────────────────────
 
 describe("requireRole", () => {
-  /** Build app with staff pre-set in context (skips resolveStaffMiddleware). */
-  function buildWithStaff(
-    staffRow: typeof MANAGER,
-    guard: ReturnType<typeof requireRole>
-  ) {
-    const app = new Hono<AppEnv>();
-    app.use("*", async (c, next) => {
-      c.set("jwtPayload", { sub: staffRow.oidcSub });
-      c.set("staff", staffRow as never);
-      await next();
-    });
-    app.use("*", guard as never);
-    app.get("/test", (c) => c.json({ ok: true }));
-    app.post("/test", (c) => c.json({ ok: true }));
-    return app;
-  }
-
   it("allows access when staff role matches the only allowed role", async () => {
     const app = buildWithStaff(MANAGER, requireRole("manager"));
     const res = await app.request("/test");
@@ -227,7 +228,7 @@ describe("requireRole", () => {
     expect(body.error).toContain("receptionist");
   });
 
-  it("groomer is blocked from manager-only routes", async () => {
+  it("groomer is blocked from manager+receptionist-only routes", async () => {
     const app = buildWithStaff(GROOMER, requireRole("manager", "receptionist"));
     const res = await app.request("/test", { method: "POST" });
     expect(res.status).toBe(403);
