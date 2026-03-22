@@ -51,7 +51,7 @@ importers:
         specifier: ^6.4.17
         version: 6.4.23
       '@vitest/coverage-v8':
-        specifier: ^3.0.4
+        specifier: ^3.2.4
         version: 3.2.4(vitest@3.2.4(@types/node@22.19.15)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0))
       eslint:
         specifier: ^9.18.0
@@ -66,7 +66,7 @@ importers:
         specifier: ^8.20.0
         version: 8.57.1(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       vitest:
-        specifier: ^3.0.4
+        specifier: ^3.2.4
         version: 3.2.4(@types/node@22.19.15)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0)
 
   apps/e2e:
