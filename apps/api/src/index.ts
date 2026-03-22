@@ -14,6 +14,7 @@ import { appointmentGroupsRouter } from "./routes/appointmentGroups.js";
 import { groomingLogsRouter } from "./routes/groomingLogs.js";
 import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
+import { searchRouter } from "./routes/search.js";
 import { getDb, businessSettings } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
 import { resolveStaffMiddleware, requireRole } from "./middleware/rbac.js";
@@ -113,6 +114,7 @@ api.route("/appointment-groups", appointmentGroupsRouter);
 api.route("/grooming-logs", groomingLogsRouter);
 api.route("/impersonation", impersonationRouter);
 api.route("/admin/settings", settingsRouter);
+api.route("/search", searchRouter);
 
 const port = Number(process.env.PORT ?? 3000);
 console.log(`API server listening on port ${port}`);

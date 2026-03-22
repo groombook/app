@@ -35,7 +35,7 @@ export function ImpersonationBanner({ session, isExtended, onEnd, onExtend, onSh
   }, [session.expiresAt, onEnd]);
 
   return (
-    <div className="sticky top-0 z-40 bg-amber-500 text-amber-950 px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium shadow-md">
+    <div data-testid="impersonation-banner" className="sticky top-0 z-40 bg-amber-500 text-amber-950 px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium shadow-md">
       <span className="flex items-center gap-1.5">
         <Eye size={16} />
         STAFF VIEW

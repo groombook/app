@@ -30,13 +30,13 @@ export function AppointmentsSection({ readOnly }: Props) {
         <div className="flex gap-2">
           <button
             onClick={() => setTab("upcoming")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "upcoming" ? "bg-[#f0ebe4] text-[#6b5a42]" : "text-stone-500 hover:bg-stone-50"}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "upcoming" ? "bg-(--color-accent-light) text-(--color-accent-dark)" : "text-stone-500 hover:bg-stone-50"}`}
           >
             Upcoming ({UPCOMING_APPOINTMENTS.length})
           </button>
           <button
             onClick={() => setTab("past")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "past" ? "bg-[#f0ebe4] text-[#6b5a42]" : "text-stone-500 hover:bg-stone-50"}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "past" ? "bg-(--color-accent-light) text-(--color-accent-dark)" : "text-stone-500 hover:bg-stone-50"}`}
           >
             Past ({PAST_APPOINTMENTS.length})
           </button>
@@ -44,7 +44,7 @@ export function AppointmentsSection({ readOnly }: Props) {
         {!readOnly && (
           <button
             onClick={() => setShowBooking(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium hover:bg-[#7a6549]"
+            className="flex items-center gap-1.5 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
           >
             <Plus size={16} />
             Book New
@@ -101,7 +101,7 @@ function AppointmentCard({
   return (
     <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
       <button onClick={onToggle} className="w-full flex items-center gap-4 p-4 text-left hover:bg-stone-50">
-        <div className="w-10 h-10 rounded-lg bg-[#f0ebe4] flex items-center justify-center text-lg shrink-0">
+        <div className="w-10 h-10 rounded-lg bg-(--color-accent-light) flex items-center justify-center text-lg shrink-0">
           {PETS.find(p => p.id === appt.petId)?.photo || "🐾"}
         </div>
         <div className="flex-1 min-w-0">
@@ -150,7 +150,7 @@ function AppointmentCard({
           )}
           {appt.reportCardId && (
             <div className="mt-2">
-              <span className="text-xs text-[#6b5a42] font-medium cursor-pointer hover:underline">
+              <span className="text-xs text-(--color-accent-dark) font-medium cursor-pointer hover:underline">
                 View Report Card →
               </span>
             </div>
@@ -190,7 +190,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
         {/* Step Indicator */}
         <div className="flex items-center gap-1 px-5 pt-4">
           {[1, 2, 3, 4, 5].map(s => (
-            <div key={s} className={`flex-1 h-1.5 rounded-full ${s <= step ? "bg-[#8b7355]" : "bg-stone-200"}`} />
+            <div key={s} className={`flex-1 h-1.5 rounded-full ${s <= step ? "bg-(--color-accent)" : "bg-stone-200"}`} />
           ))}
         </div>
 
@@ -202,7 +202,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
               <p className="text-sm text-stone-500 mb-4">
                 {selectedPet?.name} with {selectedGroomer?.name || "First Available"} on {formatDate(selectedDate)} at {selectedTime}
               </p>
-              <button onClick={onClose} className="px-4 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium">
+              <button onClick={onClose} className="px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium">
                 Done
               </button>
             </div>
@@ -218,7 +218,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                         key={pet.id}
                         onClick={() => { setSelectedPet(pet); setStep(2); }}
                         className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${
-                          selectedPet?.id === pet.id ? "border-[#8b7355] bg-[#faf5ef]" : "border-stone-200 hover:border-stone-300"
+                          selectedPet?.id === pet.id ? "border-(--color-accent) bg-(--color-accent-lighter)" : "border-stone-200 hover:border-stone-300"
                         }`}
                       >
                         <span className="text-2xl">{pet.photo}</span>
@@ -246,7 +246,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                           );
                         }}
                         className={`w-full flex items-center justify-between p-3 rounded-xl border text-left ${
-                          selectedServices.find(s => s.id === svc.id) ? "border-[#8b7355] bg-[#faf5ef]" : "border-stone-200 hover:border-stone-300"
+                          selectedServices.find(s => s.id === svc.id) ? "border-(--color-accent) bg-(--color-accent-lighter)" : "border-stone-200 hover:border-stone-300"
                         }`}
                       >
                         <div>
@@ -273,7 +273,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                               );
                             }}
                             className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-left text-sm ${
-                              selectedAddOns.find(s => s.id === svc.id) ? "border-[#8b7355] bg-[#faf5ef]" : "border-stone-200 hover:border-stone-300"
+                              selectedAddOns.find(s => s.id === svc.id) ? "border-(--color-accent) bg-(--color-accent-lighter)" : "border-stone-200 hover:border-stone-300"
                             }`}
                           >
                             <div>
@@ -291,7 +291,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                     <button
                       onClick={() => setStep(3)}
                       disabled={selectedServices.length === 0}
-                      className="flex-1 px-4 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                      className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium disabled:opacity-50"
                     >
                       Next
                     </button>
@@ -307,7 +307,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                     <button
                       onClick={() => { setSelectedGroomer(null); setStep(4); }}
                       className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left ${
-                        selectedGroomer === null ? "border-[#8b7355] bg-[#faf5ef]" : "border-stone-200 hover:border-stone-300"
+                        selectedGroomer === null ? "border-(--color-accent) bg-(--color-accent-lighter)" : "border-stone-200 hover:border-stone-300"
                       }`}
                     >
                       <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center">
@@ -323,10 +323,10 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                         key={g.id}
                         onClick={() => { setSelectedGroomer(g); setStep(4); }}
                         className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left ${
-                          selectedGroomer?.id === g.id ? "border-[#8b7355] bg-[#faf5ef]" : "border-stone-200 hover:border-stone-300"
+                          selectedGroomer?.id === g.id ? "border-(--color-accent) bg-(--color-accent-lighter)" : "border-stone-200 hover:border-stone-300"
                         }`}
                       >
-                        <div className="w-10 h-10 rounded-full bg-[#f0ebe4] flex items-center justify-center text-xl">
+                        <div className="w-10 h-10 rounded-full bg-(--color-accent-light) flex items-center justify-center text-xl">
                           {g.avatar}
                         </div>
                         <div>
@@ -358,7 +358,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                           key={time}
                           onClick={() => setSelectedTime(time)}
                           className={`px-3 py-2 rounded-lg text-sm border ${
-                            selectedTime === time ? "border-[#8b7355] bg-[#faf5ef] font-medium" : "border-stone-200 hover:border-stone-300"
+                            selectedTime === time ? "border-(--color-accent) bg-(--color-accent-lighter) font-medium" : "border-stone-200 hover:border-stone-300"
                           }`}
                         >
                           {time}
@@ -387,7 +387,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                     <button
                       onClick={() => setStep(5)}
                       disabled={!selectedDate || !selectedTime}
-                      className="flex-1 px-4 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                      className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium disabled:opacity-50"
                     >
                       Next
                     </button>
@@ -426,7 +426,7 @@ function BookingFlow({ onClose, readOnly }: { onClose: () => void; readOnly: boo
                     <button onClick={() => setStep(4)} className="flex-1 px-4 py-2 border border-stone-200 rounded-lg text-sm">Back</button>
                     <button
                       onClick={() => setConfirmed(true)}
-                      className="flex-1 px-4 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium hover:bg-[#7a6549]"
+                      className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
                     >
                       Confirm Booking
                     </button>

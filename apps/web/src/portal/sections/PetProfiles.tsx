@@ -30,7 +30,7 @@ export function PetProfiles({ readOnly }: Props) {
             key={p.id}
             onClick={() => { setSelectedPetId(p.id); setActiveTab("info"); }}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${
-              p.id === selectedPetId ? "border-[#8b7355] bg-[#faf5ef]" : "border-stone-200 bg-white hover:border-stone-300"
+              p.id === selectedPetId ? "border-(--color-accent) bg-(--color-accent-lighter)" : "border-stone-200 bg-white hover:border-stone-300"
             }`}
           >
             <span className="text-2xl">{p.photo}</span>
@@ -45,7 +45,7 @@ export function PetProfiles({ readOnly }: Props) {
       {/* Profile Header */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="w-20 h-20 rounded-2xl bg-[#f0ebe4] flex items-center justify-center text-4xl">
+          <div className="w-20 h-20 rounded-2xl bg-(--color-accent-light) flex items-center justify-center text-4xl">
             {pet.photo}
           </div>
           <div className="flex-1">
@@ -74,7 +74,7 @@ export function PetProfiles({ readOnly }: Props) {
             key={id}
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
-              activeTab === id ? "bg-[#f0ebe4] text-[#6b5a42]" : "text-stone-500 hover:text-stone-700"
+              activeTab === id ? "bg-(--color-accent-light) text-(--color-accent-dark)" : "text-stone-500 hover:text-stone-700"
             }`}
           >
             <Icon size={14} />
@@ -114,7 +114,7 @@ function BasicInfoTab({ pet, readOnly }: { pet: Pet; readOnly: boolean }) {
       <InfoRow label="Sex" value={pet.sex === "male" ? "Male" : "Female"} />
       <InfoRow label="Spayed/Neutered" value={pet.spayedNeutered ? "Yes" : "No"} />
       {!readOnly && (
-        <button className="mt-4 text-sm text-[#6b5a42] font-medium hover:underline">
+        <button className="mt-4 text-sm text-(--color-accent-dark) font-medium hover:underline">
           Upload Photo
         </button>
       )}
@@ -148,7 +148,7 @@ function GroomingTab({ pet, readOnly }: { pet: Pet; readOnly: boolean }) {
       <InfoRow label="Sensitive Areas" value={pet.sensitiveAreas} />
       <InfoRow label="Standing Instructions" value={pet.standingInstructions} />
       {!readOnly && (
-        <button className="mt-4 text-sm text-[#6b5a42] font-medium hover:underline">
+        <button className="mt-4 text-sm text-(--color-accent-dark) font-medium hover:underline">
           Upload Reference Photo
         </button>
       )}
@@ -189,7 +189,7 @@ function VaccinationsTab({ pet, readOnly }: { pet: Pet; readOnly: boolean }) {
                     {vax.documentUploaded ? (
                       <span className="text-green-600 text-xs">Uploaded</span>
                     ) : !readOnly ? (
-                      <button className="flex items-center gap-1 text-xs text-[#6b5a42] hover:underline">
+                      <button className="flex items-center gap-1 text-xs text-(--color-accent-dark) hover:underline">
                         <Upload size={12} />
                         Upload
                       </button>
@@ -226,7 +226,7 @@ function HistoryTab({ petHistory }: { petHistory: typeof PAST_APPOINTMENTS }) {
               {new Date(appt.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
             </span>
             {appt.reportCardId && (
-              <span className="text-xs text-[#6b5a42] font-medium">Report →</span>
+              <span className="text-xs text-(--color-accent-dark) font-medium">Report →</span>
             )}
           </div>
         ))

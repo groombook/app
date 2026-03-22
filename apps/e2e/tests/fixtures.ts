@@ -10,11 +10,26 @@ import { test as base } from "@playwright/test";
  *
  * This ensures E2E tests render pages directly without the login redirect.
  */
+const MOCK_DEV_USERS = {
+  staff: [
+    { id: "staff-1", name: "Alice Groomer", email: "alice@groombook.dev", role: "groomer" },
+    { id: "staff-2", name: "Bob Manager", email: "bob@groombook.dev", role: "manager" },
+  ],
+  clients: [
+    { id: "client-1", name: "Carol Client", email: "carol@example.com", petCount: 2 },
+    { id: "client-2", name: "Dave Client", email: null, petCount: 1 },
+  ],
+};
+
 export const test = base.extend({
   page: async ({ page }, use) => {
     // Mock the dev config endpoint so the app skips the auth-disabled redirect
     await page.route("**/api/dev/config", (route) =>
       route.fulfill({ json: { authDisabled: false } })
+    );
+    // Mock the dev users endpoint for login selector tests
+    await page.route("**/api/dev/users", (route) =>
+      route.fulfill({ json: MOCK_DEV_USERS })
     );
     // Mock the branding endpoint so BrandingProvider resolves immediately
     await page.route("**/api/branding", (route) =>

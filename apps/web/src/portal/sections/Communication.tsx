@@ -16,7 +16,7 @@ export function Communication({ readOnly }: Props) {
         <button
           onClick={() => setTab("messages")}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === "messages" ? "bg-[#f0ebe4] text-[#6b5a42]" : "text-stone-500 hover:bg-stone-50"
+            tab === "messages" ? "bg-(--color-accent-light) text-(--color-accent-dark)" : "text-stone-500 hover:bg-stone-50"
           }`}
         >
           Messages
@@ -24,7 +24,7 @@ export function Communication({ readOnly }: Props) {
         <button
           onClick={() => setTab("notifications")}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${
-            tab === "notifications" ? "bg-[#f0ebe4] text-[#6b5a42]" : "text-stone-500 hover:bg-stone-50"
+            tab === "notifications" ? "bg-(--color-accent-light) text-(--color-accent-dark)" : "text-stone-500 hover:bg-stone-50"
           }`}
         >
           <Bell size={14} />
@@ -68,7 +68,7 @@ function MessageThread({ readOnly }: { readOnly: boolean }) {
           <div key={msg.id} className={`flex ${msg.sender === "customer" ? "justify-end" : "justify-start"}`}>
             <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
               msg.sender === "customer"
-                ? "bg-[#8b7355] text-white rounded-br-md"
+                ? "bg-(--color-accent) text-white rounded-br-md"
                 : "bg-stone-100 text-stone-800 rounded-bl-md"
             }`}>
               <p className="text-sm">{msg.text}</p>
@@ -95,12 +95,12 @@ function MessageThread({ readOnly }: { readOnly: boolean }) {
             onChange={e => setNewMessage(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSend()}
             placeholder="Type a message..."
-            className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8b7355]/30 focus:border-[#8b7355]"
+            className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-accent)/30 focus:border-(--color-accent)"
           />
           <button
             onClick={handleSend}
             disabled={!newMessage.trim()}
-            className="px-4 py-2 bg-[#8b7355] text-white rounded-lg hover:bg-[#7a6549] disabled:opacity-50"
+            className="px-4 py-2 bg-(--color-accent) text-white rounded-lg hover:bg-(--color-accent-hover) disabled:opacity-50"
           >
             <Send size={16} />
           </button>
@@ -177,7 +177,7 @@ function NotificationPreferences({ readOnly }: { readOnly: boolean }) {
                       onClick={() => toggle(cat.key, ch.key)}
                       disabled={readOnly}
                       className={`w-10 h-5 rounded-full transition-colors inline-block ${
-                        prefs[cat.key][ch.key] ? "bg-[#8b7355]" : "bg-stone-300"
+                        prefs[cat.key][ch.key] ? "bg-(--color-accent)" : "bg-stone-300"
                       } ${readOnly ? "cursor-not-allowed opacity-60" : ""}`}
                     >
                       <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${

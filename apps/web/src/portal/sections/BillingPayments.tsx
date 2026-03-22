@@ -38,7 +38,7 @@ export function BillingPayments({ readOnly }: Props) {
               >
                 Add Tip
               </button>
-              <button className="px-6 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium hover:bg-[#7a6549]">
+              <button className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)">
                 Pay Now
               </button>
             </div>
@@ -57,7 +57,7 @@ export function BillingPayments({ readOnly }: Props) {
             key={id}
             onClick={() => setTab(id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${
-              tab === id ? "bg-[#f0ebe4] text-[#6b5a42]" : "text-stone-500 hover:bg-stone-50"
+              tab === id ? "bg-(--color-accent-light) text-(--color-accent-dark)" : "text-stone-500 hover:bg-stone-50"
             }`}
           >
             <Icon size={14} />
@@ -134,7 +134,7 @@ export function BillingPayments({ readOnly }: Props) {
               </div>
             ))}
             {!readOnly && (
-              <button className="flex items-center gap-2 text-sm text-[#6b5a42] font-medium hover:underline mt-2">
+              <button className="flex items-center gap-2 text-sm text-(--color-accent-dark) font-medium hover:underline mt-2">
                 <Plus size={14} />
                 Add Payment Method
               </button>
@@ -145,8 +145,8 @@ export function BillingPayments({ readOnly }: Props) {
           <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#f0ebe4] flex items-center justify-center">
-                  <Zap size={18} className="text-[#8b7355]" />
+                <div className="w-10 h-10 rounded-lg bg-(--color-accent-light) flex items-center justify-center">
+                  <Zap size={18} className="text-(--color-accent)" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-stone-800">Autopay</p>
@@ -156,7 +156,7 @@ export function BillingPayments({ readOnly }: Props) {
               {!readOnly ? (
                 <button
                   onClick={() => setAutopay(!autopay)}
-                  className={`w-12 h-6 rounded-full transition-colors ${autopay ? "bg-[#8b7355]" : "bg-stone-300"}`}
+                  className={`w-12 h-6 rounded-full transition-colors ${autopay ? "bg-(--color-accent)" : "bg-stone-300"}`}
                 >
                   <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${autopay ? "translate-x-6" : "translate-x-0.5"}`} />
                 </button>
@@ -174,7 +174,7 @@ export function BillingPayments({ readOnly }: Props) {
           {PREPAID_PACKAGES.map(pkg => (
             <div key={pkg.id} className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
               <div className="flex items-center gap-3 mb-3">
-                <Package size={20} className="text-[#8b7355]" />
+                <Package size={20} className="text-(--color-accent)" />
                 <h3 className="font-medium text-stone-800">{pkg.name}</h3>
               </div>
               <div className="flex items-center gap-4 mb-3">
@@ -184,7 +184,7 @@ export function BillingPayments({ readOnly }: Props) {
                 </div>
                 <div className="flex-1 bg-stone-100 rounded-full h-3 overflow-hidden">
                   <div
-                    className="bg-[#8b7355] h-full rounded-full"
+                    className="bg-(--color-accent) h-full rounded-full"
                     style={{ width: `${((pkg.totalCredits - pkg.usedCredits) / pkg.totalCredits) * 100}%` }}
                   />
                 </div>
@@ -218,7 +218,7 @@ function TipModal({ onClose }: { onClose: () => void }) {
               key={pct}
               onClick={() => { setTipPercent(pct); setCustomTip(""); }}
               className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
-                tipPercent === pct ? "border-[#8b7355] bg-[#faf5ef] text-[#6b5a42]" : "border-stone-200 text-stone-600"
+                tipPercent === pct ? "border-(--color-accent) bg-(--color-accent-lighter) text-(--color-accent-dark)" : "border-stone-200 text-stone-600"
               }`}
             >
               {pct}%
@@ -227,7 +227,7 @@ function TipModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={() => { setTipPercent(null); }}
             className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
-              tipPercent === null ? "border-[#8b7355] bg-[#faf5ef] text-[#6b5a42]" : "border-stone-200 text-stone-600"
+              tipPercent === null ? "border-(--color-accent) bg-(--color-accent-lighter) text-(--color-accent-dark)" : "border-stone-200 text-stone-600"
             }`}
           >
             Custom
@@ -244,7 +244,7 @@ function TipModal({ onClose }: { onClose: () => void }) {
         )}
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 px-4 py-2 border border-stone-200 rounded-lg text-sm">Cancel</button>
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium">Add Tip</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium">Add Tip</button>
         </div>
       </div>
     </div>

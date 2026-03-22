@@ -29,7 +29,7 @@ export function DevSessionIndicator() {
       <Link
         to="/login"
         style={{
-          color: "#4f8a6f",
+          color: "var(--color-primary)",
           textDecoration: "underline",
           fontSize: 12,
         }}

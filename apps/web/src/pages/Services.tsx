@@ -119,7 +119,7 @@ export function ServicesPage() {
         <h1 style={{ margin: 0 }}>Services</h1>
         <button
           onClick={openNew}
-          style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f", marginLeft: "auto" }}
+          style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)", marginLeft: "auto" }}
         >
           + Add Service
         </button>
@@ -232,7 +232,7 @@ export function ServicesPage() {
               <button
                 type="submit"
                 disabled={saving}
-                style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}
+                style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}
               >
                 {saving ? "Saving…" : editing ? "Save Changes" : "Create Service"}
               </button>
