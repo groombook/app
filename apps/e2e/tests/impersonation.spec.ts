@@ -36,7 +36,7 @@ test.describe("ImpersonationBanner", () => {
   test("banner displays when session is active", async ({ page }) => {
     await page.goto("/?sessionId=session-1");
     await expect(page.locator("[data-testid=\"impersonation-banner\"]")).toBeVisible();
-    await expect(page.getByText("STAFF VIEW")).toBeVisible();
+    await expect(page.getByTestId("impersonation-banner").getByText("STAFF VIEW")).toBeVisible();
   });
 
   test("banner shows reason when session has reason", async ({ page }) => {
