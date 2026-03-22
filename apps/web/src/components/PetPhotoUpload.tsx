@@ -31,6 +31,11 @@ export function PetPhotoUpload({ petId, onUploaded }: Props) {
   >({ status: "idle" });
 
   async function resizeImage(file: File): Promise<{ blob: Blob; contentType: string }> {
+    // GIFs must bypass canvas resize — canvas destroys animation frames
+    if (file.type === "image/gif") {
+      return { blob: file, contentType: "image/gif" };
+    }
+
     return new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
@@ -90,7 +95,7 @@ export function PetPhotoUpload({ petId, onUploaded }: Props) {
       const res = await fetch(`/api/pets/${petId}/photo/upload-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentType }),
+        body: JSON.stringify({ contentType, fileSizeBytes: blob.size }),
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };

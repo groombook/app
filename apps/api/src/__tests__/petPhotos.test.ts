@@ -101,7 +101,7 @@ describe("POST /pets/:petId/photo/upload-url", () => {
     const res = await app.request(`/pets/${PET_ID}/photo/upload-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contentType: "image/jpeg" }),
+      body: JSON.stringify({ contentType: "image/jpeg", fileSizeBytes: 1024 }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { uploadUrl: string; key: string };
@@ -115,7 +115,27 @@ describe("POST /pets/:petId/photo/upload-url", () => {
     const res = await app.request(`/pets/${PET_ID}/photo/upload-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contentType: "application/pdf" }),
+      body: JSON.stringify({ contentType: "application/pdf", fileSizeBytes: 1024 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects image/svg+xml with 400 (allowlist enforcement)", async () => {
+    const app = buildApp(MANAGER);
+    const res = await app.request(`/pets/${PET_ID}/photo/upload-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentType: "image/svg+xml", fileSizeBytes: 1024 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects fileSizeBytes over 5 MB with 400", async () => {
+    const app = buildApp(MANAGER);
+    const res = await app.request(`/pets/${PET_ID}/photo/upload-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentType: "image/jpeg", fileSizeBytes: 6 * 1024 * 1024 }),
     });
     expect(res.status).toBe(400);
   });
@@ -126,7 +146,7 @@ describe("POST /pets/:petId/photo/upload-url", () => {
     const res = await app.request(`/pets/${PET_ID}/photo/upload-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contentType: "image/jpeg" }),
+      body: JSON.stringify({ contentType: "image/jpeg", fileSizeBytes: 1024 }),
     });
     expect(res.status).toBe(404);
   });
@@ -136,7 +156,7 @@ describe("POST /pets/:petId/photo/upload-url", () => {
     const res = await app.request(`/pets/${PET_ID}/photo/upload-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contentType: "image/png" }),
+      body: JSON.stringify({ contentType: "image/png", fileSizeBytes: 1024 }),
     });
     expect(res.status).toBe(200);
   });
@@ -176,6 +196,34 @@ describe("POST /pets/:petId/photo/confirm", () => {
       body: JSON.stringify({ key: PHOTO_KEY }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when key does not belong to the pet", async () => {
+    const app = buildApp(MANAGER);
+    const res = await app.request(`/pets/${PET_ID}/photo/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "pets/other-pet-id/1700000000000.jpg" }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/invalid key/i);
+  });
+
+  it("deletes old photo from storage when re-uploading", async () => {
+    const { deleteObject } = await import("../lib/s3.js");
+    const oldKey = `pets/${PET_ID}/old.jpg`;
+    dbPetRow = { ...dbPetRow!, photoKey: oldKey };
+
+    const app = buildApp(MANAGER);
+    const res = await app.request(`/pets/${PET_ID}/photo/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: PHOTO_KEY }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(deleteObject).toHaveBeenCalledWith(oldKey);
   });
 });
 
