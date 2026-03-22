@@ -367,7 +367,7 @@ export function ClientsPage() {
           <h1 style={{ margin: 0, fontSize: 20 }}>Clients</h1>
           <button
             onClick={openNewClient}
-            style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f", marginLeft: "auto", padding: "0.3rem 0.7rem" }}
+            style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)", marginLeft: "auto", padding: "0.3rem 0.7rem" }}
           >
             + New
           </button>
@@ -622,7 +622,7 @@ export function ClientsPage() {
             </Field>
             {clientFormError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{clientFormError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-              <button type="submit" disabled={savingClient} style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}>
+              <button type="submit" disabled={savingClient} style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}>
                 {savingClient ? "Saving…" : editingClient ? "Save Changes" : "Create Client"}
               </button>
               <button type="button" onClick={() => setShowClientForm(false)} style={btnStyle}>Cancel</button>
@@ -761,7 +761,7 @@ export function ClientsPage() {
             </Field>
             {logFormError && <p style={{ color: "red", margin: "0.5rem 0 0" }}>{logFormError}</p>}
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-              <button type="submit" disabled={savingLog} style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}>
+              <button type="submit" disabled={savingLog} style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}>
                 {savingLog ? "Saving…" : "Save Visit Log"}
               </button>
               <button type="button" onClick={() => setShowLogForm(false)} style={btnStyle}>Cancel</button>

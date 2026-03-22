@@ -287,7 +287,7 @@ function NewGroupBookingForm({
           <button
             type="submit"
             disabled={saving}
-            style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}
+            style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}
           >
             {saving ? "Booking…" : "Create Group Booking"}
           </button>
@@ -471,7 +471,7 @@ export function GroupBookingPage() {
         </select>
         <button
           onClick={() => setShowCreate(true)}
-          style={{ ...btnStyle, marginLeft: "auto", backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}
+          style={{ ...btnStyle, marginLeft: "auto", backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}
         >
           + New Group Booking
         </button>

@@ -42,7 +42,7 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
       {nextAppt && (
         <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
           <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-[#6b5a42]">
+            <div className="flex items-center gap-2 text-sm font-medium text-(--color-accent-dark)">
               <Calendar size={16} />
               Next Appointment
             </div>
@@ -71,7 +71,7 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
               </div>
             </div>
             <div className="text-center sm:text-right">
-              <div className="text-3xl font-bold text-[#6b5a42]">{daysUntil(nextAppt.date)}</div>
+              <div className="text-3xl font-bold text-(--color-accent-dark)">{daysUntil(nextAppt.date)}</div>
               <div className="text-xs text-stone-500">days away</div>
             </div>
           </div>
@@ -103,7 +103,7 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
               className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm text-left hover:border-stone-300 transition-colors"
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 rounded-full bg-[#f0ebe4] flex items-center justify-center text-2xl">
+                <div className="w-12 h-12 rounded-full bg-(--color-accent-light) flex items-center justify-center text-2xl">
                   {pet.photo}
                 </div>
                 <div>
@@ -128,14 +128,14 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
 
         {/* Loyalty Card */}
         <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-sm font-medium text-[#6b5a42] mb-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-(--color-accent-dark) mb-3">
             <Star size={16} />
             Loyalty Rewards
           </div>
           <p className="text-2xl font-bold text-stone-800">{LOYALTY.points} <span className="text-sm font-normal text-stone-500">pts</span></p>
           <div className="mt-2 bg-stone-100 rounded-full h-2 overflow-hidden">
             <div
-              className="bg-[#8b7355] h-full rounded-full transition-all"
+              className="bg-(--color-accent) h-full rounded-full transition-all"
               style={{ width: `${(LOYALTY.points / LOYALTY.nextRewardAt) * 100}%` }}
             />
           </div>
@@ -161,7 +161,7 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
               {!readOnly && (
                 <button
                   onClick={() => onNavigate("billing")}
-                  className="px-4 py-2 bg-[#8b7355] text-white rounded-lg text-sm font-medium hover:bg-[#7a6549]"
+                  className="px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
                 >
                   Pay Now
                 </button>
@@ -176,7 +176,7 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
           <div className="space-y-2.5">
             {recentEvents.map(evt => (
               <div key={evt.id} className="flex items-center gap-3 text-sm">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${evt.type === "payment" ? "bg-green-400" : "bg-[#8b7355]"}`} />
+                <div className={`w-2 h-2 rounded-full shrink-0 ${evt.type === "payment" ? "bg-green-400" : "bg-(--color-accent)"}`} />
                 <span className="text-stone-600 flex-1">{evt.text}</span>
                 <span className="text-xs text-stone-400">{formatDate(evt.date)}</span>
               </div>
@@ -184,7 +184,7 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
           </div>
           <button
             onClick={() => onNavigate("appointments")}
-            className="flex items-center gap-1 text-sm text-[#6b5a42] font-medium mt-3 hover:text-[#8b7355]"
+            className="flex items-center gap-1 text-sm text-(--color-accent-dark) font-medium mt-3 hover:text-(--color-accent)"
           >
             View all <ChevronRight size={14} />
           </button>

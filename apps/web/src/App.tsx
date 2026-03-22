@@ -13,6 +13,7 @@ import { CustomerPortal } from "./portal/CustomerPortal.js";
 import { DevLoginSelector, getDevUser } from "./pages/DevLoginSelector.js";
 import { DevSessionIndicator } from "./components/DevSessionIndicator.js";
 import { BrandingProvider, useBranding } from "./BrandingContext.js";
+import { GlobalSearch } from "./components/GlobalSearch.js";
 
 const NAV_LINKS = [
   { to: "/admin", label: "Appointments" },
@@ -68,6 +69,7 @@ function AdminLayout() {
             {branding.businessName}
           </strong>
         </div>
+        <GlobalSearch />
         <Link
           to="/admin/book"
           style={{

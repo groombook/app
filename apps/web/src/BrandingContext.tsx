@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 
 export interface Branding {
   businessName: string;
@@ -27,6 +27,7 @@ export function useBranding() {
 
 export function BrandingProvider({ children }: { children: React.ReactNode }) {
   const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
+  const metaThemeColorRef = useRef<HTMLMetaElement | null>(null);
 
   const fetchBranding = useCallback(() => {
     fetch("/api/branding")
@@ -45,6 +46,16 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.style.setProperty("--color-primary", branding.primaryColor);
     document.documentElement.style.setProperty("--color-accent", branding.accentColor);
+    // Keep PWA theme-color meta tag in sync with primary color
+    if (!metaThemeColorRef.current) {
+      metaThemeColorRef.current = document.querySelector<HTMLMetaElement>("meta[name='theme-color']");
+      if (!metaThemeColorRef.current) {
+        metaThemeColorRef.current = document.createElement("meta");
+        metaThemeColorRef.current.name = "theme-color";
+        document.head.appendChild(metaThemeColorRef.current);
+      }
+    }
+    metaThemeColorRef.current.content = branding.primaryColor;
   }, [branding.primaryColor, branding.accentColor]);
 
   return (

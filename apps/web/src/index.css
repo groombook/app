@@ -2,7 +2,12 @@
 
 :root {
   --color-primary: #4f8a6f;
+  --color-primary-dark: color-mix(in srgb, var(--color-primary) 80%, #000);
   --color-accent: #8b7355;
+  --color-accent-hover: color-mix(in srgb, var(--color-accent) 88%, #000);
+  --color-accent-dark: color-mix(in srgb, var(--color-accent) 78%, #000);
+  --color-accent-light: color-mix(in srgb, var(--color-accent) 18%, #fff);
+  --color-accent-lighter: color-mix(in srgb, var(--color-accent) 9%, #fff);
 }
 
 *, *::before, *::after {
@@ -51,8 +56,8 @@ button:active:not(:disabled) {
 /* ─── Admin input / select focus states ─── */
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #4f8a6f;
-  box-shadow: 0 0 0 3px rgba(79, 138, 111, 0.12);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
 /* ─── Admin card-like containers (borders get subtle shadow) ─── */

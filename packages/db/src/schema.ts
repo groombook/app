@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   jsonb,
   numeric,
@@ -232,32 +233,45 @@ export const impersonationSessionStatusEnum = pgEnum(
   ["active", "ended", "expired"]
 );
 
-export const impersonationSessions = pgTable("impersonation_sessions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  staffId: uuid("staff_id")
-    .notNull()
-    .references(() => staff.id, { onDelete: "restrict" }),
-  clientId: uuid("client_id")
-    .notNull()
-    .references(() => clients.id, { onDelete: "restrict" }),
-  reason: text("reason"),
-  status: impersonationSessionStatusEnum("status").notNull().default("active"),
-  startedAt: timestamp("started_at").notNull().defaultNow(),
-  endedAt: timestamp("ended_at"),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const impersonationSessions = pgTable(
+  "impersonation_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "restrict" }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "restrict" }),
+    reason: text("reason"),
+    status: impersonationSessionStatusEnum("status")
+      .notNull()
+      .default("active"),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    endedAt: timestamp("ended_at"),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("impersonation_sessions_staff_id_status_idx").on(t.staffId, t.status),
+    index("impersonation_sessions_client_id_idx").on(t.clientId),
+  ]
+);
 
-export const impersonationAuditLogs = pgTable("impersonation_audit_logs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  sessionId: uuid("session_id")
-    .notNull()
-    .references(() => impersonationSessions.id, { onDelete: "cascade" }),
-  action: text("action").notNull(),
-  pageVisited: text("page_visited"),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const impersonationAuditLogs = pgTable(
+  "impersonation_audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => impersonationSessions.id, { onDelete: "cascade" }),
+    action: text("action").notNull(),
+    pageVisited: text("page_visited"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("impersonation_audit_logs_session_id_idx").on(t.sessionId)]
+);
 
 export const businessSettings = pgTable("business_settings", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -291,7 +291,7 @@ export function AppointmentsPage() {
         </button>
         <button
           onClick={() => openNewForm()}
-          style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", marginLeft: "auto", borderColor: "#4f8a6f" }}
+          style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", marginLeft: "auto", borderColor: "var(--color-primary)" }}
         >
           + New Appointment
         </button>
@@ -374,7 +374,7 @@ export function AppointmentsPage() {
               <div
                 style={{
                   padding: "0.4rem 0.6rem",
-                  background: isToday ? "linear-gradient(135deg, #4f8a6f, #3d7a5f)" : "#f8fafc",
+                  background: isToday ? "linear-gradient(135deg, var(--color-primary), var(--color-primary-dark))" : "#f8fafc",
                   color: isToday ? "#fff" : "#374151",
                   fontWeight: 600,
                   fontSize: 12,
@@ -594,7 +594,7 @@ export function AppointmentsPage() {
               <button
                 type="submit"
                 disabled={saving}
-                style={{ ...btnStyle, backgroundColor: "#4f8a6f", color: "#fff", borderColor: "#4f8a6f" }}
+                style={{ ...btnStyle, backgroundColor: "var(--color-primary)", color: "#fff", borderColor: "var(--color-primary)" }}
               >
                 {saving
                   ? "Saving…"
