@@ -73,12 +73,27 @@ api.use("/impersonation/*", requireRole("manager"));
 api.use("/appointment-groups/*", requireRole("manager", "receptionist"));
 api.use("/grooming-logs/*", requireRole("manager", "receptionist"));
 
-// Clients, pets, appointments: all roles may read; only manager + receptionist may write
+// Pet photo routes: all staff roles may upload/delete (groomers take photos during grooms)
+// These must be registered before the general pets write guard. Because Hono path params
+// match single segments, "/pets/:petId" does NOT match "/pets/:petId/photo/:action",
+// so there is no guard overlap.
+api.on(
+  ["POST", "DELETE"],
+  ["/pets/:petId/photo", "/pets/:petId/photo/:action"],
+  requireRole("manager", "receptionist", "groomer")
+);
+
+// Clients, appointments: all roles may read; only manager + receptionist may write
 api.on(
   ["POST", "PUT", "PATCH", "DELETE"],
-  ["/clients/*", "/pets/*", "/appointments/*"],
+  ["/clients/*", "/appointments/*"],
   requireRole("manager", "receptionist")
 );
+
+// Pets (non-photo CRUD): manager + receptionist for writes
+// ":petId" matches only single-segment paths — photo sub-routes are unaffected
+api.post("/pets", requireRole("manager", "receptionist"));
+api.on(["PUT", "PATCH", "DELETE"], "/pets/:petId", requireRole("manager", "receptionist"));
 
 // Services: all roles may read; only managers may write
 api.on(

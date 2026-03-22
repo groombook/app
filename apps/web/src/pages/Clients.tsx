@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { Client, GroomingVisitLog, Pet } from "@groombook/types";
+import { PetPhotoDisplay } from "../components/PetPhotoDisplay.js";
+import { PetPhotoUpload } from "../components/PetPhotoUpload.js";
 
 // ─── Forms ───────────────────────────────────────────────────────────────────
 
@@ -69,6 +71,12 @@ export function ClientsPage() {
   const [showDisabled, setShowDisabled] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
+
+  // Photo refresh counters (incremented after upload to force PetPhotoDisplay re-fetch)
+  const [photoRevisions, setPhotoRevisions] = useState<Record<string, number>>({});
+  const handlePhotoUploaded = useCallback((petId: string) => {
+    setPhotoRevisions((prev) => ({ ...prev, [petId]: (prev[petId] ?? 0) + 1 }));
+  }, []);
 
   // Visit log
   const [logPetId, setLogPetId] = useState<string | null>(null);
@@ -512,30 +520,43 @@ export function ClientsPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "0.75rem" }}>
               {pets.map((p) => (
                 <div key={p.id} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: "0.85rem", background: "#fff", boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <strong style={{ fontSize: 15 }}>{p.name}</strong>
-                    <div style={{ display: "flex", gap: "0.3rem" }}>
-                      <button onClick={() => openEditPet(p)} style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11 }}>Edit</button>
-                      <button
-                        onClick={() => openLogForm(p.id)}
-                        style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11, backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }}
-                      >
-                        Log visit
-                      </button>
-                      <button
-                        onClick={() => { void deletePet(p.id); }}
-                        disabled={deletingPetId === p.id}
-                        style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11, color: "#dc2626", borderColor: "#fca5a5" }}
-                      >
-                        {deletingPetId === p.id ? "…" : "Delete"}
-                      </button>
+                  {/* ── Photo + header ── */}
+                  <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.4rem" }}>
+                    <PetPhotoDisplay
+                      petId={p.id}
+                      size={56}
+                      key={`${p.id}-photo-${photoRevisions[p.id] ?? 0}`}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <strong style={{ fontSize: 15 }}>{p.name}</strong>
+                        <div style={{ display: "flex", gap: "0.3rem" }}>
+                          <button onClick={() => openEditPet(p)} style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11 }}>Edit</button>
+                          <button
+                            onClick={() => openLogForm(p.id)}
+                            style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11, backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }}
+                          >
+                            Log visit
+                          </button>
+                          <button
+                            onClick={() => { void deletePet(p.id); }}
+                            disabled={deletingPetId === p.id}
+                            style={{ ...btnStyle, padding: "0.15rem 0.5rem", fontSize: 11, color: "#dc2626", borderColor: "#fca5a5" }}
+                          >
+                            {deletingPetId === p.id ? "…" : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 13, color: "#6b7280", marginTop: "0.15rem" }}>
+                        {p.species}{p.breed ? ` · ${p.breed}` : ""}
+                      </div>
+                      {p.weightKg != null && <div style={{ fontSize: 12, color: "#6b7280" }}>{p.weightKg} kg</div>}
+                      {p.dateOfBirth && <div style={{ fontSize: 12, color: "#6b7280" }}>Born {new Date(p.dateOfBirth).toLocaleDateString()}</div>}
+                      <div style={{ marginTop: "0.3rem" }}>
+                        <PetPhotoUpload petId={p.id} onUploaded={() => handlePhotoUploaded(p.id)} />
+                      </div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, color: "#6b7280", marginTop: "0.2rem" }}>
-                    {p.species}{p.breed ? ` · ${p.breed}` : ""}
-                  </div>
-                  {p.weightKg != null && <div style={{ fontSize: 12, color: "#6b7280" }}>{p.weightKg} kg</div>}
-                  {p.dateOfBirth && <div style={{ fontSize: 12, color: "#6b7280" }}>Born {new Date(p.dateOfBirth).toLocaleDateString()}</div>}
 
                   {p.healthAlerts && (
                     <div style={{ fontSize: 12, marginTop: "0.35rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 4, padding: "0.3rem 0.5rem", color: "#dc2626" }}>

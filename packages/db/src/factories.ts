@@ -92,6 +92,8 @@ export function buildPet(overrides: Partial<PetRow> & { clientId: string }): Pet
     shampooPreference: null,
     specialCareNotes: null,
     customFields: {},
+    photoKey: null,
+    photoUploadedAt: null,
     createdAt: new Date("2025-01-01T00:00:00Z"),
     updatedAt: new Date("2025-01-01T00:00:00Z"),
   };

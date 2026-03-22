@@ -81,6 +81,8 @@ export const pets = pgTable("pets", {
   shampooPreference: text("shampoo_preference"),
   specialCareNotes: text("special_care_notes"),
   customFields: jsonb("custom_fields").$type<Record<string, string>>().notNull().default({}),
+  photoKey: text("photo_key"),
+  photoUploadedAt: timestamp("photo_uploaded_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
