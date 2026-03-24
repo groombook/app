@@ -17,6 +17,7 @@ import { groomingLogsRouter } from "./routes/groomingLogs.js";
 import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { searchRouter } from "./routes/search.js";
+import { calendarRouter } from "./routes/calendar.js";
 import { getDb, businessSettings } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
 import { resolveStaffMiddleware, requireRole } from "./middleware/rbac.js";
@@ -60,6 +61,8 @@ app.get("/api/branding", async (c) => {
 
 // Portal routes — no staff auth required, uses impersonation session for client auth
 app.route("/api/portal", portalRouter);
+// Public iCal calendar feed — token auth in URL, no auth middleware required
+app.route("/api/calendar", calendarRouter);
 
 // Protected API routes
 const api = app.basePath("/api");
@@ -74,9 +77,10 @@ api.use("/reports/*", requireRole("manager"));
 api.use("/invoices/*", requireRole("manager"));
 api.use("/impersonation/*", requireRole("manager"));
 
-// Manager + Receptionist only (groomers have no access): appointment-groups, grooming-logs
+// Manager + Receptionist only (groomers have no access): appointment-groups, grooming-logs, waitlist
 api.use("/appointment-groups/*", requireRole("manager", "receptionist"));
 api.use("/grooming-logs/*", requireRole("manager", "receptionist"));
+api.use("/waitlist/*", requireRole("manager", "receptionist"));
 
 // Pet photo routes: all staff roles may upload/delete (groomers take photos during grooms)
 // These must be registered before the general pets write guard. Because Hono path params

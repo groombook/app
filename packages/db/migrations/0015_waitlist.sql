@@ -1,3 +1,5 @@
+CREATE TYPE waitlist_status AS ENUM ('active', 'notified', 'expired', 'cancelled');
+
 CREATE TABLE waitlist_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -5,7 +7,7 @@ CREATE TABLE waitlist_entries (
   service_id UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
   preferred_date DATE NOT NULL,
   preferred_time TIME NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active',
+  status waitlist_status NOT NULL DEFAULT 'active',
   notified_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

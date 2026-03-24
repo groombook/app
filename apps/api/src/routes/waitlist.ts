@@ -143,6 +143,37 @@ waitlistRouter.patch(
     const db = getDb();
     const id = c.req.param("id");
     const body = c.req.valid("json");
+    const sessionId = c.req.header("X-Impersonation-Session-Id");
+
+    if (!sessionId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const [session] = await db
+      .select()
+      .from(impersonationSessions)
+      .where(
+        and(
+          eq(impersonationSessions.id, sessionId),
+          eq(impersonationSessions.status, "active")
+        )
+      )
+      .limit(1);
+
+    if (!session || session.expiresAt <= new Date()) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const [existing] = await db
+      .select()
+      .from(waitlistEntries)
+      .where(eq(waitlistEntries.id, id))
+      .limit(1);
+
+    if (!existing) return c.json({ error: "Not found" }, 404);
+    if (existing.clientId !== session.clientId) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
 
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     if (body.status !== undefined) updateData.status = body.status;
@@ -155,7 +186,6 @@ waitlistRouter.patch(
       .where(eq(waitlistEntries.id, id))
       .returning();
 
-    if (!updated) return c.json({ error: "Not found" }, 404);
     return c.json(updated);
   }
 );
@@ -165,34 +195,40 @@ waitlistRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const sessionId = c.req.header("X-Impersonation-Session-Id");
 
-  if (sessionId) {
-    const [session] = await db
-      .select()
-      .from(impersonationSessions)
-      .where(
-        and(
-          eq(impersonationSessions.id, sessionId),
-          eq(impersonationSessions.status, "active")
-        )
-      )
-      .limit(1);
-    if (session && session.expiresAt > new Date()) {
-      const [entry] = await db
-        .select()
-        .from(waitlistEntries)
-        .where(eq(waitlistEntries.id, id))
-        .limit(1);
-      if (entry && entry.clientId !== session.clientId) {
-        return c.json({ error: "Forbidden" }, 403);
-      }
-    }
+  if (!sessionId) {
+    return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const [deleted] = await db
+  const [session] = await db
+    .select()
+    .from(impersonationSessions)
+    .where(
+      and(
+        eq(impersonationSessions.id, sessionId),
+        eq(impersonationSessions.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (!session || session.expiresAt <= new Date()) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const [entry] = await db
+    .select()
+    .from(waitlistEntries)
+    .where(eq(waitlistEntries.id, id))
+    .limit(1);
+
+  if (!entry) return c.json({ error: "Not found" }, 404);
+  if (entry.clientId !== session.clientId) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db
     .delete(waitlistEntries)
     .where(eq(waitlistEntries.id, id))
     .returning();
 
-  if (!deleted) return c.json({ error: "Not found" }, 404);
   return c.json({ ok: true });
 });
