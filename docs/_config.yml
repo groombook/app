@@ -1,0 +1,19 @@
+title: Groom Book
+description: Open source, self-hostable pet grooming business management and CRM.
+theme: minima
+plugins:
+  - jekyll-seo-tag
+  - jekyll-feed
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+footer:
+  links:
+    - label: GitHub
+      url: https://github.com/groombook/groombook
+    - label: Issues
+      url: https://github.com/groombook/groombook/issues
+    - label: Discord
+      url: https://discord.gg/groombook
