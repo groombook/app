@@ -162,6 +162,13 @@ export const appointments = pgTable("appointments", {
   groupId: uuid("group_id").references(() => appointmentGroups.id, {
     onDelete: "set null",
   }),
+  // Customer confirmation/cancellation tracking
+  // Values: "pending" | "confirmed" | "cancelled"
+  confirmationStatus: text("confirmation_status").notNull().default("pending"),
+  confirmedAt: timestamp("confirmed_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  // Token for tokenized email confirm/cancel links (no auth required)
+  confirmationToken: text("confirmation_token").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

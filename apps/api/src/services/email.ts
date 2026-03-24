@@ -93,11 +93,33 @@ export function buildConfirmationEmail(
 export function buildReminderEmail(
   to: string,
   data: AppointmentEmailData,
-  hoursAhead: number
+  hoursAhead: number,
+  confirmationToken?: string | null
 ): Mail.Options {
   const time = formatDateTime(data.startTime);
   const groomer = data.groomerName ? ` with ${data.groomerName}` : "";
   const when = hoursAhead >= 24 ? `tomorrow` : `in ${hoursAhead} hours`;
+  const apiUrl = process.env.API_URL ?? "http://localhost:3000";
+
+  const confirmUrl = confirmationToken ? `${apiUrl}/api/book/confirm/${confirmationToken}` : null;
+  const cancelUrl = confirmationToken ? `${apiUrl}/api/book/cancel/${confirmationToken}` : null;
+
+  const actionText = confirmationToken
+    ? [
+        ``,
+        `Confirm your appointment: ${confirmUrl}`,
+        `Cancel your appointment: ${cancelUrl}`,
+      ].join("\n")
+    : "";
+
+  const actionHtml = confirmationToken
+    ? `
+<div style="margin:1.5em 0">
+  <a href="${confirmUrl}" style="display:inline-block;padding:10px 20px;background:#10b981;color:#fff;text-decoration:none;border-radius:4px;font-weight:600;margin-right:12px">Confirm Appointment</a>
+  <a href="${cancelUrl}" style="display:inline-block;padding:10px 20px;background:#fff;color:#ef4444;text-decoration:none;border-radius:4px;font-weight:600;border:1px solid #ef4444">Cancel Appointment</a>
+</div>`
+    : "";
+
   return {
     to,
     subject: `Reminder: ${data.petName}'s appointment is ${when}`,
@@ -109,7 +131,7 @@ export function buildReminderEmail(
       `  Pet:      ${data.petName}`,
       `  Service:  ${data.serviceName}`,
       `  When:     ${time}${groomer}`,
-      ``,
+      actionText,
       `See you soon!`,
       ``,
       `— Groom Book`,
@@ -122,6 +144,7 @@ export function buildReminderEmail(
   <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#6b7280">Service</td><td>${data.serviceName}</td></tr>
   <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#6b7280">When</td><td>${time}${groomer}</td></tr>
 </table>
+${actionHtml}
 <p>See you soon!</p>
 <p>— Groom Book</p>`,
   };

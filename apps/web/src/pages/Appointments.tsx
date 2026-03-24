@@ -431,6 +431,12 @@ export function AppointmentsPage() {
                       {a.seriesId && (
                         <div style={{ opacity: 0.85, fontSize: 10 }}>↻ recurring</div>
                       )}
+                      {a.confirmationStatus === "confirmed" && (
+                        <div style={{ opacity: 0.95, fontSize: 10 }}>✓ confirmed</div>
+                      )}
+                      {a.confirmationStatus === "cancelled" && (
+                        <div style={{ opacity: 0.95, fontSize: 10, textDecoration: "line-through" }}>✗ cust. cancelled</div>
+                      )}
                     </div>
                   );
                 })}
@@ -695,6 +701,11 @@ function AppointmentDetail({
             ["Start", new Date(appt.startTime).toLocaleString()],
             ["End", new Date(appt.endTime).toLocaleString()],
             ["Status", appt.status.replace("_", " ")],
+            ["Confirmation", appt.confirmationStatus === "confirmed"
+              ? `✓ Confirmed${appt.confirmedAt ? ` (${new Date(appt.confirmedAt).toLocaleString()})` : ""}`
+              : appt.confirmationStatus === "cancelled"
+                ? `✗ Customer cancelled${appt.cancelledAt ? ` (${new Date(appt.cancelledAt).toLocaleString()})` : ""}`
+                : "Pending"],
             ["Notes", appt.notes ?? "—"],
             ...(appt.seriesId
               ? [["Series slot", `#${(appt.seriesIndex ?? 0) + 1}`] as [string, string]]

@@ -9,6 +9,9 @@ import { BookPage } from "./pages/Book.js";
 import { ReportsPage } from "./pages/Reports.js";
 import { GroupBookingPage } from "./pages/GroupBooking.js";
 import { SettingsPage } from "./pages/Settings.js";
+import { BookingConfirmedPage } from "./pages/BookingConfirmed.js";
+import { BookingCancelledPage } from "./pages/BookingCancelled.js";
+import { BookingErrorPage } from "./pages/BookingError.js";
 import { CustomerPortal } from "./portal/CustomerPortal.js";
 import { DevLoginSelector, getDevUser } from "./pages/DevLoginSelector.js";
 import { DevSessionIndicator } from "./components/DevSessionIndicator.js";
@@ -149,6 +152,17 @@ export function App() {
   // If auth is disabled and no dev user is selected, redirect to login selector
   if (authDisabled && !getDevUser() && location.pathname !== "/login") {
     return <Navigate to="/login" replace />;
+  }
+
+  // Public booking redirect pages — no auth or portal chrome needed
+  if (location.pathname === "/booking/confirmed") {
+    return <BookingConfirmedPage />;
+  }
+  if (location.pathname === "/booking/cancelled") {
+    return <BookingCancelledPage />;
+  }
+  if (location.pathname === "/booking/error") {
+    return <BookingErrorPage />;
   }
 
   return (

@@ -8,6 +8,8 @@ export type AppointmentStatus =
   | "cancelled"
   | "no_show";
 
+export type ConfirmationStatus = "pending" | "confirmed" | "cancelled";
+
 export type ClientStatus = "active" | "disabled";
 
 export interface Client {
@@ -104,6 +106,10 @@ export interface Appointment {
   seriesId: string | null;
   seriesIndex: number | null;
   groupId: string | null;
+  confirmationStatus: ConfirmationStatus;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  confirmationToken: string | null;
   createdAt: string;
   updatedAt: string;
 }

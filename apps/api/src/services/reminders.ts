@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import { randomBytes } from "node:crypto";
 import {
   and,
   eq,
@@ -51,6 +52,7 @@ export async function runReminderCheck(): Promise<void> {
         serviceId: appointments.serviceId,
         staffId: appointments.staffId,
         status: appointments.status,
+        confirmationToken: appointments.confirmationToken,
       })
       .from(appointments)
       .where(
@@ -109,6 +111,17 @@ export async function runReminderCheck(): Promise<void> {
 
       if (!pet || !service) continue;
 
+      // Ensure the appointment has a confirmation token before sending the reminder.
+      // Generate one if it doesn't have one yet (e.g. pre-existing appointments).
+      let confirmationToken = appt.confirmationToken;
+      if (!confirmationToken) {
+        confirmationToken = randomBytes(32).toString("hex");
+        await db
+          .update(appointments)
+          .set({ confirmationToken, updatedAt: new Date() })
+          .where(eq(appointments.id, appt.id));
+      }
+
       const sent = await sendEmail(
         buildReminderEmail(
           client.email,
@@ -119,7 +132,8 @@ export async function runReminderCheck(): Promise<void> {
             groomerName,
             startTime: appt.startTime,
           },
-          window.hours
+          window.hours,
+          confirmationToken
         )
       );
 

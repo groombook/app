@@ -245,3 +245,91 @@ bookRouter.post(
     return c.json({ appointment, client, pet }, 201);
   }
 );
+
+// ─── GET /api/book/confirm/:token ──────────────────────────────────────────
+// Public: confirm appointment via tokenized email link. Redirects to success/error page.
+
+const BASE_URL = () => process.env.APP_URL ?? "http://localhost:5173";
+
+bookRouter.get("/confirm/:token", async (c) => {
+  const token = c.req.param("token");
+  const db = getDb();
+
+  const [appt] = await db
+    .select()
+    .from(appointments)
+    .where(eq(appointments.confirmationToken, token))
+    .limit(1);
+
+  if (!appt) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
+
+  // Reject if appointment is in the past
+  if (appt.startTime < new Date()) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
+
+  // Idempotent confirm: if already confirmed, redirect to success
+  if (appt.confirmationStatus === "confirmed") {
+    return c.redirect(`${BASE_URL()}/booking/confirmed`);
+  }
+
+  // Reject if already cancelled
+  if (appt.confirmationStatus === "cancelled") {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
+
+  await db
+    .update(appointments)
+    .set({
+      confirmationStatus: "confirmed",
+      confirmedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(appointments.id, appt.id));
+
+  return c.redirect(`${BASE_URL()}/booking/confirmed`);
+});
+
+// ─── GET /api/book/cancel/:token ───────────────────────────────────────────
+// Public: cancel appointment via tokenized email link. Redirects to success/error page.
+
+bookRouter.get("/cancel/:token", async (c) => {
+  const token = c.req.param("token");
+  const db = getDb();
+
+  const [appt] = await db
+    .select()
+    .from(appointments)
+    .where(eq(appointments.confirmationToken, token))
+    .limit(1);
+
+  if (!appt) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
+
+  // Reject if appointment is in the past
+  if (appt.startTime < new Date()) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
+
+  // Reject if already cancelled (token was nullified — this path won't normally hit,
+  // but guard against edge cases where token lookup still works)
+  if (appt.confirmationStatus === "cancelled") {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
+
+  // Single-use cancellation: nullify token after use
+  await db
+    .update(appointments)
+    .set({
+      confirmationStatus: "cancelled",
+      cancelledAt: new Date(),
+      confirmationToken: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(appointments.id, appt.id));
+
+  return c.redirect(`${BASE_URL()}/booking/cancelled`);
+});

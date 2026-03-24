@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
+import { randomBytes } from "node:crypto";
 import {
   and,
   eq,
@@ -521,3 +522,74 @@ appointmentsRouter.delete("/:id", async (c) => {
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json({ ok: true });
 });
+
+// ─── POST /api/appointments/:id/confirm ───────────────────────────────────────
+// Staff/portal: confirm a specific appointment by ID. Idempotent.
+
+appointmentsRouter.post("/:id/confirm", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const [appt] = await db
+    .select()
+    .from(appointments)
+    .where(eq(appointments.id, id))
+    .limit(1);
+
+  if (!appt) return c.json({ error: "Not found" }, 404);
+
+  if (appt.confirmationStatus === "cancelled") {
+    return c.json({ error: "Cannot confirm a cancelled appointment" }, 409);
+  }
+
+  if (appt.confirmationStatus === "confirmed") {
+    return c.json(appt); // idempotent
+  }
+
+  const [updated] = await db
+    .update(appointments)
+    .set({ confirmationStatus: "confirmed", confirmedAt: new Date(), updatedAt: new Date() })
+    .where(eq(appointments.id, id))
+    .returning();
+
+  return c.json(updated);
+});
+
+// ─── POST /api/appointments/:id/cancel ───────────────────────────────────────
+// Staff/portal: cancel confirmation for a specific appointment by ID. Single-use token nullified.
+
+appointmentsRouter.post("/:id/cancel", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const [appt] = await db
+    .select()
+    .from(appointments)
+    .where(eq(appointments.id, id))
+    .limit(1);
+
+  if (!appt) return c.json({ error: "Not found" }, 404);
+
+  if (appt.confirmationStatus === "cancelled") {
+    return c.json({ error: "Appointment is already cancelled" }, 409);
+  }
+
+  const [updated] = await db
+    .update(appointments)
+    .set({
+      confirmationStatus: "cancelled",
+      cancelledAt: new Date(),
+      confirmationToken: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(appointments.id, id))
+    .returning();
+
+  return c.json(updated);
+});
+
+// ─── Token generation helper ──────────────────────────────────────────────────
+
+export function generateConfirmationToken(): string {
+  return randomBytes(32).toString("hex");
+}
