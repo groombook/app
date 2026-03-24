@@ -64,6 +64,10 @@ portalRouter.patch(
       .where(eq(appointments.id, id))
       .returning();
 
-    return c.json(updated);
+    return c.json({
+      id: updated.id,
+      customerNotes: updated.customerNotes,
+      updatedAt: updated.updatedAt,
+    });
   }
 );
