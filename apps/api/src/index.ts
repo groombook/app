@@ -111,6 +111,7 @@ api.route("/clients", clientsRouter);
 api.route("/pets", petsRouter);
 api.route("/services", servicesRouter);
 api.route("/appointments", appointmentsRouter);
+api.route("/portal", portalRouter);
 api.route("/staff", staffRouter);
 api.route("/invoices", invoicesRouter);
 api.route("/reports", reportsRouter);

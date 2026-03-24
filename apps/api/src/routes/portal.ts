@@ -64,7 +64,7 @@ portalRouter.patch(
       .where(eq(appointments.id, id))
       .returning();
 
-    if (!updated) {
+if (!updated) {
       return c.json({ error: "Not found" }, 404);
     }
 
