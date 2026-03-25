@@ -198,6 +198,13 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      - name: Install kubectl
+        run: |
+          curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          kubectl version --client
+
       - name: Deploy to groombook-dev
         env:
           TAG: pr-${{ github.event.pull_request.number }}
