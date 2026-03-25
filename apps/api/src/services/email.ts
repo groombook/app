@@ -149,3 +149,55 @@ ${actionHtml}
 <p>— Groom Book</p>`,
   };
 }
+
+interface WaitlistNotificationData {
+  clientName: string;
+  petName: string;
+  serviceName: string;
+  preferredDate: string;
+  preferredTime: string;
+}
+
+export function buildWaitlistNotificationEmail(
+  to: string,
+  data: WaitlistNotificationData
+): Mail.Options {
+  const apiUrl = process.env.API_URL ?? "http://localhost:3000";
+  const bookUrl = `${apiUrl}/book`;
+  return {
+    to,
+    subject: `Appointment Cancelled — A slot has opened up for ${data.petName}`,
+    text: [
+      `Hi ${data.clientName},`,
+      ``,
+      `Great news! An appointment slot has become available.`,
+      ``,
+      `We had a cancellation for:`,
+      `  Pet:      ${data.petName}`,
+      `  Service:  ${data.serviceName}`,
+      `  Date:     ${data.preferredDate}`,
+      `  Time:     ${data.preferredTime}`,
+      ``,
+      `If you're still interested, book now before this slot is taken!`,
+      ``,
+      `Book your appointment: ${bookUrl}`,
+      ``,
+      `— Groom Book`,
+    ].join("\n"),
+    html: `
+<p>Hi ${data.clientName},</p>
+<p>Great news! <strong>An appointment slot has become available</strong>.</p>
+<p>We had a cancellation for:</p>
+<table style="border-collapse:collapse;margin:1em 0">
+  <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#6b7280">Pet</td><td>${data.petName}</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#6b7280">Service</td><td>${data.serviceName}</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#6b7280">Date</td><td>${data.preferredDate}</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#6b7280">Time</td><td>${data.preferredTime}</td></tr>
+</table>
+<div style="margin:1.5em 0">
+  <a href="${bookUrl}" style="display:inline-block;padding:12px 24px;background:#10b981;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:16px">Book This Slot</a>
+</div>
+<p>If you're no longer interested, you can ignore this email or remove yourself from the waitlist in your portal.</p>
+<p>— Groom Book</p>`,
+  };
+}

@@ -19,6 +19,7 @@ import {
   staff,
 } from "@groombook/db";
 import { buildConfirmationEmail, sendEmail } from "../services/email.js";
+import { notifyWaitlistForAppointment } from "../services/waitlistNotify.js";
 
 export const appointmentsRouter = new Hono();
 
@@ -483,7 +484,7 @@ appointmentsRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const cascade = c.req.query("cascade") ?? "this_only";
 
-  if (cascade === "this_and_future" || cascade === "all") {
+    if (cascade === "this_and_future" || cascade === "all") {
     const [current] = await db
       .select()
       .from(appointments)
@@ -510,16 +511,38 @@ appointmentsRouter.delete("/:id", async (c) => {
         .set({ status: "cancelled", updatedAt: new Date() })
         .where(eq(appointments.id, id));
     }
+
+    const apptDate = current.startTime.toISOString().slice(0, 10);
+    const apptTime = current.startTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+    notifyWaitlistForAppointment(id, apptDate, apptTime, current.serviceId).catch((err) => {
+      console.error("[appointments] Failed to notify waitlist:", err);
+    });
+
     return c.json({ ok: true });
   }
 
   // Single cancel (default)
+  const [current] = await db
+    .select()
+    .from(appointments)
+    .where(eq(appointments.id, id))
+    .limit(1);
+  if (!current) return c.json({ error: "Not found" }, 404);
+
+  const apptDate = current.startTime.toISOString().slice(0, 10);
+  const apptTime = current.startTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+
   const [row] = await db
     .update(appointments)
     .set({ status: "cancelled", updatedAt: new Date() })
     .where(eq(appointments.id, id))
     .returning();
   if (!row) return c.json({ error: "Not found" }, 404);
+
+  notifyWaitlistForAppointment(id, apptDate, apptTime, current.serviceId).catch((err) => {
+    console.error("[appointments] Failed to notify waitlist:", err);
+  });
+
   return c.json({ ok: true });
 });
 
