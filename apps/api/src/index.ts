@@ -57,6 +57,9 @@ app.get("/api/branding", async (c) => {
   });
 });
 
+// Portal routes — no staff auth required, uses impersonation session for client auth
+app.route("/api/portal", portalRouter);
+
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
@@ -108,7 +111,6 @@ api.route("/clients", clientsRouter);
 api.route("/pets", petsRouter);
 api.route("/services", servicesRouter);
 api.route("/appointments", appointmentsRouter);
-api.route("/portal", portalRouter);
 api.route("/staff", staffRouter);
 api.route("/invoices", invoicesRouter);
 api.route("/reports", reportsRouter);

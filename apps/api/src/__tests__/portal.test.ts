@@ -24,14 +24,6 @@ const EXPIRED_SESSION = {
   createdAt: new Date(),
 };
 
-const ENDED_SESSION = {
-  id: SESSION_ID,
-  clientId: CLIENT_ID,
-  status: "ended" as const,
-  expiresAt: futureDate(),
-  createdAt: new Date(),
-};
-
 const APPOINTMENT = {
   id: APPOINTMENT_ID,
   clientId: CLIENT_ID,
