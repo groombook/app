@@ -707,6 +707,7 @@ function AppointmentDetail({
                 ? `✗ Customer cancelled${appt.cancelledAt ? ` (${new Date(appt.cancelledAt).toLocaleString()})` : ""}`
                 : "Pending"],
             ["Notes", appt.notes ?? "—"],
+            ...(appt.customerNotes ? [["Customer Notes", appt.customerNotes] as [string, string]] : []),
             ...(appt.seriesId
               ? [["Series slot", `#${(appt.seriesIndex ?? 0) + 1}`] as [string, string]]
               : []),

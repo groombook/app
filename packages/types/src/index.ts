@@ -110,6 +110,7 @@ export interface Appointment {
   confirmedAt: string | null;
   cancelledAt: string | null;
   confirmationToken: string | null;
+  customerNotes: string | null;
   createdAt: string;
   updatedAt: string;
 }
