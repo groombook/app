@@ -7,6 +7,7 @@ const MAX_CUSTOMER_NOTES = 500;
 
 interface Props {
   readOnly: boolean;
+  sessionId?: string | null;
 }
 
 export function formatDate(dateStr: string): string {
@@ -40,7 +41,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-600",
 };
 
-export function AppointmentsSection({ readOnly }: Props) {
+export function AppointmentsSection({ readOnly, sessionId }: Props) {
   const [showBooking, setShowBooking] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
@@ -82,6 +83,7 @@ export function AppointmentsSection({ readOnly }: Props) {
               expanded={expandedId === appt.id}
               onToggle={() => setExpandedId(expandedId === appt.id ? null : appt.id)}
               readOnly={readOnly}
+              sessionId={sessionId}
             />
           ))}
           {UPCOMING_APPOINTMENTS.length === 0 && (
@@ -99,6 +101,7 @@ export function AppointmentsSection({ readOnly }: Props) {
               expanded={expandedId === appt.id}
               onToggle={() => setExpandedId(expandedId === appt.id ? null : appt.id)}
               readOnly={readOnly}
+              sessionId={sessionId}
             />
           ))}
         </div>
@@ -115,9 +118,9 @@ export function AppointmentsSection({ readOnly }: Props) {
 }
 
 function AppointmentCard({
-  appointment: appt, expanded, onToggle, readOnly,
+  appointment: appt, expanded, onToggle, readOnly, sessionId,
 }: {
-  appointment: Appointment; expanded: boolean; onToggle: () => void; readOnly: boolean;
+  appointment: Appointment; expanded: boolean; onToggle: () => void; readOnly: boolean; sessionId?: string | null;
 }) {
   return (
     <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
@@ -160,7 +163,7 @@ function AppointmentCard({
             <p className="text-sm text-stone-600 bg-stone-50 rounded-lg px-3 py-2 mb-3">{appt.notes}</p>
           )}
           {isUpcoming(appt) && !readOnly && (
-            <CustomerNotesSection appointment={appt} />
+            <CustomerNotesSection appointment={appt} sessionId={sessionId} />
           )}
           {appt.status !== "completed" && appt.status !== "cancelled" && !readOnly && (
             <div className="flex gap-2 mt-3">
@@ -185,7 +188,7 @@ function AppointmentCard({
   );
 }
 
-export function CustomerNotesSection({ appointment: appt }: { appointment: Appointment }) {
+export function CustomerNotesSection({ appointment: appt, sessionId }: { appointment: Appointment; sessionId?: string | null }) {
   const [notes, setNotes] = useState(appt.customerNotes || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -193,16 +196,11 @@ export function CustomerNotesSection({ appointment: appt }: { appointment: Appoi
 
   const isDisabled = appt.status === "completed" || appt.status === "cancelled";
 
-  function getSessionId(): string | null {
-    return sessionStorage.getItem("impersonationSessionId");
-  }
-
   async function handleSave() {
     setSaving(true);
     setError(null);
     setSaved(false);
     try {
-      const sessionId = getSessionId();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (sessionId) {
         headers["X-Impersonation-Session-Id"] = sessionId;

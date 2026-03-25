@@ -114,7 +114,7 @@ export function CustomerPortal() {
       case "dashboard":
         return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} />;
       case "appointments":
-        return <AppointmentsSection readOnly={!!isReadOnly} />;
+        return <AppointmentsSection readOnly={!!isReadOnly} sessionId={session?.id ?? null} />;
       case "pets":
         return <PetProfiles readOnly={!!isReadOnly} />;
       case "reports":

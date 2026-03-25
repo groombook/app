@@ -28,15 +28,6 @@ const PAST_APPT: Appointment = {
   status: "completed",
 };
 
-const mockSessionStorage = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
-};
-
-vi.stubGlobal("sessionStorage", mockSessionStorage);
-
 describe("parseTimeTo24Hour", () => {
   it("converts AM times correctly", () => {
     expect(parseTimeTo24Hour("9:00 AM")).toBe("09:00:00");
@@ -73,17 +64,16 @@ describe("isUpcoming", () => {
 describe("CustomerNotesSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSessionStorage.getItem.mockReturnValue("test-session-id");
     global.fetch = vi.fn();
   });
 
   it("renders textarea with existing notes", () => {
-    render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, customerNotes: "Test note" }} />);
+    render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, customerNotes: "Test note" }} sessionId="test-session-id" />);
     expect(screen.getByRole("textbox")).toHaveValue("Test note");
   });
 
   it("renders Save Notes button", () => {
-    render(<CustomerNotesSection appointment={UPCOMING_APPT} />);
+    render(<CustomerNotesSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
     expect(screen.getByRole("button", { name: /Save Notes/i })).toBeInTheDocument();
   });
 
@@ -93,7 +83,7 @@ describe("CustomerNotesSection", () => {
       json: async () => ({ id: "appt-1", customerNotes: "Updated", updatedAt: new Date().toISOString() }),
     } as Response);
 
-    render(<CustomerNotesSection appointment={UPCOMING_APPT} />);
+    render(<CustomerNotesSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "New note" } });
     fireEvent.click(screen.getByRole("button", { name: /Save Notes/i }));
 
@@ -109,6 +99,28 @@ describe("CustomerNotesSection", () => {
     });
   });
 
+  it("does not send X-Impersonation-Session-Id header when sessionId is null", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "appt-1", customerNotes: "Updated", updatedAt: new Date().toISOString() }),
+    } as Response);
+
+    render(<CustomerNotesSection appointment={UPCOMING_APPT} sessionId={null} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "New note" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save Notes/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/portal/appointments/appt-1/notes",
+        expect.objectContaining({
+          headers: expect.not.objectContaining({
+            "X-Impersonation-Session-Id": expect.anything(),
+          }),
+        })
+      );
+    });
+  });
+
   it("shows error message when save fails", async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: false,
@@ -116,7 +128,7 @@ describe("CustomerNotesSection", () => {
       json: async () => ({ error: "Unauthorized" }),
     } as Response);
 
-    render(<CustomerNotesSection appointment={UPCOMING_APPT} />);
+    render(<CustomerNotesSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "New note" } });
     fireEvent.click(screen.getByRole("button", { name: /Save Notes/i }));
 
@@ -131,7 +143,7 @@ describe("CustomerNotesSection", () => {
       json: async () => ({ id: "appt-1", customerNotes: "Saved", updatedAt: new Date().toISOString() }),
     } as Response);
 
-    render(<CustomerNotesSection appointment={UPCOMING_APPT} />);
+    render(<CustomerNotesSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Saved note" } });
     fireEvent.click(screen.getByRole("button", { name: /Save Notes/i }));
 
@@ -141,12 +153,12 @@ describe("CustomerNotesSection", () => {
   });
 
   it("disables button when notes unchanged", () => {
-    render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, customerNotes: "Existing" }} />);
+    render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, customerNotes: "Existing" }} sessionId="test-session-id" />);
     expect(screen.getByRole("button", { name: /Save Notes/i })).toBeDisabled();
   });
 
   it("enforces 500 character limit", () => {
-    render(<CustomerNotesSection appointment={UPCOMING_APPT} />);
+    render(<CustomerNotesSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
     const textarea = screen.getByRole("textbox");
     const longText = "a".repeat(600);
     fireEvent.change(textarea, { target: { value: longText } });
@@ -154,12 +166,12 @@ describe("CustomerNotesSection", () => {
   });
 
   it("displays character count", () => {
-    render(<CustomerNotesSection appointment={UPCOMING_APPT} />);
+    render(<CustomerNotesSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
     expect(screen.getByText(/0\/500/)).toBeInTheDocument();
   });
 
   it("shows exceeded character count in red when limit exceeded", () => {
-    render(<CustomerNotesSection appointment={UPCOMING_APPT} />);
+    render(<CustomerNotesSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
     const textarea = screen.getByRole("textbox");
     // Type characters one by one to exceed limit
     const longText = "a".repeat(501);
@@ -171,12 +183,12 @@ describe("CustomerNotesSection", () => {
   });
 
   it("does not render save button for completed appointments", () => {
-    render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, status: "completed" }} />);
+    render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, status: "completed" }} sessionId="test-session-id" />);
     expect(screen.queryByRole("button", { name: /Save Notes/i })).not.toBeInTheDocument();
   });
 
   it("does not render save button for cancelled appointments", () => {
-    render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, status: "cancelled" }} />);
+    render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, status: "cancelled" }} sessionId="test-session-id" />);
     expect(screen.queryByRole("button", { name: /Save Notes/i })).not.toBeInTheDocument();
   });
 });
