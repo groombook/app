@@ -6,7 +6,7 @@ interface Props {
   staffName: string;
 }
 
-export function CalendarSyncSection({ staffId, staffName }: Props) {
+export function CalendarSyncSection({ staffId }: Props) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<"generate" | "revoke" | null>(null);
