@@ -33,7 +33,8 @@ function buildIcalFeed(
     petName: string | null;
     serviceName: string | null;
   }>,
-  staffName: string
+  staffName: string,
+  dtstamp: string
 ): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
@@ -53,7 +54,7 @@ function buildIcalFeed(
     lines.push(
       "BEGIN:VEVENT",
       `UID:${appt.id}@groombook`,
-      `DTSTAMP:${formatIcalDate(new Date())}`,
+      `DTSTAMP:${dtstamp}`,
       `DTSTART:${formatIcalDate(new Date(appt.startTime))}`,
       `DTEND:${formatIcalDate(new Date(appt.endTime))}`,
       `SUMMARY:${escapeIcalText(summary)}`,
@@ -74,7 +75,7 @@ calendarRouter.get("/:staffId.ics", async (c) => {
   const token = c.req.query("token") as string;
 
   if (!token) {
-    return c.json({ error: "Missing token parameter" }, 401);
+    return c.text("Unauthorized", 401);
   }
 
   const [staffMember] = await db
@@ -84,7 +85,7 @@ calendarRouter.get("/:staffId.ics", async (c) => {
     .limit(1);
 
   if (!staffMember || staffMember.icalToken !== token) {
-    return c.json({ error: "Invalid token" }, 401);
+    return c.text("Unauthorized", 401);
   }
 
   const now = new Date();
@@ -113,10 +114,10 @@ calendarRouter.get("/:staffId.ics", async (c) => {
     )
     .orderBy(appointments.startTime);
 
-  const ical = buildIcalFeed(rows, staffMember.name);
+  const ical = buildIcalFeed(rows, staffMember.name, formatIcalDate(new Date()));
   return c.text(ical, 200, {
     "Content-Type": "text/calendar; charset=utf-8",
-    "Content-Disposition": `inline; filename="${staffMember.name.replace(/\s+/g, "_")}_calendar.ics"`,
+    "Content-Disposition": `inline; filename="${encodeURIComponent(staffMember.name)}_calendar.ics"`,
   });
 });
 
