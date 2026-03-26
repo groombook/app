@@ -252,15 +252,15 @@ describe("PATCH /portal/waitlist/:id", () => {
     selectSessionRow = ACTIVE_SESSION;
     selectRows = [WAITLIST_ENTRY];
     const res = await jsonRequest("PATCH", `/portal/waitlist/${VALID_UUID_1}`, {
-      status: "notified",
+      status: "cancelled",
     }, { "X-Impersonation-Session-Id": VALID_UUID_5 });
     expect(res.status).toBe(200);
-    expect(updatedValues[0]?.status).toBe("notified");
+    expect(updatedValues[0]?.status).toBe("cancelled");
   });
 
   it("returns 401 without session", async () => {
     const res = await jsonRequest("PATCH", `/portal/waitlist/${VALID_UUID_1}`, {
-      status: "notified",
+      status: "cancelled",
     });
     expect(res.status).toBe(401);
   });
@@ -269,7 +269,7 @@ describe("PATCH /portal/waitlist/:id", () => {
     selectSessionRow = { ...ACTIVE_SESSION, clientId: "other-client-uuid" };
     selectRows = [WAITLIST_ENTRY];
     const res = await jsonRequest("PATCH", `/portal/waitlist/${VALID_UUID_1}`, {
-      status: "notified",
+      status: "cancelled",
     }, { "X-Impersonation-Session-Id": VALID_UUID_5 });
     expect(res.status).toBe(403);
   });
@@ -278,7 +278,7 @@ describe("PATCH /portal/waitlist/:id", () => {
     selectSessionRow = ACTIVE_SESSION;
     selectRows = [];
     const res = await jsonRequest("PATCH", "/portal/waitlist/nonexistent", {
-      status: "notified",
+      status: "cancelled",
     }, { "X-Impersonation-Session-Id": VALID_UUID_5 });
     expect(res.status).toBe(404);
   });
