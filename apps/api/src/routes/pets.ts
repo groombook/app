@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, getDb, pets } from "@groombook/db";
+import { and, eq, inArray, getDb, pets, appointments } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 import {
   getPresignedUploadUrl,
@@ -30,7 +30,33 @@ const updatePetSchema = createPetSchema.partial().omit({ clientId: true });
 
 petsRouter.get("/", async (c) => {
   const db = getDb();
+  const currentStaff = c.get("staff");
   const clientId = c.req.query("clientId");
+
+  // Row-level scoping: groomers see only pets owned by their linked clients
+  if (currentStaff.role === "groomer") {
+    const groomerAppointments = await db
+      .select({ clientId: appointments.clientId })
+      .from(appointments)
+      .where(eq(appointments.staffId, currentStaff.id));
+
+    const clientIds = [...new Set(groomerAppointments.map((a) => a.clientId))];
+    if (clientIds.length === 0) return c.json([]);
+
+    // If clientId is explicitly specified, verify it belongs to the groomer's scope
+    if (clientId) {
+      if (!clientIds.includes(clientId)) return c.json([]);
+      const rows = await db.select().from(pets).where(eq(pets.clientId, clientId));
+      return c.json(rows);
+    }
+
+    const rows = await db
+      .select()
+      .from(pets)
+      .where(inArray(pets.clientId, clientIds));
+    return c.json(rows);
+  }
+
   const query = db.select().from(pets);
   if (clientId) {
     const rows = await query.where(eq(pets.clientId, clientId));
@@ -42,11 +68,30 @@ petsRouter.get("/", async (c) => {
 
 petsRouter.get("/:id", async (c) => {
   const db = getDb();
+  const currentStaff = c.get("staff");
+  const petId = c.req.param("id");
+
   const [row] = await db
     .select()
     .from(pets)
-    .where(eq(pets.id, c.req.param("id")));
+    .where(eq(pets.id, petId));
   if (!row) return c.json({ error: "Not found" }, 404);
+
+  // Row-level scoping: groomers can only see pets linked via an appointment
+  if (currentStaff.role === "groomer") {
+    const linked = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clientId, row.clientId),
+          eq(appointments.staffId, currentStaff.id)
+        )
+      )
+      .limit(1);
+    if (linked.length === 0) return c.json({ error: "Forbidden" }, 403);
+  }
+
   return c.json(row);
 });
 

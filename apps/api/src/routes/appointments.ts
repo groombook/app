@@ -18,10 +18,11 @@ import {
   services,
   staff,
 } from "@groombook/db";
+import type { AppEnv } from "../middleware/rbac.js";
 import { buildConfirmationEmail, sendEmail } from "../services/email.js";
 import { notifyWaitlistForAppointment } from "../services/waitlistNotify.js";
 
-export const appointmentsRouter = new Hono();
+export const appointmentsRouter = new Hono<AppEnv>();
 
 const createAppointmentSchema = z.object({
   clientId: z.string().uuid(),
@@ -66,6 +67,7 @@ const updateAppointmentSchema = z.object({
 // List appointments, optionally filtered by date range or staffId
 appointmentsRouter.get("/", async (c) => {
   const db = getDb();
+  const currentStaff = c.get("staff");
   const from = c.req.query("from");
   const to = c.req.query("to");
   const staffId = c.req.query("staffId");
@@ -74,6 +76,11 @@ appointmentsRouter.get("/", async (c) => {
   if (from) conditions.push(gte(appointments.startTime, new Date(from)));
   if (to) conditions.push(lte(appointments.startTime, new Date(to)));
   if (staffId) conditions.push(eq(appointments.staffId, staffId));
+
+  // Row-level scoping: groomers see only their own appointments
+  if (currentStaff.role === "groomer") {
+    conditions.push(eq(appointments.staffId, currentStaff.id));
+  }
 
   const rows =
     conditions.length > 0
@@ -92,11 +99,18 @@ appointmentsRouter.get("/", async (c) => {
 
 appointmentsRouter.get("/:id", async (c) => {
   const db = getDb();
+  const currentStaff = c.get("staff");
   const [row] = await db
     .select()
     .from(appointments)
     .where(eq(appointments.id, c.req.param("id")));
   if (!row) return c.json({ error: "Not found" }, 404);
+
+  // Row-level scoping: groomers can only view their own appointments
+  if (currentStaff.role === "groomer" && row.staffId !== currentStaff.id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
   return c.json(row);
 });
 
