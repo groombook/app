@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { and, eq, getDb, appointments, impersonationSessions } from "@groombook/db";
+import { and, eq, getDb, appointments, impersonationSessions, waitlistEntries } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const portalRouter = new Hono<AppEnv>();
@@ -75,3 +75,159 @@ portalRouter.patch(
     });
   }
 );
+
+// ─── Client-facing waitlist routes ───────────────────────────────────────────
+
+const createWaitlistEntrySchema = z.object({
+  petId: z.string().uuid(),
+  serviceId: z.string().uuid(),
+  preferredDate: z.string(),
+  preferredTime: z.string(),
+});
+
+const updateWaitlistEntrySchema = z.object({
+  status: z.literal("cancelled").optional(),
+  preferredDate: z.string().optional(),
+  preferredTime: z.string().optional(),
+});
+
+portalRouter.post(
+  "/waitlist",
+  zValidator("json", createWaitlistEntrySchema),
+  async (c) => {
+    const db = getDb();
+    const body = c.req.valid("json");
+    const sessionId = c.req.header("X-Impersonation-Session-Id");
+
+    let clientId: string | null = null;
+    if (sessionId) {
+      const [session] = await db
+        .select()
+        .from(impersonationSessions)
+        .where(
+          and(
+            eq(impersonationSessions.id, sessionId),
+            eq(impersonationSessions.status, "active")
+          )
+        )
+        .limit(1);
+      if (session && session.expiresAt > new Date()) {
+        clientId = session.clientId;
+      }
+    }
+
+    if (!clientId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const [entry] = await db
+      .insert(waitlistEntries)
+      .values({
+        clientId,
+        petId: body.petId,
+        serviceId: body.serviceId,
+        preferredDate: body.preferredDate,
+        preferredTime: body.preferredTime,
+      })
+      .returning();
+
+    return c.json(entry, 201);
+  }
+);
+
+portalRouter.patch(
+  "/waitlist/:id",
+  zValidator("json", updateWaitlistEntrySchema),
+  async (c) => {
+    const db = getDb();
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+    const sessionId = c.req.header("X-Impersonation-Session-Id");
+
+    if (!sessionId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const [session] = await db
+      .select()
+      .from(impersonationSessions)
+      .where(
+        and(
+          eq(impersonationSessions.id, sessionId),
+          eq(impersonationSessions.status, "active")
+        )
+      )
+      .limit(1);
+
+    if (!session || session.expiresAt <= new Date()) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const [existing] = await db
+      .select()
+      .from(waitlistEntries)
+      .where(eq(waitlistEntries.id, id))
+      .limit(1);
+
+    if (!existing) return c.json({ error: "Not found" }, 404);
+    if (existing.clientId !== session.clientId) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.preferredDate !== undefined) updateData.preferredDate = body.preferredDate;
+    if (body.preferredTime !== undefined) updateData.preferredTime = body.preferredTime;
+
+    const [updated] = await db
+      .update(waitlistEntries)
+      .set(updateData)
+      .where(eq(waitlistEntries.id, id))
+      .returning();
+
+    return c.json(updated);
+  }
+);
+
+portalRouter.delete("/waitlist/:id", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+  const sessionId = c.req.header("X-Impersonation-Session-Id");
+
+  if (!sessionId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const [session] = await db
+    .select()
+    .from(impersonationSessions)
+    .where(
+      and(
+        eq(impersonationSessions.id, sessionId),
+        eq(impersonationSessions.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (!session || session.expiresAt <= new Date()) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const [entry] = await db
+    .select()
+    .from(waitlistEntries)
+    .where(eq(waitlistEntries.id, id))
+    .limit(1);
+
+  if (!entry) return c.json({ error: "Not found" }, 404);
+  if (entry.clientId !== session.clientId) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db
+    .delete(waitlistEntries)
+    .where(eq(waitlistEntries.id, id))
+    .returning();
+
+  return c.json({ ok: true });
+});

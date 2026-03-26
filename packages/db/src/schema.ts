@@ -312,3 +312,38 @@ export const groomingVisitLogs = pgTable("grooming_visit_logs", {
   groomedAt: timestamp("groomed_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+export const waitlistStatusEnum = pgEnum("waitlist_status", [
+  "active",
+  "notified",
+  "expired",
+  "cancelled",
+]);
+
+export const waitlistEntries = pgTable(
+  "waitlist_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    preferredDate: text("preferred_date").notNull(),
+    preferredTime: text("preferred_time").notNull(),
+    status: waitlistStatusEnum("status").notNull().default("active"),
+    notifiedAt: timestamp("notified_at"),
+    expiresAt: timestamp("expires_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_waitlist_client_id").on(t.clientId),
+    index("idx_waitlist_preferred_date").on(t.preferredDate),
+    index("idx_waitlist_status").on(t.status),
+  ]
+);

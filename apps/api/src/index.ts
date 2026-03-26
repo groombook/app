@@ -6,6 +6,7 @@ import { clientsRouter } from "./routes/clients.js";
 import { petsRouter } from "./routes/pets.js";
 import { servicesRouter } from "./routes/services.js";
 import { appointmentsRouter } from "./routes/appointments.js";
+import { waitlistRouter } from "./routes/waitlist.js";
 import { portalRouter } from "./routes/portal.js";
 import { staffRouter } from "./routes/staff.js";
 import { invoicesRouter } from "./routes/invoices.js";
@@ -20,6 +21,7 @@ import { getDb, businessSettings } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
 import { resolveStaffMiddleware, requireRole } from "./middleware/rbac.js";
 import { devRouter } from "./routes/dev.js";
+import { adminSeedRouter } from "./routes/admin/seed.js";
 import { startReminderScheduler } from "./services/reminders.js";
 
 const app = new Hono();
@@ -40,6 +42,9 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 // Public booking routes — no auth required, must be registered before auth middleware
 app.route("/api/book", bookRouter);
 
+// Public portal routes — client-facing, authenticated via impersonation session header
+app.route("/api/portal", portalRouter);
+
 // Dev/demo routes — config is always public, users endpoint is guarded internally
 app.route("/api/dev", devRouter);
 
@@ -57,9 +62,6 @@ app.get("/api/branding", async (c) => {
   });
 });
 
-// Portal routes — no staff auth required, uses impersonation session for client auth
-app.route("/api/portal", portalRouter);
-
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
@@ -73,9 +75,10 @@ api.use("/reports/*", requireRole("manager"));
 api.use("/invoices/*", requireRole("manager"));
 api.use("/impersonation/*", requireRole("manager"));
 
-// Manager + Receptionist only (groomers have no access): appointment-groups, grooming-logs
+// Manager + Receptionist only (groomers have no access): appointment-groups, grooming-logs, waitlist
 api.use("/appointment-groups/*", requireRole("manager", "receptionist"));
 api.use("/grooming-logs/*", requireRole("manager", "receptionist"));
+api.use("/waitlist/*", requireRole("manager", "receptionist"));
 
 // Pet photo routes: all staff roles may upload/delete (groomers take photos during grooms)
 // These must be registered before the general pets write guard. Because Hono path params
@@ -111,6 +114,7 @@ api.route("/clients", clientsRouter);
 api.route("/pets", petsRouter);
 api.route("/services", servicesRouter);
 api.route("/appointments", appointmentsRouter);
+api.route("/waitlist", waitlistRouter);
 api.route("/staff", staffRouter);
 api.route("/invoices", invoicesRouter);
 api.route("/reports", reportsRouter);
@@ -118,6 +122,7 @@ api.route("/appointment-groups", appointmentGroupsRouter);
 api.route("/grooming-logs", groomingLogsRouter);
 api.route("/impersonation", impersonationRouter);
 api.route("/admin/settings", settingsRouter);
+api.route("/admin/seed", adminSeedRouter);
 api.route("/search", searchRouter);
 
 const port = Number(process.env.PORT ?? 3000);

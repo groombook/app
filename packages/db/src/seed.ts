@@ -18,6 +18,7 @@
 
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
+import { eq } from "drizzle-orm";
 import * as schema from "./schema.js";
 
 // ── Deterministic PRNG (Mulberry32) ──────────────────────────────────────────
@@ -247,6 +248,119 @@ const servicesDef = [
   { name: "Sanitary Trim", desc: "Hygienic trim of paw pads, face, and sanitary areas", price: 2500, dur: 20 },
 ];
 
+// ── Known-users-only seed (prod/demo) ───────────────────────────────────────
+
+/**
+ * Seeds only the minimal known users for prod/demo environments.
+ * Creates: Demo Manager staff + Demo Client + Demo Dog + basic services.
+ * Idempotent: skips creation if records already exist.
+ */
+async function seedKnownUsers() {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.error("DATABASE_URL is not set");
+    process.exit(1);
+  }
+
+  const client = postgres(url, { max: 5 });
+  const db = drizzle(client, { schema });
+
+  console.log("Seeding known users (prod/demo mode)...\n");
+
+  const KNOWN_STAFF_ID = "00000000-0000-0000-0000-000000000001";
+  const DEMO_CLIENT_ID = "00000000-0000-0000-0000-000000000002";
+  const DEMO_PET_ID = "00000000-0000-0000-0000-000000000003";
+
+  // ── Staff: Demo Manager ──
+  const [existingStaff] = await db
+    .select()
+    .from(schema.staff)
+    .where(eq(schema.staff.email, "demo-manager@groombook.dev"))
+    .limit(1);
+
+  if (existingStaff) {
+    console.log(`✓ Staff '${existingStaff.name}' already exists — skipping`);
+  } else {
+    await db.insert(schema.staff).values({
+      id: KNOWN_STAFF_ID,
+      name: "Demo Manager",
+      email: "demo-manager@groombook.dev",
+      oidcSub: "demo-manager-001",
+      role: "manager",
+      active: true,
+    });
+    console.log("✓ Created staff 'Demo Manager' (oidcSub: demo-manager-001)");
+  }
+
+  // ── Services: only seed if none exist ──
+  const existingServices = await db.select().from(schema.services).limit(1);
+  if (existingServices.length > 0) {
+    console.log("✓ Services already exist — skipping");
+  } else {
+    const demoSvcs = [
+      { name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
+      { name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
+      { name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
+      { name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
+    ];
+    for (const svc of demoSvcs) {
+      await db.insert(schema.services).values({ ...svc, active: true });
+    }
+    console.log(`✓ Created ${demoSvcs.length} services`);
+  }
+
+  // ── Client: Demo Client ──
+  const [existingClient] = await db
+    .select()
+    .from(schema.clients)
+    .where(eq(schema.clients.email, "demo-client@example.com"))
+    .limit(1);
+
+  let clientId: string;
+  if (existingClient) {
+    clientId = existingClient.id;
+    console.log(`✓ Client '${existingClient.name}' already exists — skipping`);
+  } else {
+    const [created] = await db
+      .insert(schema.clients)
+      .values({
+        id: DEMO_CLIENT_ID,
+        name: "Demo Client",
+        email: "demo-client@example.com",
+        phone: "555-0001",
+        address: "1 Demo Street, Demo City, CA 90210",
+      })
+      .returning();
+    clientId = created!.id;
+    console.log("✓ Created client 'Demo Client'");
+  }
+
+  // ── Pet: Demo Dog ──
+  const [existingPet] = await db
+    .select()
+    .from(schema.pets)
+    .where(eq(schema.pets.id, DEMO_PET_ID))
+    .limit(1);
+
+  if (existingPet) {
+    console.log(`✓ Pet '${existingPet.name}' already exists — skipping`);
+  } else {
+    await db.insert(schema.pets).values({
+      id: DEMO_PET_ID,
+      clientId,
+      name: "Demo Dog",
+      species: "Dog",
+      breed: "Golden Retriever",
+      weightKg: "30.00",
+      dateOfBirth: new Date("2020-06-15T00:00:00Z"),
+    });
+    console.log("✓ Created pet 'Demo Dog'");
+  }
+
+  console.log("\nKnown-users seed complete!");
+  await client.end();
+}
+
 // ── Main seed ────────────────────────────────────────────────────────────────
 
 async function seed() {
@@ -254,6 +368,12 @@ async function seed() {
   if (!url) {
     console.error("DATABASE_URL is not set");
     process.exit(1);
+  }
+
+  // Lean prod/demo seed — known users only, no large dataset
+  if (process.env.SEED_KNOWN_USERS_ONLY === "true") {
+    await seedKnownUsers();
+    return;
   }
 
   const client = postgres(url, { max: 5 });
