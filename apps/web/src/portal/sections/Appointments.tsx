@@ -41,6 +41,12 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-600",
 };
 
+const CONFIRMATION_STATUS_COLORS: Record<string, string> = {
+  confirmed: "bg-green-100 text-green-700",
+  pending: "bg-amber-100 text-amber-700",
+  cancelled: "bg-red-100 text-red-600",
+};
+
 export function AppointmentsSection({ readOnly, sessionId }: Props) {
   const [showBooking, setShowBooking] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -165,14 +171,15 @@ function AppointmentCard({
           {isUpcoming(appt) && !readOnly && (
             <CustomerNotesSection appointment={appt} sessionId={sessionId} />
           )}
+          {isUpcoming(appt) && (
+            <ConfirmationSection appointment={appt} sessionId={sessionId} onCancel={() => {}} />
+          )}
           {appt.status !== "completed" && appt.status !== "cancelled" && !readOnly && (
             <div className="flex gap-2 mt-3">
               <button className="text-xs px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50">
                 Reschedule
               </button>
-              <button className="text-xs px-3 py-1.5 border border-red-200 rounded-lg text-red-600 hover:bg-red-50">
-                Cancel
-              </button>
+              <CancelAppointmentButton appointment={appt} sessionId={sessionId} />
             </div>
           )}
           {appt.reportCardId && (
@@ -185,6 +192,112 @@ function AppointmentCard({
         </div>
       )}
     </div>
+  );
+}
+
+export function ConfirmationSection({ appointment: appt, sessionId }: { appointment: Appointment; sessionId?: string | null }) {
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [confirmSuccess, setConfirmSuccess] = useState(false);
+
+  async function handleConfirm() {
+    if (!window.confirm("Confirm this appointment?")) return;
+    setConfirming(true);
+    setConfirmError(null);
+    try {
+      const headers: Record<string, string> = {};
+      if (sessionId) {
+        headers["X-Impersonation-Session-Id"] = sessionId;
+      }
+      const res = await fetch(`/api/portal/appointments/${appt.id}/confirm`, {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to confirm" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      setConfirmSuccess(true);
+      setTimeout(() => setConfirmSuccess(false), 2000);
+    } catch (e) {
+      setConfirmError(e instanceof Error ? e.message : "Failed to confirm");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  const statusLabel = appt.confirmationStatus === "confirmed"
+    ? "✓ Confirmed"
+    : appt.confirmationStatus === "pending"
+    ? "Pending confirmation"
+    : "Cancelled";
+
+  return (
+    <div className="mt-3 p-3 bg-stone-50 rounded-lg">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${CONFIRMATION_STATUS_COLORS[appt.confirmationStatus] || ""}`}>
+            {statusLabel}
+          </span>
+        </div>
+        {!confirmSuccess && appt.confirmationStatus === "pending" && (
+          <button
+            onClick={handleConfirm}
+            disabled={confirming}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {confirming && <Loader2 size={12} className="animate-spin" />}
+            {confirming ? "Confirming..." : "Confirm Appointment"}
+          </button>
+        )}
+        {confirmSuccess && (
+          <span className="text-xs text-green-600 font-medium">Confirmed!</span>
+        )}
+      </div>
+      {confirmError && <p className="text-xs text-red-500 mt-1">{confirmError}</p>}
+    </div>
+  );
+}
+
+function CancelAppointmentButton({ appointment: appt, sessionId }: { appointment: Appointment; sessionId?: string | null }) {
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  async function handleCancel() {
+    if (!window.confirm("Cancel this appointment? This cannot be undone.")) return;
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const headers: Record<string, string> = {};
+      if (sessionId) {
+        headers["X-Impersonation-Session-Id"] = sessionId;
+      }
+      const res = await fetch(`/api/portal/appointments/${appt.id}/cancel`, {
+        method: "POST",
+        headers,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to cancel" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      window.location.reload();
+    } catch (e) {
+      setCancelError(e instanceof Error ? e.message : "Failed to cancel");
+      setCancelling(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleCancel}
+        disabled={cancelling}
+        className="text-xs px-3 py-1.5 border border-red-200 rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {cancelling ? "Cancelling..." : "Cancel"}
+      </button>
+      {cancelError && <p className="text-xs text-red-500 mt-1">{cancelError}</p>}
+    </>
   );
 }
 

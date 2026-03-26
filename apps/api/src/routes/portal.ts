@@ -76,6 +76,133 @@ portalRouter.patch(
   }
 );
 
+// ─── Appointment confirm/cancel ──────────────────────────────────────────────
+
+portalRouter.post("/appointments/:id/confirm", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const sessionId = c.req.header("X-Impersonation-Session-Id");
+  if (!sessionId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const [session] = await db
+    .select()
+    .from(impersonationSessions)
+    .where(
+      and(
+        eq(impersonationSessions.id, sessionId),
+        eq(impersonationSessions.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (!session || session.expiresAt <= new Date()) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const [appt] = await db
+    .select()
+    .from(appointments)
+    .where(eq(appointments.id, id))
+    .limit(1);
+
+  if (!appt) {
+    return c.json({ error: "Not found" }, 404);
+  }
+
+  if (appt.clientId !== session.clientId) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  if (appt.startTime <= new Date()) {
+    return c.json({ error: "Cannot confirm a past or in-progress appointment" }, 422);
+  }
+
+  if (appt.confirmationStatus !== "pending") {
+    return c.json({ error: "Appointment is not pending confirmation" }, 422);
+  }
+
+  if (appt.status === "cancelled" || appt.status === "completed") {
+    return c.json({ error: "Cannot confirm a cancelled or completed appointment" }, 422);
+  }
+
+  const [updated] = await db
+    .update(appointments)
+    .set({ confirmationStatus: "confirmed", confirmedAt: new Date(), updatedAt: new Date() })
+    .where(eq(appointments.id, id))
+    .returning();
+
+  return c.json({
+    id: updated.id,
+    confirmationStatus: updated.confirmationStatus,
+    confirmedAt: updated.confirmedAt,
+    updatedAt: updated.updatedAt,
+  });
+});
+
+portalRouter.post("/appointments/:id/cancel", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const sessionId = c.req.header("X-Impersonation-Session-Id");
+  if (!sessionId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const [session] = await db
+    .select()
+    .from(impersonationSessions)
+    .where(
+      and(
+        eq(impersonationSessions.id, sessionId),
+        eq(impersonationSessions.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (!session || session.expiresAt <= new Date()) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const [appt] = await db
+    .select()
+    .from(appointments)
+    .where(eq(appointments.id, id))
+    .limit(1);
+
+  if (!appt) {
+    return c.json({ error: "Not found" }, 404);
+  }
+
+  if (appt.clientId !== session.clientId) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+
+  if (appt.startTime <= new Date()) {
+    return c.json({ error: "Cannot cancel a past or in-progress appointment" }, 422);
+  }
+
+  if (appt.status === "cancelled" || appt.status === "completed") {
+    return c.json({ error: "Appointment is already cancelled or completed" }, 422);
+  }
+
+  const [updated] = await db
+    .update(appointments)
+    .set({ status: "cancelled", confirmationStatus: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
+    .where(eq(appointments.id, id))
+    .returning();
+
+  return c.json({
+    id: updated.id,
+    status: updated.status,
+    confirmationStatus: updated.confirmationStatus,
+    cancelledAt: updated.cancelledAt,
+    updatedAt: updated.updatedAt,
+  });
+});
+
 // ─── Client-facing waitlist routes ───────────────────────────────────────────
 
 const createWaitlistEntrySchema = z.object({
