@@ -62,7 +62,7 @@ test.describe("ImpersonationBanner", () => {
   test("clicking End Session calls API and redirects", async ({ page }) => {
     await page.goto("/?sessionId=session-1");
     await page.getByRole("button", { name: /End Session/ }).click();
-    await expect(page.getByText("STAFF VIEW")).not.toBeVisible();
+    await expect(page.getByTestId("impersonation-banner")).not.toBeVisible();
   });
 
   test("Extend button appears when time is low and not extended", async ({ page }) => {
