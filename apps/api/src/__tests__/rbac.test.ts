@@ -12,6 +12,7 @@ const MANAGER: StaffRow = {
   name: "Manager McManager",
   email: "manager@example.com",
   active: true,
+  icalToken: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
