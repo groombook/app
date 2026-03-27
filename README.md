@@ -1,18 +1,63 @@
-# Groom Book
+# GroomBook
 
-Open source, self-hostable pet grooming business management and customer relationship platform.
+> **The open-source scheduling and client management platform built specifically for independent pet groomers** — giving you the tools of enterprise software without the enterprise price tag or vendor lock-in.
 
-## Features
+**Built for groomers, not corporations.**
 
-- **Appointment scheduling** — calendar management for single or multiple groomers
-- **Client & pet records** — detailed profiles with grooming history and preferences
-- **Service management** — pricing, duration, and service catalog
-- **Online booking portal** — customer-facing self-service booking
-- **POS & invoicing** — payments, tips, and receipt generation
+---
+
+## Key Features
+
+**Stop chasing confirmations**
+- **Customer portal** — Clients confirm or cancel appointments on their own. Reduce no-shows with an automated waitlist.
+
+**Your calendar, your way**
+- **iCal calendar feed** — Push GroomBook appointments directly into Google Calendar or Apple Calendar. No app switching.
+
+**Know every pet at a glance**
+- **Client & pet records** — Detailed profiles with grooming history, preferences, and breed-specific notes. Full appointment notes for context on every regular.
+- **Quick-find search** — Find clients and pets instantly without digging through spreadsheets.
+
+**Staff access without stress**
+- **Role-based access control (RBAC)** — Front desk sees bookings; only you see financials. Right access for every role.
+
+**Everything else**
+- **Appointment scheduling** — Calendar management for single or multiple groomers
+- **Service management** — Pricing, duration, and service catalog
+- **POS & invoicing** — Payments, tips, and receipt generation
 - **Automated reminders** — SMS and email notifications
-- **Reporting dashboard** — revenue, utilization, and trend analytics
-- **Staff impersonation** — managers can view the customer portal as any client, with full audit logging and session controls
-- **PWA** — installable on mobile devices, works offline
+- **Reporting dashboard** — Revenue, utilization, and trend analytics
+- **Staff impersonation** — Managers can view the customer portal as any client, with full audit logging and session controls
+- **PWA** — Installable on mobile devices, works offline
+
+---
+
+## 🚀 Try the Demo
+
+[**Live Demo**](https://demo.groombook.app) — explore GroomBook without installing anything.
+
+---
+
+## Quick Start
+
+### Docker Compose (recommended for indie groomers)
+
+Run GroomBook on your own hardware in minutes. Everything you need is in the box — no subscription, no vendor lock-in.
+
+```bash
+git clone https://github.com/groombook/groombook.git
+cd groombook
+
+# Start everything (Postgres + database migrations + API + web UI)
+docker compose up --build
+```
+
+- **Web UI**: http://localhost:8080
+- **API**: http://localhost:3000
+
+The default `docker-compose.yml` sets `AUTH_DISABLED=true` so you can explore the app without configuring an OIDC provider. **Important:** Disable this in any internet-facing deployment.
+
+---
 
 ## Tech Stack
 
@@ -110,24 +155,7 @@ pnpm build
 
 ## Self-Hosting
 
-### Docker Compose (recommended for single-server deployments)
-
-The fastest way to run Groom Book is with Docker Compose. This starts PostgreSQL, runs database migrations, and serves both the API and web frontend.
-
-```bash
-git clone https://github.com/groombook/groombook.git
-cd groombook
-
-# Start everything (Postgres + migrate + API + web)
-docker compose up --build
-```
-
-- **Web UI**: http://localhost:8080
-- **API**: http://localhost:3000
-
-The default `docker-compose.yml` sets `AUTH_DISABLED=true` so you can explore the app without configuring an OIDC provider. **Disable this in any internet-facing deployment.**
-
-#### Production configuration
+### Production Configuration
 
 Copy `.env.example` to `.env` and configure:
 
@@ -160,14 +188,29 @@ Groom Book is deployed in the `groombook` Kubernetes namespace using:
 - **Authentik** for OIDC authentication
 - **Flux** for GitOps-managed deployments
 
+---
+
 ## Contributing
+
+GroomBook thrives on contributions from the grooming community. Whether you're a groomer with a feature request, a developer fixing a bug, or someone improving docs — we'd love your help.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)
 3. Commit your changes
 4. Open a pull request
 
-All PRs require CI to pass before merge.
+All PRs require CI to pass before merge. See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+
+---
+
+## Why GroomBook?
+
+- **Open source** — You own your data. No vendor lock-in.
+- **Purpose-built** — Features designed for grooming workflows, not generic scheduling.
+- **Self-hosted or managed** — Run it yourself for free, or pay for hosted support (coming soon).
+- **Community-driven** — Used and built by actual groomers.
+
+---
 
 ## License
 
