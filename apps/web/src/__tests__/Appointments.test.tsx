@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { Appointment } from "../portal/mockData.js";
 import { parseTimeTo24Hour, isUpcoming, CustomerNotesSection, ConfirmationSection } from "../portal/sections/Appointments.js";
