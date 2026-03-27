@@ -134,6 +134,10 @@ portalRouter.post("/appointments/:id/confirm", async (c) => {
     .where(eq(appointments.id, id))
     .returning();
 
+  if (!updated) {
+    return c.json({ error: "Not found" }, 404);
+  }
+
   return c.json({
     id: updated.id,
     confirmationStatus: updated.confirmationStatus,
@@ -193,6 +197,10 @@ portalRouter.post("/appointments/:id/cancel", async (c) => {
     .set({ status: "cancelled", confirmationStatus: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
     .where(eq(appointments.id, id))
     .returning();
+
+  if (!updated) {
+    return c.json({ error: "Not found" }, 404);
+  }
 
   return c.json({
     id: updated.id,
