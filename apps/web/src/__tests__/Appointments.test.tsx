@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { Appointment } from "../portal/mockData.js";
-import { parseTimeTo24Hour, isUpcoming, CustomerNotesSection } from "../portal/sections/Appointments.js";
+import { parseTimeTo24Hour, isUpcoming, CustomerNotesSection, ConfirmationSection } from "../portal/sections/Appointments.js";
 
 const UPCOMING_APPT: Appointment = {
   id: "appt-1",
@@ -191,5 +191,192 @@ describe("CustomerNotesSection", () => {
   it("does not render save button for cancelled appointments", () => {
     render(<CustomerNotesSection appointment={{ ...UPCOMING_APPT, status: "cancelled" }} sessionId="test-session-id" />);
     expect(screen.queryByRole("button", { name: /Save Notes/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("ConfirmationSection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    vi.stubGlobal("confirm", vi.fn(() => true));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders pending badge when confirmationStatus is pending", () => {
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    expect(screen.getByText("Pending confirmation")).toBeInTheDocument();
+  });
+
+  it("renders confirmed badge when confirmationStatus is confirmed", () => {
+    render(<ConfirmationSection appointment={{ ...UPCOMING_APPT, confirmationStatus: "confirmed" }} sessionId="test-session-id" />);
+    expect(screen.getByText("✓ Confirmed")).toBeInTheDocument();
+  });
+
+  it("renders cancelled badge when confirmationStatus is cancelled", () => {
+    render(<ConfirmationSection appointment={{ ...UPCOMING_APPT, confirmationStatus: "cancelled" }} sessionId="test-session-id" />);
+    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+  });
+
+  it("shows Confirm Appointment button when status is pending", () => {
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    expect(screen.getByRole("button", { name: /Confirm Appointment/i })).toBeInTheDocument();
+  });
+
+  it("does not show Confirm button when already confirmed", () => {
+    render(<ConfirmationSection appointment={{ ...UPCOMING_APPT, confirmationStatus: "confirmed" }} sessionId="test-session-id" />);
+    expect(screen.queryByRole("button", { name: /Confirm Appointment/i })).not.toBeInTheDocument();
+  });
+
+  it("does not show Confirm button when cancelled", () => {
+    render(<ConfirmationSection appointment={{ ...UPCOMING_APPT, confirmationStatus: "cancelled" }} sessionId="test-session-id" />);
+    expect(screen.queryByRole("button", { name: /Confirm Appointment/i })).not.toBeInTheDocument();
+  });
+
+  it("calls confirm API and updates local status on success", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "appt-1", confirmationStatus: "confirmed" }),
+    } as Response);
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Appointment/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/portal/appointments/appt-1/confirm",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("✓ Confirmed")).toBeInTheDocument();
+    });
+  });
+
+  it("sends X-Impersonation-Session-Id header when session exists", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "appt-1", confirmationStatus: "confirmed" }),
+    } as Response);
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Appointment/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/portal/appointments/appt-1/confirm",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "X-Impersonation-Session-Id": "test-session-id",
+          }),
+        })
+      );
+    });
+  });
+
+  it("does not send X-Impersonation-Session-Id header when sessionId is null", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "appt-1", confirmationStatus: "confirmed" }),
+    } as Response);
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId={null} />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Appointment/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/portal/appointments/appt-1/confirm",
+        expect.objectContaining({
+          headers: expect.not.objectContaining({
+            "X-Impersonation-Session-Id": expect.anything(),
+          }),
+        })
+      );
+    });
+  });
+
+  it("shows error message when confirm API returns 401", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: "Unauthorized" }),
+    } as Response);
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Appointment/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Unauthorized/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error message when confirm API returns 403", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ error: "Forbidden" }),
+    } as Response);
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Appointment/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Forbidden/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error message when confirm API returns 422 (invalid state)", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: "Cannot confirm - appointment is not in pending state" }),
+    } as Response);
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Appointment/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Cannot confirm/i)).toBeInTheDocument();
+    });
+  });
+
+  it("does not call confirm API if user cancels the confirmation dialog", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => false));
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Appointment/i }));
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("shows loading state while confirming", async () => {
+    vi.mocked(global.fetch).mockReturnValue(new Promise(() => {})); // Never resolves
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    // Get button reference before clicking
+    const btn = screen.getByRole("button", { name: /Confirm Appointment/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Confirming.../i)).toBeInTheDocument();
+    });
+    // Button is disabled while loading
+    expect(btn).toBeDisabled();
+  });
+
+  it("shows success message briefly after confirm", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "appt-1", confirmationStatus: "confirmed" }),
+    } as Response);
+
+    render(<ConfirmationSection appointment={UPCOMING_APPT} sessionId="test-session-id" />);
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Appointment/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Confirmed!/i)).toBeInTheDocument();
+    });
   });
 });
