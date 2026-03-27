@@ -143,11 +143,6 @@ export function App() {
       .catch(() => setAuthDisabled(false));
   }, []);
 
-  // Show login selector page (only in development)
-  if (import.meta.env.DEV && location.pathname === "/login") {
-    return <DevLoginSelector />;
-  }
-
   // Public booking redirect pages — no auth or portal chrome needed
   if (location.pathname === "/booking/confirmed") {
     return <BookingConfirmedPage />;
@@ -162,8 +157,13 @@ export function App() {
   // Still loading auth state
   if (authDisabled === null || sessionLoading) return null;
 
+  // Dev mode: show login selector
+  if (authDisabled && location.pathname === "/login") {
+    return <DevLoginSelector />;
+  }
+
   // Dev mode: use dev login selector
-  if (authDisabled && !getDevUser() && location.pathname !== "/login") {
+  if (authDisabled && !getDevUser()) {
     return <Navigate to="/login" replace />;
   }
 
