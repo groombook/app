@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { Client, GroomingVisitLog, Pet } from "@groombook/types";
 import { PetPhotoDisplay } from "../components/PetPhotoDisplay.js";
 import { PetPhotoUpload } from "../components/PetPhotoUpload.js";
@@ -43,6 +44,7 @@ const EMPTY_VISIT_LOG: VisitLogForm = { cutStyle: "", productsUsed: "", notes: "
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function ClientsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export function ClientsPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [petsLoading, setPetsLoading] = useState(false);
+  const clientRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Client form
   const [showClientForm, setShowClientForm] = useState(false);
@@ -99,6 +102,23 @@ export function ClientsPage() {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Unknown error"))
       .finally(() => setLoading(false));
   }, [showDisabled]);
+
+  // Auto-select a client when navigated here via GlobalSearch (?highlight=<clientId>)
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (!highlightId || loading || clients.length === 0) return;
+    const match = clients.find((c) => c.id === highlightId);
+    if (!match) return;
+    selectClient(match);
+    const el = clientRowRefs.current.get(highlightId);
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // Remove the param so back/refresh does not re-trigger
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("highlight");
+      return next;
+    }, { replace: true });
+  }, [searchParams, clients, loading]); // selectClient is stable (defined in render scope)
 
   async function loadPets(clientId: string) {
     setPetsLoading(true);
@@ -398,6 +418,10 @@ export function ClientsPage() {
         {filtered.map((c) => (
           <div
             key={c.id}
+            ref={(el) => {
+              if (el) clientRowRefs.current.set(c.id, el);
+              else clientRowRefs.current.delete(c.id);
+            }}
             onClick={() => selectClient(c)}
             style={{
               padding: "0.5rem 0.6rem", borderRadius: 6, cursor: "pointer", marginBottom: "0.2rem",
