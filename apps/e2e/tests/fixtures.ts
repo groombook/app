@@ -1,14 +1,14 @@
 import { test as base } from "@playwright/test";
 
 /**
- * Custom test fixture that bypasses the dev login redirect for E2E tests.
+ * Custom test fixture that bypasses auth for E2E tests.
  *
- * When AUTH_DISABLED=true, the app fetches /api/dev/config and redirects to
- * /login if no dev-user is in localStorage. This fixture:
- * 1. Mocks /api/dev/config to return authDisabled: false
- * 2. Seeds localStorage with a dev user as a fallback
+ * When authDisabled=true, the app uses the dev login selector instead of
+ * Better Auth signIn.social(). This fixture:
+ * 1. Mocks /api/dev/config to return authDisabled: true
+ * 2. Seeds localStorage with a dev user so the selector auto-selects a session
  *
- * This ensures E2E tests render pages directly without the login redirect.
+ * This ensures E2E tests render pages directly without the auth redirect.
  */
 const MOCK_DEV_USERS = {
   staff: [
@@ -23,9 +23,9 @@ const MOCK_DEV_USERS = {
 
 export const test = base.extend({
   page: async ({ page }, use) => {
-    // Mock the dev config endpoint so the app skips the auth-disabled redirect
+    // Mock the dev config endpoint so the app uses dev login selector (bypasses Better Auth)
     await page.route("**/api/dev/config", (route) =>
-      route.fulfill({ json: { authDisabled: false } })
+      route.fulfill({ json: { authDisabled: true } })
     );
     // Mock the dev users endpoint for login selector tests
     await page.route("**/api/dev/users", (route) =>
