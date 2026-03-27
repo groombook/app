@@ -1,15 +1,21 @@
 # Groom Book
 
-Open source, self-hostable pet grooming business management and customer relationship platform.
+**Built for groomers, not corporations.** Open source scheduling and client management — purpose-built for independent pet groomers.
 
 ## Features
 
 - **Appointment scheduling** — calendar management for single or multiple groomers
-- **Client & pet records** — detailed profiles with grooming history and preferences
+- **iCal calendar feed** — push appointments to Google Calendar or Apple Calendar
+- **Waitlist system** — automatically fill cancelled slots to reduce no-show revenue loss
+- **Quick-find client/pet search** — instant lookup of client and pet records at the counter
+- **Client & pet records** — detailed profiles with grooming history, breed data, and preferences
+- **Appointment notes** — per-visit notes so you never lose context on a regular
+- **Customer portal** — clients confirm or cancel appointments without calling the shop
 - **Service management** — pricing, duration, and service catalog
 - **Online booking portal** — customer-facing self-service booking
 - **POS & invoicing** — payments, tips, and receipt generation
 - **Automated reminders** — SMS and email notifications
+- **RBAC** — role-appropriate access for front desk, groomers, and owners
 - **Reporting dashboard** — revenue, utilization, and trend analytics
 - **Staff impersonation** — managers can view the customer portal as any client, with full audit logging and session controls
 - **PWA** — installable on mobile devices, works offline
