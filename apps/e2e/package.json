@@ -10,5 +10,6 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.50.1"
-  }
+  },
+  "license": "AGPL-3.0-only"
 }

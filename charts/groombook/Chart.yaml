@@ -1,0 +1,17 @@
+apiVersion: v2
+name: groombook
+description: Open source pet grooming business management & CRM
+type: application
+version: 0.1.0
+appVersion: "2026.03.19-ea54506"
+home: https://groombook.github.io
+sources:
+  - https://github.com/groombook/groombook
+maintainers:
+  - name: GroomBook
+    url: https://github.com/groombook
+keywords:
+  - groombook
+  - pet-grooming
+  - scheduling
+  - crm
