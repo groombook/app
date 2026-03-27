@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, getDb, pets } from "@groombook/db";
+import { and, eq, exists, getDb, or, pets, appointments } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 import {
   getPresignedUploadUrl,
@@ -28,25 +28,70 @@ const createPetSchema = z.object({
 
 const updatePetSchema = createPetSchema.partial().omit({ clientId: true });
 
+// List pets, optionally filtered by clientId.
+// Groomers see only pets owned by clients with ≥1 appointment for this groomer.
 petsRouter.get("/", async (c) => {
   const db = getDb();
   const clientId = c.req.query("clientId");
-  const query = db.select().from(pets);
-  if (clientId) {
-    const rows = await query.where(eq(pets.clientId, clientId));
-    return c.json(rows);
-  }
-  const rows = await query;
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
+
+  // Groomer: filter to pets whose client has an appointment for this groomer
+  const groomerClientFilter = isGroomer
+    ? exists(
+        db
+          .select({ id: appointments.id })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.clientId, pets.clientId),
+              or(
+                eq(appointments.staffId, staffRow.id),
+                eq(appointments.batherStaffId, staffRow.id)
+              )
+            )
+          )
+      )
+    : undefined;
+
+  const conditions = [];
+  if (clientId) conditions.push(eq(pets.clientId, clientId));
+  if (groomerClientFilter) conditions.push(groomerClientFilter);
+
+  const rows = await db
+    .select()
+    .from(pets)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
   return c.json(rows);
 });
 
 petsRouter.get("/:id", async (c) => {
   const db = getDb();
+  const petId = c.req.param("id");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
   const [row] = await db
     .select()
     .from(pets)
-    .where(eq(pets.id, c.req.param("id")));
+    .where(eq(pets.id, petId));
   if (!row) return c.json({ error: "Not found" }, 404);
+  // Groomer: 403 if no appointment linkage to this pet's client
+  if (isGroomer) {
+    const [linkage] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clientId, row.clientId),
+          or(
+            eq(appointments.staffId, staffRow.id),
+            eq(appointments.batherStaffId, staffRow.id)
+          )
+        )
+      )
+      .limit(1);
+    if (!linkage) return c.json({ error: "Forbidden" }, 403);
+  }
   return c.json(row);
 });
 

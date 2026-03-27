@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, getDb, clients } from "@groombook/db";
+import { and, eq, exists, getDb, or, clients, appointments } from "@groombook/db";
+import type { AppEnv } from "../middleware/rbac.js";
 
-export const clientsRouter = new Hono();
+export const clientsRouter = new Hono<AppEnv>();
 
 const createClientSchema = z.object({
   name: z.string().min(1).max(200),
@@ -14,25 +15,72 @@ const createClientSchema = z.object({
 });
 
 
-// List clients — defaults to active only, ?includeDisabled=true shows all
+// List clients — defaults to active only, ?includeDisabled=true shows all.
+// Groomers see only clients with ≥1 appointment assigned to them.
 clientsRouter.get("/", async (c) => {
   const db = getDb();
   const includeDisabled = c.req.query("includeDisabled") === "true";
-  const query = includeDisabled
-    ? db.select().from(clients).orderBy(clients.name)
-    : db.select().from(clients).where(eq(clients.status, "active")).orderBy(clients.name);
-  const rows = await query;
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
+
+  // Groomer: subquery for clients with an appointment for this groomer
+  const groomerApptFilter = isGroomer
+    ? exists(
+        db
+          .select({ id: appointments.id })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.clientId, clients.id),
+              or(
+                eq(appointments.staffId, staffRow.id),
+                eq(appointments.batherStaffId, staffRow.id)
+              )
+            )
+          )
+      )
+    : undefined;
+
+  const conditions = [];
+  if (!includeDisabled) conditions.push(eq(clients.status, "active"));
+  if (groomerApptFilter) conditions.push(groomerApptFilter);
+
+  const rows = await db
+    .select()
+    .from(clients)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(clients.name);
   return c.json(rows);
 });
 
 // Get a single client
 clientsRouter.get("/:id", async (c) => {
   const db = getDb();
+  const clientId = c.req.param("id");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
   const [row] = await db
     .select()
     .from(clients)
-    .where(eq(clients.id, c.req.param("id")));
+    .where(eq(clients.id, clientId));
   if (!row) return c.json({ error: "Not found" }, 404);
+  // Groomer: 403 if no appointment linkage to this client
+  if (isGroomer) {
+    const [linkage] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clientId, clientId),
+          or(
+            eq(appointments.staffId, staffRow.id),
+            eq(appointments.batherStaffId, staffRow.id)
+          )
+        )
+      )
+      .limit(1);
+    if (!linkage) return c.json({ error: "Forbidden" }, 403);
+  }
   return c.json(row);
 });
 
