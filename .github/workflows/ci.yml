@@ -233,7 +233,7 @@ jobs:
                   - name: DATABASE_URL
                     valueFrom:
                       secretKeyRef:
-                        name: groombook-postgres-credentials
+                        name: groombook-postgres-credentials-dev
                         key: uri
           EOF
           kubectl wait --for=condition=complete "job/migrate-pr-$PR_NUM" \
