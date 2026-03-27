@@ -13,6 +13,7 @@ const MANAGER: StaffRow = {
   active: true,
   createdAt: new Date(),
   updatedAt: new Date(),
+  icalToken: null,
 };
 
 const GROOMER: StaffRow = {

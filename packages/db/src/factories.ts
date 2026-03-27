@@ -54,6 +54,7 @@ export function buildStaff(overrides: Partial<StaffRow> = {}): StaffRow {
     active: true,
     createdAt: new Date("2025-01-01T00:00:00Z"),
     updatedAt: new Date("2025-01-01T00:00:00Z"),
+    icalToken: null,
     ...overrides,
   };
 }
