@@ -106,6 +106,8 @@ export const staff = pgTable("staff", {
   oidcSub: text("oidc_sub").unique(),
   role: staffRoleEnum("role").notNull().default("groomer"),
   active: boolean("active").notNull().default(true),
+  // Token for iCal calendar feed subscription (no auth required)
+  icalToken: text("ical_token").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

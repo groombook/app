@@ -17,6 +17,7 @@ import { groomingLogsRouter } from "./routes/groomingLogs.js";
 import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { searchRouter } from "./routes/search.js";
+import { calendarRouter } from "./routes/calendar.js";
 import { getDb, businessSettings } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
 import { resolveStaffMiddleware, requireRole } from "./middleware/rbac.js";
@@ -62,6 +63,8 @@ app.get("/api/branding", async (c) => {
   });
 });
 
+// Public iCal calendar feed — token auth in URL, no auth middleware required
+app.route("/api/calendar", calendarRouter);
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
