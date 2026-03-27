@@ -18,6 +18,7 @@ const UPCOMING_APPT: Appointment = {
   status: "confirmed",
   notes: "",
   customerNotes: "",
+  confirmationStatus: "pending",
 };
 
 const PAST_APPT: Appointment = {

@@ -172,7 +172,7 @@ function AppointmentCard({
             <CustomerNotesSection appointment={appt} sessionId={sessionId} />
           )}
           {isUpcoming(appt) && (
-            <ConfirmationSection appointment={appt} sessionId={sessionId} onCancel={() => {}} />
+            <ConfirmationSection appointment={appt} sessionId={sessionId} />
           )}
           {appt.status !== "completed" && appt.status !== "cancelled" && !readOnly && (
             <div className="flex gap-2 mt-3">
@@ -199,6 +199,8 @@ export function ConfirmationSection({ appointment: appt, sessionId }: { appointm
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [confirmSuccess, setConfirmSuccess] = useState(false);
+  // Local state mirrors confirmationStatus so the badge updates immediately after confirm
+  const [localStatus, setLocalStatus] = useState(appt.confirmationStatus);
 
   async function handleConfirm() {
     if (!window.confirm("Confirm this appointment?")) return;
@@ -217,6 +219,7 @@ export function ConfirmationSection({ appointment: appt, sessionId }: { appointm
         const err = await res.json().catch(() => ({ error: "Failed to confirm" }));
         throw new Error(err.error || `HTTP ${res.status}`);
       }
+      setLocalStatus("confirmed");
       setConfirmSuccess(true);
       setTimeout(() => setConfirmSuccess(false), 2000);
     } catch (e) {
@@ -226,9 +229,10 @@ export function ConfirmationSection({ appointment: appt, sessionId }: { appointm
     }
   }
 
-  const statusLabel = appt.confirmationStatus === "confirmed"
+  const currentStatus = localStatus ?? appt.confirmationStatus;
+  const statusLabel = currentStatus === "confirmed"
     ? "✓ Confirmed"
-    : appt.confirmationStatus === "pending"
+    : currentStatus === "pending"
     ? "Pending confirmation"
     : "Cancelled";
 
@@ -236,11 +240,11 @@ export function ConfirmationSection({ appointment: appt, sessionId }: { appointm
     <div className="mt-3 p-3 bg-stone-50 rounded-lg">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${CONFIRMATION_STATUS_COLORS[appt.confirmationStatus] || ""}`}>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${CONFIRMATION_STATUS_COLORS[currentStatus] || ""}`}>
             {statusLabel}
           </span>
         </div>
-        {!confirmSuccess && appt.confirmationStatus === "pending" && (
+        {!confirmSuccess && currentStatus === "pending" && (
           <button
             onClick={handleConfirm}
             disabled={confirming}
