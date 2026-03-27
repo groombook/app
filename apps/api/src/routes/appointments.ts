@@ -73,7 +73,7 @@ appointmentsRouter.get("/", async (c) => {
   const to = c.req.query("to");
   const staffId = c.req.query("staffId");
   const staffRow = c.get("staff");
-  const isGroomer = staffRow.role === "groomer";
+  const isGroomer = staffRow?.role === "groomer";
 
   const conditions = [];
   if (from) conditions.push(gte(appointments.startTime, new Date(from)));
@@ -108,7 +108,7 @@ appointmentsRouter.get("/", async (c) => {
 appointmentsRouter.get("/:id", async (c) => {
   const db = getDb();
   const staffRow = c.get("staff");
-  const isGroomer = staffRow.role === "groomer";
+  const isGroomer = staffRow?.role === "groomer";
   const [row] = await db
     .select()
     .from(appointments)
