@@ -31,6 +31,10 @@ const APPOINTMENT = {
   endTime: futureDate(),
   customerNotes: null,
   confirmationToken: "secret-token-leak-test",
+  status: "scheduled" as const,
+  confirmationStatus: "pending" as const,
+  confirmedAt: null,
+  cancelledAt: null,
 };
 
 let selectSessionRow: Record<string, unknown> | null = null;
@@ -245,5 +249,175 @@ describe("PATCH /portal/appointments/:id/notes", () => {
       { "X-Impersonation-Session-Id": SESSION_ID }
     );
     expect(res.status).toBe(400);
+  });
+});
+
+// ─── POST /portal/appointments/:id/confirm ────────────────────────────────────
+
+function jsonPost(path: string, headers?: Record<string, string>) {
+  return app.request(path, {
+    method: "POST",
+    headers,
+  });
+}
+
+describe("POST /portal/appointments/:id/confirm", () => {
+  it("confirms a pending appointment and returns updated status", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = { ...APPOINTMENT, confirmationStatus: "pending" };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/confirm`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.confirmationStatus).toBe("confirmed");
+    expect(body).toHaveProperty("confirmedAt");
+  });
+
+  it("returns 401 without X-Impersonation-Session-Id header", async () => {
+    const res = await jsonPost(`/portal/appointments/${APPOINTMENT_ID}/confirm`);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 with expired session", async () => {
+    selectSessionRow = EXPIRED_SESSION;
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/confirm`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 when appointment belongs to a different client", async () => {
+    selectSessionRow = { ...ACTIVE_SESSION, clientId: "different-client-id" };
+    selectAppointmentRow = { ...APPOINTMENT };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/confirm`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 422 when appointment is in the past", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = { ...APPOINTMENT, startTime: pastDate() };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/confirm`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when appointment is not pending confirmation", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = { ...APPOINTMENT, confirmationStatus: "confirmed" };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/confirm`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when cancelling an already-cancelled appointment", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = { ...APPOINTMENT, status: "cancelled", confirmationStatus: "cancelled" };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/confirm`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 404 when appointment not found", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = null;
+    const res = await jsonPost(
+      `/portal/appointments/nonexistent-id/confirm`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+// ─── POST /portal/appointments/:id/cancel ─────────────────────────────────────
+
+describe("POST /portal/appointments/:id/cancel", () => {
+  it("cancels a pending appointment and returns updated status", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = { ...APPOINTMENT, confirmationStatus: "pending" };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/cancel`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("cancelled");
+    expect(body.confirmationStatus).toBe("cancelled");
+    expect(body).toHaveProperty("cancelledAt");
+  });
+
+  it("returns 401 without X-Impersonation-Session-Id header", async () => {
+    const res = await jsonPost(`/portal/appointments/${APPOINTMENT_ID}/cancel`);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 with expired session", async () => {
+    selectSessionRow = EXPIRED_SESSION;
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/cancel`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 when appointment belongs to a different client", async () => {
+    selectSessionRow = { ...ACTIVE_SESSION, clientId: "different-client-id" };
+    selectAppointmentRow = { ...APPOINTMENT };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/cancel`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 422 when appointment is in the past", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = { ...APPOINTMENT, startTime: pastDate() };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/cancel`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when appointment is already cancelled", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = { ...APPOINTMENT, status: "cancelled", confirmationStatus: "cancelled" };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/cancel`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 422 when appointment is already completed", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = { ...APPOINTMENT, status: "completed" };
+    const res = await jsonPost(
+      `/portal/appointments/${APPOINTMENT_ID}/cancel`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("returns 404 when appointment not found", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectAppointmentRow = null;
+    const res = await jsonPost(
+      `/portal/appointments/nonexistent-id/cancel`,
+      { "X-Impersonation-Session-Id": SESSION_ID }
+    );
+    expect(res.status).toBe(404);
   });
 });

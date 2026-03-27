@@ -41,6 +41,7 @@ export interface Appointment {
   duration: number;
   price: number;
   status: "confirmed" | "pending" | "waitlisted" | "completed" | "cancelled";
+  confirmationStatus: "pending" | "confirmed" | "cancelled";
   notes: string;
   customerNotes: string;
   reportCardId?: string;
@@ -177,21 +178,21 @@ export const UPCOMING_APPOINTMENTS: Appointment[] = [
     id: "a1", petId: "p1", petName: "Biscuit", groomerId: "g1", groomerName: "Jamie",
     services: ["Full Groom"], addOns: ["De-shedding Treatment"],
     date: "2026-03-21", time: "10:00 AM", duration: 120, price: 145,
-    status: "confirmed", notes: "Spring shed is heavy — extra undercoat work needed",
+    status: "confirmed", confirmationStatus: "confirmed", notes: "Spring shed is heavy — extra undercoat work needed",
     customerNotes: "",
   },
   {
     id: "a2", petId: "p2", petName: "Mochi", groomerId: "g3", groomerName: "Morgan",
     services: ["Full Groom"], addOns: ["Teeth Brushing"],
     date: "2026-03-25", time: "2:00 PM", duration: 100, price: 90,
-    status: "confirmed", notes: "First visit with Morgan — patient with anxious pets",
+    status: "confirmed", confirmationStatus: "confirmed", notes: "First visit with Morgan — patient with anxious pets",
     customerNotes: "",
   },
   {
     id: "a3", petId: "p1", petName: "Biscuit", groomerId: "g1", groomerName: "Jamie",
     services: ["Bath & Brush"], addOns: [],
     date: "2026-04-18", time: "11:00 AM", duration: 45, price: 55,
-    status: "pending", notes: "",
+    status: "pending", confirmationStatus: "pending", notes: "",
     customerNotes: "",
   },
 ];
@@ -201,56 +202,56 @@ export const PAST_APPOINTMENTS: Appointment[] = [
     id: "pa1", petId: "p1", petName: "Biscuit", groomerId: "g1", groomerName: "Jamie",
     services: ["Full Groom"], addOns: ["De-shedding Treatment", "Blueberry Facial"],
     date: "2026-02-15", time: "10:00 AM", duration: 130, price: 160,
-    status: "completed", notes: "", reportCardId: "rc1",
+    status: "completed", confirmationStatus: "confirmed", notes: "", reportCardId: "rc1",
     customerNotes: "",
   },
   {
     id: "pa2", petId: "p2", petName: "Mochi", groomerId: "g2", groomerName: "Alex",
     services: ["Full Groom"], addOns: ["Teeth Brushing"],
     date: "2026-02-20", time: "1:00 PM", duration: 100, price: 88,
-    status: "completed", notes: "", reportCardId: "rc2",
+    status: "completed", confirmationStatus: "confirmed", notes: "", reportCardId: "rc2",
     customerNotes: "",
   },
   {
     id: "pa3", petId: "p1", petName: "Biscuit", groomerId: "g1", groomerName: "Jamie",
     services: ["Bath & Brush"], addOns: [],
     date: "2026-01-18", time: "9:00 AM", duration: 45, price: 55,
-    status: "completed", notes: "",
+    status: "completed", confirmationStatus: "confirmed", notes: "",
     customerNotes: "",
   },
   {
     id: "pa4", petId: "p2", petName: "Mochi", groomerId: "g2", groomerName: "Alex",
     services: ["Puppy's First Groom"], addOns: [],
     date: "2026-01-10", time: "3:00 PM", duration: 60, price: 62,
-    status: "completed", notes: "",
+    status: "completed", confirmationStatus: "confirmed", notes: "",
     customerNotes: "",
   },
   {
     id: "pa5", petId: "p1", petName: "Biscuit", groomerId: "g1", groomerName: "Jamie",
     services: ["Full Groom"], addOns: ["Nail Grinding"],
     date: "2025-12-20", time: "10:00 AM", duration: 105, price: 132,
-    status: "completed", notes: "Holiday groom",
+    status: "completed", confirmationStatus: "confirmed", notes: "Holiday groom",
     customerNotes: "",
   },
   {
     id: "pa6", petId: "p1", petName: "Biscuit", groomerId: "g2", groomerName: "Alex",
     services: ["Full Groom"], addOns: [],
     date: "2025-11-15", time: "11:00 AM", duration: 90, price: 110,
-    status: "completed", notes: "",
+    status: "completed", confirmationStatus: "confirmed", notes: "",
     customerNotes: "",
   },
   {
     id: "pa7", petId: "p2", petName: "Mochi", groomerId: "g3", groomerName: "Morgan",
     services: ["Bath & Brush"], addOns: [],
     date: "2025-11-08", time: "2:00 PM", duration: 45, price: 48,
-    status: "completed", notes: "",
+    status: "completed", confirmationStatus: "confirmed", notes: "",
     customerNotes: "",
   },
   {
     id: "pa8", petId: "p1", petName: "Biscuit", groomerId: "g1", groomerName: "Jamie",
     services: ["Bath & Brush"], addOns: ["De-shedding Treatment"],
     date: "2025-10-12", time: "10:00 AM", duration: 75, price: 85,
-    status: "completed", notes: "",
+    status: "completed", confirmationStatus: "confirmed", notes: "",
     customerNotes: "",
   },
 ];
