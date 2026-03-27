@@ -1,0 +1,15 @@
+{{- if and .Values.dragonfly.enabled (eq .Values.dragonfly.mode "operator") }}
+apiVersion: dragonflydb.io/v1alpha1
+kind: Dragonfly
+metadata:
+  name: {{ include "groombook.fullname" . }}-dragonfly
+  labels:
+    {{- include "groombook.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.dragonfly.operator.replicas }}
+  {{- with .Values.dragonfly.operator.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+
