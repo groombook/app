@@ -3,7 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema.js";
 
 export * from "./schema.js";
-export { and, asc, desc, eq, gte, gt, ilike, lt, lte, ne, or, sql } from "drizzle-orm";
+export { and, asc, desc, eq, exists, gte, gt, ilike, lt, lte, ne, or, sql } from "drizzle-orm";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 

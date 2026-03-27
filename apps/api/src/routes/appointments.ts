@@ -10,6 +10,7 @@ import {
   lt,
   lte,
   ne,
+  or,
   appointments,
   clients,
   pets,
@@ -20,8 +21,9 @@ import {
 } from "@groombook/db";
 import { buildConfirmationEmail, sendEmail } from "../services/email.js";
 import { notifyWaitlistForAppointment } from "../services/waitlistNotify.js";
+import type { AppEnv } from "../middleware/rbac.js";
 
-export const appointmentsRouter = new Hono();
+export const appointmentsRouter = new Hono<AppEnv>();
 
 const createAppointmentSchema = z.object({
   clientId: z.string().uuid(),
@@ -63,17 +65,30 @@ const updateAppointmentSchema = z.object({
   cascadeMode: z.enum(["this_only", "this_and_future", "all"]).optional(),
 });
 
-// List appointments, optionally filtered by date range or staffId
+// List appointments, optionally filtered by date range or staffId.
+// Groomers see only their own appointments (staffId or batherStaffId).
 appointmentsRouter.get("/", async (c) => {
   const db = getDb();
   const from = c.req.query("from");
   const to = c.req.query("to");
   const staffId = c.req.query("staffId");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
 
   const conditions = [];
   if (from) conditions.push(gte(appointments.startTime, new Date(from)));
   if (to) conditions.push(lte(appointments.startTime, new Date(to)));
   if (staffId) conditions.push(eq(appointments.staffId, staffId));
+
+  // Groomer: restrict to their own appointments (as groomer or bather)
+  if (isGroomer) {
+    conditions.push(
+      or(
+        eq(appointments.staffId, staffRow.id),
+        eq(appointments.batherStaffId, staffRow.id)
+      )
+    );
+  }
 
   const rows =
     conditions.length > 0
@@ -92,11 +107,17 @@ appointmentsRouter.get("/", async (c) => {
 
 appointmentsRouter.get("/:id", async (c) => {
   const db = getDb();
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
   const [row] = await db
     .select()
     .from(appointments)
     .where(eq(appointments.id, c.req.param("id")));
   if (!row) return c.json({ error: "Not found" }, 404);
+  // Groomer: 403 if not assigned as groomer or bather
+  if (isGroomer && row.staffId !== staffRow.id && row.batherStaffId !== staffRow.id) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
   return c.json(row);
 });
 
