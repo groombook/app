@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
+import type { AppEnv } from "../middleware/rbac.js";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -104,9 +105,9 @@ vi.mock("@groombook/db", () => {
 
 const { clientsRouter } = await import("../routes/clients.js");
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 app.use("*", async (c, next) => {
-  c.set("staff", { id: "staff-uuid-1", role: "manager" } as never);
+  c.set("staff", { id: "staff-uuid-1", role: "manager" } as AppEnv["Variables"]["staff"]);
   await next();
 });
 app.route("/clients", clientsRouter);
