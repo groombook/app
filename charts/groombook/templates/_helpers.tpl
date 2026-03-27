@@ -98,7 +98,7 @@ Migrate image reference
 
 {{/*
 Database URL — differs by postgresql.mode
-Integrated: construct from Bitnami subchart values
+Integrated: construct from chart-managed PostgreSQL credentials
 Operator: read from credentialsSecret
 */}}
 {{- define "groombook.databaseSecretName" -}}

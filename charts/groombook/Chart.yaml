@@ -15,8 +15,3 @@ keywords:
   - pet-grooming
   - scheduling
   - crm
-dependencies:
-  - name: postgresql
-    version: "16.x.x"
-    repository: https://charts.bitnami.com/bitnami
-    condition: postgresql.integrated.enabled

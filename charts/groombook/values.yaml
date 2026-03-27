@@ -52,18 +52,18 @@ migrate:
 
 # -- PostgreSQL configuration
 postgresql:
-  # Choose deployment mode: 'integrated' uses Bitnami subchart, 'operator' creates a CNPG Cluster CR
+  # Choose deployment mode: 'integrated' deploys a native PostgreSQL StatefulSet, 'operator' creates a CNPG Cluster CR
   mode: integrated
   integrated:
-    enabled: true  # set to false if mode is 'operator'
+    image: postgres:16
+    storage:
+      size: 10Gi
+      storageClass: ""
     auth:
       database: groombook
       username: groombook
       password: ""  # auto-generated if empty
       existingSecret: ""
-    primary:
-      persistence:
-        size: 8Gi
   operator:
     instances: 3
     storage:
