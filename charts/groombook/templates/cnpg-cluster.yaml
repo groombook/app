@@ -1,0 +1,28 @@
+{{- if eq .Values.postgresql.mode "operator" }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "groombook.fullname" . }}-postgres
+  labels:
+    {{- include "groombook.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgresql.operator.instances }}
+  storage:
+    size: {{ .Values.postgresql.operator.storage.size }}
+    {{- if .Values.postgresql.operator.storage.storageClass }}
+    storageClass: {{ .Values.postgresql.operator.storage.storageClass }}
+    {{- end }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.operator.bootstrap.database }}
+      owner: {{ .Values.postgresql.operator.bootstrap.owner }}
+      {{- if .Values.postgresql.operator.credentialsSecret }}
+      secret:
+        name: {{ .Values.postgresql.operator.credentialsSecret }}
+      {{- end }}
+  {{- if .Values.postgresql.operator.monitoring.enabled }}
+  monitoring:
+    enablePodMonitor: true
+  {{- end }}
+{{- end }}
+
