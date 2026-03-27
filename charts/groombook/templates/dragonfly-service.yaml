@@ -1,0 +1,20 @@
+{{- if and .Values.dragonfly.enabled (eq .Values.dragonfly.mode "integrated") }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "groombook.fullname" . }}-dragonfly
+  labels:
+    {{- include "groombook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dragonfly
+spec:
+  type: {{ .Values.dragonfly.integrated.service.type }}
+  selector:
+    {{- include "groombook.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: dragonfly
+  ports:
+    - port: {{ .Values.dragonfly.integrated.service.port }}
+      targetPort: 6379
+      protocol: TCP
+      name: redis
+{{- end }}
+

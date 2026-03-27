@@ -1,0 +1,134 @@
+# -- API deployment
+api:
+  image:
+    repository: ghcr.io/groombook/api
+    tag: ""  # defaults to chart appVersion
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    nodeEnv: production
+    authDisabled: false
+    corsOrigin: ""
+    oidcIssuer: ""
+    oidcAudience: groombook
+    port: "3000"
+  service:
+    type: ClusterIP
+    port: 3000
+
+# -- Web deployment (nginx)
+web:
+  image:
+    repository: ghcr.io/groombook/web
+    tag: ""  # defaults to chart appVersion
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+    port: 80
+
+# -- Database migration job (runs as pre-install/pre-upgrade hook)
+migrate:
+  enabled: true
+  image:
+    repository: ghcr.io/groombook/api
+    tag: ""  # same image as api
+    pullPolicy: IfNotPresent
+  backoffLimit: 3
+
+# -- PostgreSQL configuration
+postgresql:
+  # Choose deployment mode: 'integrated' deploys a native PostgreSQL StatefulSet, 'operator' creates a CNPG Cluster CR
+  mode: integrated
+  integrated:
+    image: postgres:16
+    storage:
+      size: 10Gi
+      storageClass: ""
+    auth:
+      database: groombook
+      username: groombook
+      password: ""  # auto-generated if empty
+      existingSecret: ""
+  operator:
+    instances: 3
+    storage:
+      size: 10Gi
+      storageClass: ""
+    bootstrap:
+      database: groombook
+      owner: groombook
+    credentialsSecret: ""  # must pre-exist with key 'uri'
+    monitoring:
+      enabled: true
+
+# -- DragonflyDB (cache/pub-sub) — optional, disabled by default
+dragonfly:
+  enabled: false
+  # Choose deployment mode: 'integrated' deploys a StatefulSet, 'operator' creates a Dragonfly CR
+  mode: integrated
+  integrated:
+    image:
+      repository: docker.dragonflydb.io/dragonflydb/dragonfly
+      tag: latest
+      pullPolicy: IfNotPresent
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    storage:
+      size: 1Gi
+      storageClass: ""
+    service:
+      type: ClusterIP
+      port: 6379
+  operator:
+    replicas: 1
+    resources: {}
+
+# -- Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: groombook.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+        - path: /api
+          pathType: Prefix
+          service: api
+  tls: []
+
+# -- Service account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# -- Global image pull secrets
+imagePullSecrets: []
+
+# -- Override chart name
+nameOverride: ""
+fullnameOverride: ""
