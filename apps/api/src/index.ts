@@ -72,6 +72,9 @@ const api = app.basePath("/api");
 api.use("*", authMiddleware);
 api.use("*", resolveStaffMiddleware);
 
+// Debug: test if api sub-app routing works at all
+api.get("/auth-test", (c) => c.json({ test: "route works" }));
+
 // Better-Auth handler — registered on api sub-app so it shares the middleware chain
 // authMiddleware and resolveStaffMiddleware both skip /api/auth/ paths
 api.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/auth/**", (c) => {
