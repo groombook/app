@@ -67,19 +67,16 @@ app.get("/api/branding", async (c) => {
 // Public iCal calendar feed — token auth in URL, no auth middleware required
 app.route("/api/calendar", calendarRouter);
 
-// Better-Auth handler — public, handles OAuth callbacks, session management
-// Mounted BEFORE auth middleware so it's accessible without authentication
-app.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/api/auth/**", async (c) => {
-  console.log("[better-auth] handler called:", c.req.method, c.req.path, c.req.url);
-  const response = await auth.handler(c.req.raw);
-  console.log("[better-auth] response:", response.status);
-  return response;
-});
-
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
 api.use("*", resolveStaffMiddleware);
+
+// Better-Auth handler — registered on api sub-app so it shares the middleware chain
+// authMiddleware and resolveStaffMiddleware both skip /api/auth/ paths
+api.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/auth/**", (c) => {
+  return auth.handler(c.req.raw);
+});
 
 // ── Role guards ────────────────────────────────────────────────────────────────
 // Manager-only: admin settings, reports, invoices, impersonation
