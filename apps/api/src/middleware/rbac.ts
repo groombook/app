@@ -42,7 +42,7 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
       if (!manager) {
         return c.json({ error: "Forbidden: no staff records found" }, 403);
       }
-      c.set("staff", manager);
+      c.set("staff", { ...manager, isSuperUser: true });
       await next();
       return;
     }
@@ -52,7 +52,7 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
       .from(staff)
       .where(eq(staff.userId, devUserId));
     if (row) {
-      c.set("staff", row);
+      c.set("staff", { ...row, isSuperUser: true });
       await next();
       return;
     }
@@ -68,7 +68,7 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
         403
       );
     }
-    c.set("staff", fallbackRow);
+    c.set("staff", { ...fallbackRow, isSuperUser: true });
     await next();
     return;
   }
@@ -119,6 +119,30 @@ export function requireRole(
         {
           error: `Forbidden: role '${staffRow.role}' is not permitted to access this resource`,
         },
+        403
+      );
+    }
+    await next();
+  };
+}
+
+/**
+ * Middleware that enforces the staff member is a super user.
+ * Must be applied after resolveStaffMiddleware and (typically) after requireRole.
+ *
+ * @example
+ *   api.use("/staff/*", requireRole("manager"));
+ *   api.use("/staff/*", requireSuperUser());
+ */
+export function requireSuperUser(): MiddlewareHandler<AppEnv> {
+  return async (c, next) => {
+    const staffRow = c.get("staff");
+    if (!staffRow) {
+      return c.json({ error: "Forbidden: staff record not resolved" }, 403);
+    }
+    if (!staffRow.isSuperUser) {
+      return c.json(
+        { error: "Forbidden: super user privileges required" },
         403
       );
     }
