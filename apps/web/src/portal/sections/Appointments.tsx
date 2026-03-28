@@ -39,13 +39,6 @@ interface Service {
   isAddOn?: boolean;
 }
 
-interface Groomer {
-  id: string;
-  name: string;
-  specialties?: string[];
-  avatar?: string;
-}
-
 interface AppointmentsSectionProps {
   sessionId: string | null;
   readOnly: boolean;
@@ -104,7 +97,6 @@ const CONFIRMATION_STATUS_COLORS: Record<string, string> = {
 };
 
 export const AppointmentsSection: React.FC<AppointmentsSectionProps> = ({ sessionId, readOnly }) => {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [upcomingAppointments, setUpcomingAppointments] = useState<Appointment[]>([]);
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -118,7 +110,6 @@ export const AppointmentsSection: React.FC<AppointmentsSectionProps> = ({ sessio
   useEffect(() => {
     const fetchAppointments = async () => {
       if (!sessionId) {
-        setAppointments([]);
         setUpcomingAppointments([]);
         setPastAppointments([]);
         setIsLoading(false);
@@ -133,8 +124,6 @@ export const AppointmentsSection: React.FC<AppointmentsSectionProps> = ({ sessio
         if (response.ok) {
           const data = await response.json();
           const fetchedAppointments: Appointment[] = data.appointments || data || [];
-
-          setAppointments(fetchedAppointments);
 
           const upcoming = fetchedAppointments.filter((appt) => isUpcoming(appt));
           const past = fetchedAppointments.filter((appt) => !isUpcoming(appt));

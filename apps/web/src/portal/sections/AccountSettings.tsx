@@ -84,7 +84,7 @@ function PersonalInfo({ sessionId, readOnly }: { sessionId: string | null; readO
         } else {
           setError("Failed to load personal info");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to load personal info");
       } finally {
         setLoading(false);
@@ -192,7 +192,7 @@ function ManagePets({ sessionId, readOnly }: { sessionId: string | null; readOnl
         } else {
           setError("Failed to load pets");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to load pets");
       } finally {
         setLoading(false);
