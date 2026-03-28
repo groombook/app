@@ -49,6 +49,8 @@ const CONFIRMATION_STATUS_COLORS: Record<string, string> = {
 
 export function AppointmentsSection({ readOnly, sessionId }: Props) {
   const [showBooking, setShowBooking] = useState(false);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState<Appointment | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
 
@@ -90,6 +92,7 @@ export function AppointmentsSection({ readOnly, sessionId }: Props) {
               onToggle={() => setExpandedId(expandedId === appt.id ? null : appt.id)}
               readOnly={readOnly}
               sessionId={sessionId}
+              onReschedule={(appt) => { setRescheduleAppointment(appt); setShowReschedule(true); }}
             />
           ))}
           {UPCOMING_APPOINTMENTS.length === 0 && (
@@ -108,6 +111,7 @@ export function AppointmentsSection({ readOnly, sessionId }: Props) {
               onToggle={() => setExpandedId(expandedId === appt.id ? null : appt.id)}
               readOnly={readOnly}
               sessionId={sessionId}
+              onReschedule={(appt) => { setRescheduleAppointment(appt); setShowReschedule(true); }}
             />
           ))}
         </div>
@@ -119,14 +123,21 @@ export function AppointmentsSection({ readOnly, sessionId }: Props) {
           readOnly={readOnly}
         />
       )}
+      {showReschedule && rescheduleAppointment && (
+        <RescheduleFlow
+          appointment={rescheduleAppointment}
+          onClose={() => { setShowReschedule(false); setRescheduleAppointment(null); }}
+          sessionId={sessionId}
+        />
+      )}
     </div>
   );
 }
 
 function AppointmentCard({
-  appointment: appt, expanded, onToggle, readOnly, sessionId,
+  appointment: appt, expanded, onToggle, readOnly, sessionId, onReschedule,
 }: {
-  appointment: Appointment; expanded: boolean; onToggle: () => void; readOnly: boolean; sessionId?: string | null;
+  appointment: Appointment; expanded: boolean; onToggle: () => void; readOnly: boolean; sessionId?: string | null; onReschedule: (appt: Appointment) => void;
 }) {
   return (
     <div className="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
@@ -176,11 +187,7 @@ function AppointmentCard({
           )}
           {appt.status !== "completed" && appt.status !== "cancelled" && !readOnly && (
             <div className="flex gap-2 mt-3">
-              <button
-                disabled
-                title="Rescheduling coming soon"
-                className="text-xs px-3 py-1.5 border border-stone-200 rounded-lg text-stone-400 cursor-not-allowed"
-              >
+              <button onClick={() => onReschedule(appt)} className="text-xs px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50">
                 Reschedule
               </button>
               <CancelAppointmentButton appointment={appt} sessionId={sessionId} />
@@ -372,6 +379,133 @@ export function CustomerNotesSection({ appointment: appt, sessionId }: { appoint
           {saving ? "Saving..." : "Save Notes"}
         </button>
       )}
+    </div>
+  );
+}
+
+export function RescheduleFlow({
+  appointment: appt,
+  onClose,
+  sessionId,
+}: {
+  appointment: Appointment;
+  onClose: () => void;
+  sessionId?: string | null;
+}) {
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const availableTimes = ["9:00 AM", "10:00 AM", "11:00 AM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM"];
+
+  async function handleSubmit() {
+    if (!selectedDate || !selectedTime) return;
+
+    const [hoursMinutes = "", period = ""] = selectedTime.split(" ");
+    const [hoursStr = "0", minutesStr = "0"] = hoursMinutes.split(":");
+    let hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr ?? "0", 10);
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+    const isoTime = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00`;
+    const startTime = new Date(`${selectedDate}T${isoTime}`).toISOString();
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (sessionId) headers["X-Impersonation-Session-Id"] = sessionId;
+      const res = await fetch(`/api/portal/appointments/${appt.id}/reschedule`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ startTime }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to reschedule" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      setSuccess(true);
+      setTimeout(() => { window.location.reload(); }, 1500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to reschedule");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-stone-200">
+          <h2 className="font-semibold text-stone-800">Reschedule Appointment</h2>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">✕</button>
+        </div>
+
+        <div className="p-5">
+          {success ? (
+            <div className="text-center py-8">
+              <div className="text-4xl mb-3">✅</div>
+              <h3 className="text-lg font-semibold text-stone-800 mb-1">Appointment Rescheduled!</h3>
+              <p className="text-sm text-stone-500">Redirecting...</p>
+            </div>
+          ) : (
+            <>
+              {/* Current appointment summary */}
+              <div className="bg-stone-50 rounded-xl p-4 mb-4 text-sm">
+                <p className="font-medium text-stone-800">{appt.petName} — {appt.services.join(", ")}</p>
+                <p className="text-stone-500 mt-0.5">
+                  {formatDate(appt.date)} at {appt.time} with {appt.groomerName}
+                </p>
+              </div>
+
+              <h3 className="font-medium text-stone-800 mb-3">Pick a New Date & Time</h3>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm mb-3"
+              />
+              {selectedDate && (
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {availableTimes.map(time => (
+                    <button
+                      key={time}
+                      onClick={() => setSelectedTime(time)}
+                      className={`px-3 py-2 rounded-lg text-sm border ${
+                        selectedTime === time
+                          ? "border-(--color-accent) bg-(--color-accent-light) font-medium"
+                          : "border-stone-200 hover:border-stone-300"
+                      }`}
+                    >
+                      {time}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2 border border-stone-200 rounded-lg text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!selectedDate || !selectedTime || submitting}
+                  className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover) disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Rescheduling..." : "Confirm Reschedule"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

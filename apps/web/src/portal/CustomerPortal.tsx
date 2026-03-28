@@ -5,7 +5,7 @@ import {
   Settings, LogOut, Shield,
 } from "lucide-react";
 import { Dashboard } from "./sections/Dashboard.js";
-import { AppointmentsSection } from "./sections/Appointments.js";
+import { AppointmentsSection, RescheduleFlow } from "./sections/Appointments.js";
 import { PetProfiles } from "./sections/PetProfiles.js";
 import { ReportCards } from "./sections/ReportCards.js";
 import { BillingPayments } from "./sections/BillingPayments.js";
@@ -33,6 +33,8 @@ export function CustomerPortal() {
   const [activeSection, setActiveSection] = useState<Section>("dashboard");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState<Record<string, unknown> | null>(null);
   const [session, setSession] = useState<ImpersonationSession | null>(null);
   const [sessionExtended, setSessionExtended] = useState(false);
   const { branding } = useBranding();
@@ -107,12 +109,17 @@ export function CustomerPortal() {
     }
   };
 
+  const handleReschedule = useCallback((appointment: Record<string, unknown>) => {
+    setRescheduleAppointment(appointment);
+    setShowReschedule(true);
+  }, []);
+
   const isReadOnly = session?.status === "active";
 
   const renderSection = () => {
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} />;
+        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} onReschedule={handleReschedule} />;
       case "appointments":
         return <AppointmentsSection readOnly={!!isReadOnly} sessionId={session?.id ?? null} />;
       case "pets":
@@ -155,6 +162,15 @@ export function CustomerPortal() {
         <AuditLogViewer
           sessionId={session.id}
           onClose={() => setShowAuditLog(false)}
+        />
+      )}
+
+      {showReschedule && rescheduleAppointment && (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        <RescheduleFlow
+          appointment={rescheduleAppointment as any}
+          onClose={() => { setShowReschedule(false); setRescheduleAppointment(null); }}
+          sessionId={session?.id ?? null}
         />
       )}
 

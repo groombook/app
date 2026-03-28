@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { and, eq, getDb, appointments, impersonationSessions, waitlistEntries } from "@groombook/db";
+import { and, eq, lt, gt, ne, getDb, appointments, impersonationSessions, waitlistEntries } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const portalRouter = new Hono<AppEnv>();
@@ -211,6 +211,105 @@ portalRouter.post("/appointments/:id/cancel", async (c) => {
     updatedAt: updated!.updatedAt,
   });
 });
+
+// ─── Appointment reschedule ──────────────────────────────────────────────────
+
+const rescheduleSchema = z.object({
+  startTime: z.string().datetime(),
+});
+
+portalRouter.post(
+  "/appointments/:id/reschedule",
+  zValidator("json", rescheduleSchema),
+  async (c) => {
+    const db = getDb();
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+
+    const sessionId = c.req.header("X-Impersonation-Session-Id");
+    if (!sessionId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const [session] = await db
+      .select()
+      .from(impersonationSessions)
+      .where(
+        and(
+          eq(impersonationSessions.id, sessionId),
+          eq(impersonationSessions.status, "active")
+        )
+      )
+      .limit(1);
+
+    if (!session || session.expiresAt <= new Date()) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const [appt] = await db
+      .select()
+      .from(appointments)
+      .where(eq(appointments.id, id))
+      .limit(1);
+
+    if (!appt) {
+      return c.json({ error: "Not found" }, 404);
+    }
+
+    if (appt.clientId !== session.clientId) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    if (appt.startTime <= new Date()) {
+      return c.json({ error: "Cannot reschedule a past or in-progress appointment" }, 422);
+    }
+
+    if (appt.status === "cancelled" || appt.status === "completed") {
+      return c.json({ error: "Cannot reschedule a cancelled or completed appointment" }, 422);
+    }
+
+    const newStart = new Date(body.startTime);
+    const durationMs = appt.endTime.getTime() - appt.startTime.getTime();
+    const newEnd = new Date(newStart.getTime() + durationMs);
+
+    const [existingConflict] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.staffId, appt.staffId!),
+          lt(appointments.startTime, newEnd),
+          gt(appointments.endTime, newStart),
+          ne(appointments.status, "cancelled"),
+          ne(appointments.status, "no_show"),
+          ne(appointments.id, id)
+        )
+      )
+      .limit(1);
+
+    if (existingConflict) {
+      return c.json({ error: "The selected time slot is no longer available" }, 409);
+    }
+
+    const [updated] = await db
+      .update(appointments)
+      .set({ startTime: newStart, endTime: newEnd, updatedAt: new Date() })
+      .where(eq(appointments.id, id))
+      .returning();
+
+    if (!updated) {
+      return c.json({ error: "Not found" }, 404);
+    }
+
+    return c.json({
+      id: updated.id,
+      startTime: updated.startTime,
+      endTime: updated.endTime,
+      status: updated.status,
+      updatedAt: updated.updatedAt,
+    });
+  }
+);
 
 // ─── Client-facing waitlist routes ───────────────────────────────────────────
 
