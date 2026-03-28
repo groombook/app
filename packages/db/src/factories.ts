@@ -52,6 +52,7 @@ export function buildStaff(overrides: Partial<StaffRow> = {}): StaffRow {
     oidcSub: `oidc-${id}`,
     userId: null,
     role: "groomer",
+    isSuperUser: false,
     active: true,
     icalToken: null,
     createdAt: new Date("2025-01-01T00:00:00Z"),

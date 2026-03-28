@@ -72,6 +72,7 @@ export interface Staff {
   name: string;
   email: string;
   role: "groomer" | "receptionist" | "manager";
+  isSuperUser: boolean;
   active: boolean;
   createdAt: string;
   updatedAt: string;
