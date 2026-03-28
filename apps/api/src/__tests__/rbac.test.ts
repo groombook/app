@@ -168,7 +168,7 @@ describe("resolveStaffMiddleware", () => {
     });
 
     const res = await app.request("/test", {
-      headers: { "X-Dev-User-Id": GROOMER.userId! },
+      headers: { "X-Dev-User-Id": GROOMER.id },
     });
     expect(res.status).toBe(200);
     expect(capturedStaff!.role).toBe("groomer");
