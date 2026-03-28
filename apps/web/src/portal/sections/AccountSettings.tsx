@@ -125,10 +125,18 @@ function ManagePets({ readOnly }: { readOnly: boolean }) {
           </div>
           {!readOnly && (
             <div className="flex gap-2">
-              <button className="px-3 py-1.5 border border-stone-200 rounded-lg text-xs text-stone-600 hover:bg-stone-50">
+              <button
+                disabled
+                title="Pet editing coming soon"
+                className="px-3 py-1.5 border border-stone-200 rounded-lg text-xs text-stone-400 cursor-not-allowed"
+              >
                 Edit
               </button>
-              <button className="p-1.5 border border-stone-200 rounded-lg text-stone-400 hover:text-amber-600 hover:border-amber-200">
+              <button
+                disabled
+                title="Pet archiving coming soon"
+                className="p-1.5 border border-stone-200 rounded-lg text-stone-300 cursor-not-allowed"
+              >
                 <Archive size={14} />
               </button>
             </div>
@@ -136,7 +144,11 @@ function ManagePets({ readOnly }: { readOnly: boolean }) {
         </div>
       ))}
       {!readOnly && (
-        <button className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-stone-300 rounded-2xl text-sm text-stone-500 hover:border-(--color-accent) hover:text-(--color-accent-dark) transition-colors">
+        <button
+          disabled
+          title="Adding pets coming soon"
+          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-stone-300 rounded-2xl text-sm text-stone-400 cursor-not-allowed"
+        >
           <Plus size={16} />
           Add New Pet
         </button>

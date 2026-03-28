@@ -54,8 +54,8 @@ export function PetProfiles({ readOnly }: Props) {
             <p className="text-stone-400 text-xs mt-0.5">Born {new Date(pet.dob).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
           </div>
           {!readOnly && (
-            <button className="p-2 hover:bg-stone-50 rounded-lg">
-              <Edit3 size={16} className="text-stone-400" />
+            <button disabled title="Pet editing coming soon" className="p-2 rounded-lg cursor-not-allowed">
+              <Edit3 size={16} className="text-stone-300" />
             </button>
           )}
         </div>
