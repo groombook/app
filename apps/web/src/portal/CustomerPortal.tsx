@@ -125,7 +125,7 @@ export function CustomerPortal() {
     const sessionId = session?.id ?? null;
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} onReschedule={handleReschedule} />;
+        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} sessionId={sessionId} clientName={clientName} onReschedule={handleReschedule} />;
       case "appointments":
         return <AppointmentsSection readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "pets":
@@ -133,13 +133,15 @@ export function CustomerPortal() {
       case "reports":
         return <ReportCards />;
       case "billing":
-        return <BillingPayments readOnly={!!isReadOnly} />;
+        return <BillingPayments readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "messages":
         return <Communication readOnly={!!isReadOnly} />;
       case "settings":
-        return <AccountSettings readOnly={!!isReadOnly} />;
+        return <AccountSettings readOnly={!!isReadOnly} sessionId={sessionId} />;
     }
   };
+
+  const avatarInitials = (clientName.split(" ")[0] || "G").charAt(0).toUpperCase();
 
   return (
     <div
@@ -193,7 +195,7 @@ export function CustomerPortal() {
         </button>
         <span className="text-lg font-semibold text-stone-800">{branding.businessName}</span>
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium" style={{ background: branding.accentColor }}>
-          SM
+          {avatarInitials}
         </div>
       </header>
 
@@ -282,7 +284,7 @@ export function CustomerPortal() {
             <div className="flex items-center gap-3">
               <span className="text-sm text-stone-600">Hi, {clientName.split(" ")[0] || "Guest"}</span>
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium" style={{ background: branding.accentColor }}>
-                SM
+                {avatarInitials}
               </div>
             </div>
           </div>

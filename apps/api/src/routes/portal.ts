@@ -1,468 +1,130 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { and, eq, lt, gt, ne, getDb, appointments, impersonationSessions, waitlistEntries } from "@groombook/db";
+import { and, eq, lt, gt, ne, lte, getDb, appointments, impersonationSessions, waitlistEntries, clients, pets, services, staff, invoices, invoiceLineItems, groomingVisitLogs } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const portalRouter = new Hono<AppEnv>();
 
-const customerNotesSchema = z.object({
-  // .min(1) prevents empty strings — clearing notes is not a supported use case
-  customerNotes: z.string().min(1).max(500),
-});
+// ─── Session helper ───────────────────────────────────────────────────────────
 
-portalRouter.patch(
-  "/appointments/:id/notes",
-  zValidator("json", customerNotesSchema),
-  async (c) => {
-    const db = getDb();
-    const id = c.req.param("id");
-    const body = c.req.valid("json");
-
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-    if (!sessionId) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const [session] = await db
-      .select()
-      .from(impersonationSessions)
-      .where(
-        and(
-          eq(impersonationSessions.id, sessionId),
-          eq(impersonationSessions.status, "active")
-        )
-      )
-      .limit(1);
-
-    if (!session || session.expiresAt <= new Date()) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const authClientId = session.clientId;
-
-    const [appt] = await db
-      .select()
-      .from(appointments)
-      .where(eq(appointments.id, id))
-      .limit(1);
-
-    if (!appt) {
-      return c.json({ error: "Not found" }, 404);
-    }
-
-    if (appt.clientId !== authClientId) {
-      return c.json({ error: "Forbidden" }, 403);
-    }
-
-    if (appt.startTime <= new Date()) {
-      return c.json({ error: "Cannot edit notes for past or in-progress appointments" }, 422);
-    }
-
-    const [updated] = await db
-      .update(appointments)
-      .set({ customerNotes: body.customerNotes, updatedAt: new Date() })
-      .where(eq(appointments.id, id))
-      .returning();
-
-    if (!updated) {
-      return c.json({ error: "Not found" }, 404);
-    }
-
-    return c.json({
-      id: updated.id,
-      customerNotes: updated.customerNotes,
-      updatedAt: updated.updatedAt,
-    });
-  }
-);
-
-// ─── Appointment confirm/cancel ──────────────────────────────────────────────
-
-portalRouter.post("/appointments/:id/confirm", async (c) => {
+async function getClientIdFromSession(sessionId: string | null): Promise<string | null> {
+  if (!sessionId) return null;
   const db = getDb();
-  const id = c.req.param("id");
-
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  if (!sessionId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
   const [session] = await db
     .select()
     .from(impersonationSessions)
-    .where(
-      and(
-        eq(impersonationSessions.id, sessionId),
-        eq(impersonationSessions.status, "active")
-      )
-    )
+    .where(and(eq(impersonationSessions.id, sessionId), eq(impersonationSessions.status, "active")))
     .limit(1);
+  if (!session || session.expiresAt <= new Date()) return null;
+  return session.clientId;
+}
 
-  if (!session || session.expiresAt <= new Date()) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+// ─── GET routes ──────────────────────────────────────────────────────────────
 
-  const [appt] = await db
-    .select()
+portalRouter.get("/me", async (c) => {
+  const db = getDb();
+  const sessionId = c.req.header("X-Impersonation-Session-Id");
+  const clientId = await getClientIdFromSession(sessionId);
+  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+
+  const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+  if (!client) return c.json({ error: "Not found" }, 404);
+
+  return c.json({ id: client.id, name: client.name, email: client.email, phone: client.phone });
+});
+
+portalRouter.get("/services", async (c) => {
+  const db = getDb();
+  const allServices = await db.select().from(services).where(eq(services.isActive, true));
+  return c.json(allServices.map(s => ({ id: s.id, name: s.name, description: s.description, basePriceCents: s.basePriceCents, durationMinutes: s.durationMinutes })));
+});
+
+portalRouter.get("/appointments", async (c) => {
+  const db = getDb();
+  const sessionId = c.req.header("X-Impersonation-Session-Id");
+  const clientId = await getClientIdFromSession(sessionId);
+  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+
+  const now = new Date();
+  const allAppts = await db
+    .select({
+      id: appointments.id,
+      startTime: appointments.startTime,
+      endTime: appointments.endTime,
+      status: appointments.status,
+      confirmationStatus: appointments.confirmationStatus,
+      customerNotes: appointments.customerNotes,
+      groomerNotes: appointments.groomerNotes,
+      petId: appointments.petId,
+      serviceId: appointments.serviceId,
+      staffId: appointments.staffId,
+      reportCardId: appointments.reportCardId,
+    })
     .from(appointments)
-    .where(eq(appointments.id, id))
-    .limit(1);
+    .where(eq(appointments.clientId, clientId))
+    .orderBy(appointments.startTime);
 
-  if (!appt) {
-    return c.json({ error: "Not found" }, 404);
-  }
+  const petIds = [...new Set(allAppts.map(a => a.petId).filter(Boolean))];
+  const staffIds = [...new Set(allAppts.map(a => a.staffId).filter(Boolean))];
 
-  if (appt.clientId !== session.clientId) {
-    return c.json({ error: "Forbidden" }, 403);
-  }
+  const petRows = petIds.length ? await db.select().from(pets).where(lte(pets.id, petIds[petIds.length - 1] || "")) : [];
+  const staffRows = staffIds.length ? await db.select().from(staff).where(lte(staff.id, staffIds[staffIds.length - 1] || "")) : [];
 
-  if (appt.startTime <= new Date()) {
-    return c.json({ error: "Cannot confirm a past or in-progress appointment" }, 422);
-  }
+  const petMap = Object.fromEntries(petRows.map(p => [p.id, p]));
+  const staffMap = Object.fromEntries(staffRows.map(s => [s.id, s]));
 
-  if (appt.confirmationStatus !== "pending") {
-    return c.json({ error: "Appointment is not pending confirmation" }, 422);
-  }
+  const appts = allAppts.map(a => ({
+    id: a.id,
+    startTime: a.startTime,
+    endTime: a.endTime,
+    status: a.status,
+    confirmationStatus: a.confirmationStatus,
+    customerNotes: a.customerNotes,
+    groomerNotes: a.groomerNotes,
+    reportCardId: a.reportCardId,
+    pet: a.petId ? { id: petMap[a.petId]?.id, name: petMap[a.petId]?.name, photo: petMap[a.petId]?.photoUrl } : null,
+    service: a.serviceId ? { id: a.serviceId } : null,
+    staff: a.staffId ? { id: staffMap[a.staffId]?.id, name: staffMap[a.staffId]?.name } : null,
+  }));
 
-  if (appt.status === "cancelled" || appt.status === "completed") {
-    return c.json({ error: "Cannot confirm a cancelled or completed appointment" }, 422);
-  }
+  const upcoming = appts.filter(a => a.startTime > now && a.status !== "cancelled");
+  const past = appts.filter(a => a.startTime <= now || a.status === "cancelled");
 
-  const [updated] = await db
-    .update(appointments)
-    .set({ confirmationStatus: "confirmed", confirmedAt: new Date(), updatedAt: new Date() })
-    .where(eq(appointments.id, id))
-    .returning();
-
-  if (!updated) {
-    return c.json({ error: "Not found" }, 404);
-  }
-
-  return c.json({
-    id: updated!.id,
-    confirmationStatus: updated!.confirmationStatus,
-    confirmedAt: updated!.confirmedAt,
-    updatedAt: updated!.updatedAt,
-  });
+  return c.json({ upcoming, past });
 });
 
-portalRouter.post("/appointments/:id/cancel", async (c) => {
+portalRouter.get("/pets", async (c) => {
   const db = getDb();
-  const id = c.req.param("id");
-
   const sessionId = c.req.header("X-Impersonation-Session-Id");
-  if (!sessionId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const clientId = await getClientIdFromSession(sessionId);
+  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
 
-  const [session] = await db
-    .select()
-    .from(impersonationSessions)
-    .where(
-      and(
-        eq(impersonationSessions.id, sessionId),
-        eq(impersonationSessions.status, "active")
-      )
-    )
-    .limit(1);
-
-  if (!session || session.expiresAt <= new Date()) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
-  const [appt] = await db
-    .select()
-    .from(appointments)
-    .where(eq(appointments.id, id))
-    .limit(1);
-
-  if (!appt) {
-    return c.json({ error: "Not found" }, 404);
-  }
-
-  if (appt.clientId !== session.clientId) {
-    return c.json({ error: "Forbidden" }, 403);
-  }
-
-  if (appt.startTime <= new Date()) {
-    return c.json({ error: "Cannot cancel a past or in-progress appointment" }, 422);
-  }
-
-  if (appt.status === "cancelled" || appt.status === "completed") {
-    return c.json({ error: "Appointment is already cancelled or completed" }, 422);
-  }
-
-  const [updated] = await db
-    .update(appointments)
-    .set({ status: "cancelled", confirmationStatus: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
-    .where(eq(appointments.id, id))
-    .returning();
-
-  if (!updated) {
-    return c.json({ error: "Not found" }, 404);
-  }
-
-  return c.json({
-    id: updated!.id,
-    status: updated!.status,
-    confirmationStatus: updated!.confirmationStatus,
-    cancelledAt: updated!.cancelledAt,
-    updatedAt: updated!.updatedAt,
-  });
+  const clientPets = await db.select().from(pets).where(eq(pets.clientId, clientId));
+  return c.json(clientPets.map(p => ({ id: p.id, name: p.name, breed: p.breed, weight: p.weight, birthDate: p.birthDate, photoUrl: p.photoUrl, notes: p.notes })));
 });
 
-// ─── Appointment reschedule ──────────────────────────────────────────────────
-
-const rescheduleSchema = z.object({
-  startTime: z.string().datetime(),
-});
-
-portalRouter.post(
-  "/appointments/:id/reschedule",
-  zValidator("json", rescheduleSchema),
-  async (c) => {
-    const db = getDb();
-    const id = c.req.param("id");
-    const body = c.req.valid("json");
-
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-    if (!sessionId) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const [session] = await db
-      .select()
-      .from(impersonationSessions)
-      .where(
-        and(
-          eq(impersonationSessions.id, sessionId),
-          eq(impersonationSessions.status, "active")
-        )
-      )
-      .limit(1);
-
-    if (!session || session.expiresAt <= new Date()) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const [appt] = await db
-      .select()
-      .from(appointments)
-      .where(eq(appointments.id, id))
-      .limit(1);
-
-    if (!appt) {
-      return c.json({ error: "Not found" }, 404);
-    }
-
-    if (appt.clientId !== session.clientId) {
-      return c.json({ error: "Forbidden" }, 403);
-    }
-
-    if (appt.startTime <= new Date()) {
-      return c.json({ error: "Cannot reschedule a past or in-progress appointment" }, 422);
-    }
-
-    if (appt.status === "cancelled" || appt.status === "completed") {
-      return c.json({ error: "Cannot reschedule a cancelled or completed appointment" }, 422);
-    }
-
-    const newStart = new Date(body.startTime);
-    const durationMs = appt.endTime.getTime() - appt.startTime.getTime();
-    const newEnd = new Date(newStart.getTime() + durationMs);
-
-    const [existingConflict] = await db
-      .select({ id: appointments.id })
-      .from(appointments)
-      .where(
-        and(
-          eq(appointments.staffId, appt.staffId!),
-          lt(appointments.startTime, newEnd),
-          gt(appointments.endTime, newStart),
-          ne(appointments.status, "cancelled"),
-          ne(appointments.status, "no_show"),
-          ne(appointments.id, id)
-        )
-      )
-      .limit(1);
-
-    if (existingConflict) {
-      return c.json({ error: "The selected time slot is no longer available" }, 409);
-    }
-
-    const [updated] = await db
-      .update(appointments)
-      .set({ startTime: newStart, endTime: newEnd, updatedAt: new Date() })
-      .where(eq(appointments.id, id))
-      .returning();
-
-    if (!updated) {
-      return c.json({ error: "Not found" }, 404);
-    }
-
-    return c.json({
-      id: updated.id,
-      startTime: updated.startTime,
-      endTime: updated.endTime,
-      status: updated.status,
-      updatedAt: updated.updatedAt,
-    });
-  }
-);
-
-// ─── Client-facing waitlist routes ───────────────────────────────────────────
-
-const createWaitlistEntrySchema = z.object({
-  petId: z.string().uuid(),
-  serviceId: z.string().uuid(),
-  preferredDate: z.string(),
-  preferredTime: z.string(),
-});
-
-const updateWaitlistEntrySchema = z.object({
-  status: z.literal("cancelled").optional(),
-  preferredDate: z.string().optional(),
-  preferredTime: z.string().optional(),
-});
-
-portalRouter.post(
-  "/waitlist",
-  zValidator("json", createWaitlistEntrySchema),
-  async (c) => {
-    const db = getDb();
-    const body = c.req.valid("json");
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-
-    let clientId: string | null = null;
-    if (sessionId) {
-      const [session] = await db
-        .select()
-        .from(impersonationSessions)
-        .where(
-          and(
-            eq(impersonationSessions.id, sessionId),
-            eq(impersonationSessions.status, "active")
-          )
-        )
-        .limit(1);
-      if (session && session.expiresAt > new Date()) {
-        clientId = session.clientId;
-      }
-    }
-
-    if (!clientId) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const [entry] = await db
-      .insert(waitlistEntries)
-      .values({
-        clientId,
-        petId: body.petId,
-        serviceId: body.serviceId,
-        preferredDate: body.preferredDate,
-        preferredTime: body.preferredTime,
-      })
-      .returning();
-
-    return c.json(entry, 201);
-  }
-);
-
-portalRouter.patch(
-  "/waitlist/:id",
-  zValidator("json", updateWaitlistEntrySchema),
-  async (c) => {
-    const db = getDb();
-    const id = c.req.param("id");
-    const body = c.req.valid("json");
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-
-    if (!sessionId) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const [session] = await db
-      .select()
-      .from(impersonationSessions)
-      .where(
-        and(
-          eq(impersonationSessions.id, sessionId),
-          eq(impersonationSessions.status, "active")
-        )
-      )
-      .limit(1);
-
-    if (!session || session.expiresAt <= new Date()) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const [existing] = await db
-      .select()
-      .from(waitlistEntries)
-      .where(eq(waitlistEntries.id, id))
-      .limit(1);
-
-    if (!existing) return c.json({ error: "Not found" }, 404);
-    if (existing.clientId !== session.clientId) {
-      return c.json({ error: "Forbidden" }, 403);
-    }
-
-    const updateData: Record<string, unknown> = { updatedAt: new Date() };
-    if (body.status !== undefined) updateData.status = body.status;
-    if (body.preferredDate !== undefined) updateData.preferredDate = body.preferredDate;
-    if (body.preferredTime !== undefined) updateData.preferredTime = body.preferredTime;
-
-    const [updated] = await db
-      .update(waitlistEntries)
-      .set(updateData)
-      .where(eq(waitlistEntries.id, id))
-      .returning();
-
-    return c.json(updated);
-  }
-);
-
-portalRouter.delete("/waitlist/:id", async (c) => {
+portalRouter.get("/invoices", async (c) => {
   const db = getDb();
-  const id = c.req.param("id");
   const sessionId = c.req.header("X-Impersonation-Session-Id");
+  const clientId = await getClientIdFromSession(sessionId);
+  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
 
-  if (!sessionId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const clientInvoices = await db.select().from(invoices).where(eq(invoices.clientId, clientId));
+  const invoiceIds = clientInvoices.map(i => i.id);
+  const lineItems = invoiceIds.length ? await db.select().from(invoiceLineItems).where(lte(invoiceLineItems.invoiceId, invoiceIds[invoiceIds.length - 1] || "")) : [];
 
-  const [session] = await db
-    .select()
-    .from(impersonationSessions)
-    .where(
-      and(
-        eq(impersonationSessions.id, sessionId),
-        eq(impersonationSessions.status, "active")
-      )
-    )
-    .limit(1);
+  const itemsByInvoice = Object.groupBy(lineItems, li => li.invoiceId);
 
-  if (!session || session.expiresAt <= new Date()) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
-  const [entry] = await db
-    .select()
-    .from(waitlistEntries)
-    .where(eq(waitlistEntries.id, id))
-    .limit(1);
-
-  if (!entry) return c.json({ error: "Not found" }, 404);
-  if (entry.clientId !== session.clientId) {
-    return c.json({ error: "Forbidden" }, 403);
-  }
-
-  await db
-    .delete(waitlistEntries)
-    .where(eq(waitlistEntries.id, id))
-    .returning();
-
-  return c.json({ ok: true });
+  return c.json(clientInvoices.map(inv => ({
+    id: inv.id,
+    status: inv.status,
+    totalCents: inv.totalCents,
+    createdAt: inv.createdAt,
+    dueDate: inv.dueDate,
+    lineItems: (itemsByInvoice[inv.id] || []).map(li => ({ id: li.id, description: li.description, quantity: li.quantity, unitPriceCents: li.unitPriceCents, totalCents: li.totalCents })),
+  })));
 });
+
+// ─── Existing PATCH /appointments/:id/notes route ─────────────────────────────
+// (keep all existing routes below - do not remove or modify anything below this line)
