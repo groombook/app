@@ -8,7 +8,7 @@ export const portalRouter = new Hono<AppEnv>();
 
 // ─── Session helper ───────────────────────────────────────────────────────────
 
-async function getClientIdFromSession(sessionId: string | null): Promise<string | null> {
+async function getClientIdFromSession(sessionId: string | null | undefined): Promise<string | null> {
   if (!sessionId) return null;
   const db = getDb();
   const [session] = await db
@@ -36,7 +36,7 @@ portalRouter.get("/me", async (c) => {
 
 portalRouter.get("/services", async (c) => {
   const db = getDb();
-  const allServices = await db.select().from(services).where(eq(services.isActive, true));
+  const allServices = await db.select().from(services).where(eq(services.active, true));
   return c.json(allServices.map(s => ({ id: s.id, name: s.name, description: s.description, basePriceCents: s.basePriceCents, durationMinutes: s.durationMinutes })));
 });
 
@@ -55,11 +55,10 @@ portalRouter.get("/appointments", async (c) => {
       status: appointments.status,
       confirmationStatus: appointments.confirmationStatus,
       customerNotes: appointments.customerNotes,
-      groomerNotes: appointments.groomerNotes,
+      notes: appointments.notes,
       petId: appointments.petId,
       serviceId: appointments.serviceId,
       staffId: appointments.staffId,
-      reportCardId: appointments.reportCardId,
     })
     .from(appointments)
     .where(eq(appointments.clientId, clientId))
@@ -81,9 +80,8 @@ portalRouter.get("/appointments", async (c) => {
     status: a.status,
     confirmationStatus: a.confirmationStatus,
     customerNotes: a.customerNotes,
-    groomerNotes: a.groomerNotes,
-    reportCardId: a.reportCardId,
-    pet: a.petId ? { id: petMap[a.petId]?.id, name: petMap[a.petId]?.name, photo: petMap[a.petId]?.photoUrl } : null,
+    notes: a.notes,
+    pet: a.petId ? { id: petMap[a.petId]?.id, name: petMap[a.petId]?.name, photo: petMap[a.petId]?.photoKey } : null,
     service: a.serviceId ? { id: a.serviceId } : null,
     staff: a.staffId ? { id: staffMap[a.staffId]?.id, name: staffMap[a.staffId]?.name } : null,
   }));
@@ -101,7 +99,7 @@ portalRouter.get("/pets", async (c) => {
   if (!clientId) return c.json({ error: "Unauthorized" }, 401);
 
   const clientPets = await db.select().from(pets).where(eq(pets.clientId, clientId));
-  return c.json(clientPets.map(p => ({ id: p.id, name: p.name, breed: p.breed, weight: p.weight, birthDate: p.birthDate, photoUrl: p.photoUrl, notes: p.notes })));
+  return c.json(clientPets.map(p => ({ id: p.id, name: p.name, breed: p.breed, weightKg: p.weightKg, dateOfBirth: p.dateOfBirth, photoKey: p.photoKey, groomingNotes: p.groomingNotes })));
 });
 
 portalRouter.get("/invoices", async (c) => {
@@ -114,14 +112,17 @@ portalRouter.get("/invoices", async (c) => {
   const invoiceIds = clientInvoices.map(i => i.id);
   const lineItems = invoiceIds.length ? await db.select().from(invoiceLineItems).where(lte(invoiceLineItems.invoiceId, invoiceIds[invoiceIds.length - 1] || "")) : [];
 
-  const itemsByInvoice = Object.groupBy(lineItems, li => li.invoiceId);
+  const itemsByInvoice: Record<string, typeof lineItems> = {};
+  for (const li of lineItems) {
+    if (!itemsByInvoice[li.invoiceId]) itemsByInvoice[li.invoiceId] = [];
+    itemsByInvoice[li.invoiceId]!.push(li);
+  }
 
   return c.json(clientInvoices.map(inv => ({
     id: inv.id,
     status: inv.status,
     totalCents: inv.totalCents,
     createdAt: inv.createdAt,
-    dueDate: inv.dueDate,
     lineItems: (itemsByInvoice[inv.id] || []).map(li => ({ id: li.id, description: li.description, quantity: li.quantity, unitPriceCents: li.unitPriceCents, totalCents: li.totalCents })),
   })));
 });
