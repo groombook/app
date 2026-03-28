@@ -77,7 +77,11 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
           </div>
           {!readOnly && (
             <div className="flex gap-2 mt-4">
-              <button className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50">
+              <button
+                type="button"
+                className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50"
+                onClick={() => alert("Rescheduling is coming soon!")}
+              >
                 Reschedule
               </button>
               <button className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50">
