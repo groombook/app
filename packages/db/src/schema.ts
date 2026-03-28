@@ -159,6 +159,8 @@ export const staff = pgTable("staff", {
   // Better-Auth user ID — links staff business record to auth identity
   userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
   role: staffRoleEnum("role").notNull().default("groomer"),
+  // Super users bypass appointment-booking restrictions and access admin panels
+  isSuperUser: boolean("is_super_user").notNull().default(false),
   active: boolean("active").notNull().default(true),
   // Token for iCal calendar feed subscription (no auth required)
   icalToken: text("ical_token").unique(),
