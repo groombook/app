@@ -79,7 +79,7 @@ export function SetupWizard() {
         width: "100%",
       }}>
         {/* Progress dots */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 2rem, justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: "2rem", justifyContent: "center" }}>
           {STEPS.map((_, i) => (
             <div
               key={i}
