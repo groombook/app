@@ -2,7 +2,6 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
-import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.js";
 import { clientsRouter } from "./routes/clients.js";
 import { petsRouter } from "./routes/pets.js";
@@ -71,9 +70,7 @@ app.route("/api/calendar", calendarRouter);
 // Better-Auth handler — public, handles OAuth callbacks, session management
 // Mounted BEFORE auth middleware so it's accessible without authentication
 app.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/api/auth/**", (c) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { incoming, outgoing } = c.env as any;
-  return toNodeHandler(auth)(incoming, outgoing);
+  return auth.handler(c.req.raw);
 });
 
 // Protected API routes
