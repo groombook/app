@@ -22,6 +22,12 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
   c,
   next
 ) => {
+  // Better-Auth's own routes handle their own auth — skip staff resolution
+  if (c.req.path.startsWith("/api/auth/")) {
+    await next();
+    return;
+  }
+
   const db = getDb();
 
   if (process.env.AUTH_DISABLED === "true") {
