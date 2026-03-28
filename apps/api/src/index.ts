@@ -69,8 +69,11 @@ app.route("/api/calendar", calendarRouter);
 
 // Better-Auth handler — public, handles OAuth callbacks, session management
 // Mounted BEFORE auth middleware so it's accessible without authentication
-app.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/api/auth/**", (c) => {
-  return auth.handler(c.req.raw);
+app.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/api/auth/**", async (c) => {
+  console.log("[better-auth] handler called:", c.req.method, c.req.path, c.req.url);
+  const response = await auth.handler(c.req.raw);
+  console.log("[better-auth] response:", response.status);
+  return response;
 });
 
 // Protected API routes
