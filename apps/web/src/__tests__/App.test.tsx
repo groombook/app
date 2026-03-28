@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { App } from "../App.js";
+import { App } from "../App";
+
 
 // Mock fetch to return appropriate responses based on URL
 beforeEach(() => {
@@ -148,6 +149,12 @@ describe("Dev login selector", () => {
             logoBase64: null,
             logoMimeType: null,
           }),
+        } as Response);
+      }
+      if (url === "/api/auth/get-session") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ user: null }),
         } as Response);
       }
       return Promise.resolve({ ok: true, json: async () => [] } as Response);

@@ -134,7 +134,10 @@ function AdminLayout() {
 export function App() {
   const location = useLocation();
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
-  const { data: session, isPending: sessionLoading } = useSession();
+  const { data: rawSession, isPending: rawSessionLoading } = useSession();
+  // In dev mode (authDisabled=true), session state is irrelevant - skip useSession result
+  const session = authDisabled ? null : rawSession;
+  const sessionLoading = authDisabled ? false : rawSessionLoading;
 
   useEffect(() => {
     fetch("/api/dev/config")
