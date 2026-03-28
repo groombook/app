@@ -85,6 +85,48 @@
       "when": 1742587200000,
       "tag": "0011_impersonation_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1774080000000,
+      "tag": "0012_pet_photo",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1774166400000,
+      "tag": "0013_appointment_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1774252800000,
+      "tag": "0014_customer_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1774339200000,
+      "tag": "0015_waitlist",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1774425600000,
+      "tag": "0016_ical_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1774512000000,
+      "tag": "0017_better_auth_tables",
+      "breakpoints": true
     }
   ]
 }
