@@ -23,6 +23,12 @@ if (process.env.AUTH_DISABLED === "true") {
 }
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
+  // Better-Auth's own routes handle their own auth (OAuth callbacks, session mgmt)
+  if (c.req.path.startsWith("/api/auth/")) {
+    await next();
+    return;
+  }
+
   if (process.env.AUTH_DISABLED === "true") {
     const devUserId = c.req.header("X-Dev-User-Id");
     const sub = devUserId ?? "dev-user";
