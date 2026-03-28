@@ -1,4 +1,4 @@
-import { Hono, type ContentfulStatusCode } from "hono";
+import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
 import { eq, getDb, staff, businessSettings } from "@groombook/db";
@@ -70,7 +70,7 @@ setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
   });
 
   if ("error" in result) {
-    return c.json({ error: result.error }, (result.code ?? 500) as ContentfulStatusCode);
+    return c.json({ error: result.error }, 409);
   }
 
   return c.json({ ok: true, staff: result.staff }, 201);
