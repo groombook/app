@@ -3,30 +3,31 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { Appointment } from "../portal/mockData.js";
 import { parseTimeTo24Hour, isUpcoming, CustomerNotesSection, ConfirmationSection } from "../portal/sections/Appointments.js";
 
-const UPCOMING_APPT: Appointment = {
+const UPCOMING_APPT = {
   id: "appt-1",
   petId: "pet-1",
   petName: "Buddy",
   groomerId: "groomer-1",
   groomerName: "Sarah",
   services: ["Bath & Brush"],
+  serviceId: "service-1",
   addOns: [],
   date: "2027-01-01",
   time: "10:00 AM",
   duration: 60,
   price: 50,
-  status: "confirmed",
+  status: "confirmed" as const,
   notes: "",
   customerNotes: "",
-  confirmationStatus: "pending",
+  confirmationStatus: "pending" as const,
 };
 
-const PAST_APPT: Appointment = {
+const PAST_APPT = {
   ...UPCOMING_APPT,
   id: "appt-2",
   date: "2025-01-01",
   time: "10:00 AM",
-  status: "completed",
+  status: "completed" as const,
 };
 
 describe("parseTimeTo24Hour", () => {

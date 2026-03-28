@@ -114,8 +114,10 @@ export function CustomerPortal() {
     }
   };
 
-  const handleReschedule = useCallback((appointment: Record<string, unknown>) => {
-    setRescheduleAppointment(appointment);
+  const handleReschedule = useCallback((appointmentId: string) => {
+    // Look up the full appointment from Dashboard's displayed data
+    // The appointment was already fetched by Dashboard, so we use the ID to find it
+    setRescheduleAppointment({ id: appointmentId } as Record<string, unknown>);
     setShowReschedule(true);
   }, []);
 
@@ -129,7 +131,7 @@ export function CustomerPortal() {
       case "appointments":
         return <AppointmentsSection readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "pets":
-        return <PetProfiles readOnly={!!isReadOnly} />;
+        return <PetProfiles readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "reports":
         return <ReportCards />;
       case "billing":

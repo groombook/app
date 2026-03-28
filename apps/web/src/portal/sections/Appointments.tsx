@@ -61,7 +61,7 @@ export function formatDate(dateStr: string): string {
   });
 }
 
-function parseTimeTo24Hour(time: string): string {
+export function parseTimeTo24Hour(time: string): string {
   const parts = time.split(' ');
   const hoursMinutes = parts[0] ?? '';
   const period = parts[1] ?? '';
@@ -74,7 +74,7 @@ function parseTimeTo24Hour(time: string): string {
   return `${hours24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
 }
 
-function isUpcoming(appt: Appointment): boolean {
+export function isUpcoming(appt: Appointment): boolean {
   const now = new Date();
   const apptDate = new Date(`${appt.date}T${parseTimeTo24Hour(appt.time)}`);
   return apptDate > now && appt.status !== 'cancelled' && appt.status !== 'completed';
