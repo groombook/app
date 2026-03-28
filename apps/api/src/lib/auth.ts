@@ -4,6 +4,7 @@ import { genericOAuth } from "better-auth/plugins";
 import { getDb } from "@groombook/db";
 
 const OIDC_ISSUER = process.env.OIDC_ISSUER;
+const OIDC_INTERNAL_BASE = process.env.OIDC_INTERNAL_BASE; // e.g. http://authentik-server.auth.svc.cluster.local
 const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID;
 const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET;
 const BETTER_AUTH_SECRET = process.env.BETTER_AUTH_SECRET;
@@ -28,9 +29,21 @@ export const auth = betterAuth({
           providerId: "authentik",
           clientId: OIDC_CLIENT_ID ?? "",
           clientSecret: OIDC_CLIENT_SECRET ?? "",
-          discoveryUrl: OIDC_ISSUER
-            ? `${OIDC_ISSUER}/.well-known/openid-configuration`
-            : undefined,
+          // When OIDC_INTERNAL_BASE is set, use explicit URLs to avoid hairpin NAT:
+          // - authorizationUrl: external (browser redirect, no server-side fetch)
+          // - tokenUrl/userInfoUrl: internal (server-to-server, avoids hairpin)
+          // When not set, fall back to discoveryUrl for local dev.
+          ...(OIDC_INTERNAL_BASE
+            ? {
+                authorizationUrl: `${new URL(OIDC_ISSUER!).origin}/application/o/authorize/`,
+                tokenUrl: `${OIDC_INTERNAL_BASE}/application/o/token/`,
+                userInfoUrl: `${OIDC_INTERNAL_BASE}/application/o/userinfo/`,
+              }
+            : {
+                discoveryUrl: OIDC_ISSUER
+                  ? `${OIDC_ISSUER}/.well-known/openid-configuration`
+                  : undefined,
+              }),
           scopes: ["openid", "profile", "email"],
         },
       ],

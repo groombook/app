@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { User, Lock, PawPrint, FileCheck, Plus, Archive } from "lucide-react";
 import { CUSTOMER, PETS, SIGNED_AGREEMENTS } from "../mockData.js";
+import { PetForm } from "./PetForm.js";
 
 interface Props {
   readOnly: boolean;
@@ -112,6 +113,20 @@ function PasswordChange({ readOnly }: { readOnly: boolean }) {
 }
 
 function ManagePets({ readOnly }: { readOnly: boolean }) {
+  const [editingPetId, setEditingPetId] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const editingPet = editingPetId ? PETS.find(p => p.id === editingPetId) ?? undefined : undefined;
+
+  if (editingPet || showAddForm) {
+    return (
+      <PetForm
+        pet={editingPet ?? undefined}
+        onSave={() => { setEditingPetId(null); setShowAddForm(false); }}
+        onCancel={() => { setEditingPetId(null); setShowAddForm(false); }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       {PETS.map(pet => (
@@ -126,17 +141,12 @@ function ManagePets({ readOnly }: { readOnly: boolean }) {
           {!readOnly && (
             <div className="flex gap-2">
               <button
-                disabled
-                title="Pet editing coming soon"
-                className="px-3 py-1.5 border border-stone-200 rounded-lg text-xs text-stone-400 cursor-not-allowed"
+                onClick={() => setEditingPetId(pet.id)}
+                className="px-3 py-1.5 border border-stone-200 rounded-lg text-xs text-stone-600 hover:bg-stone-50"
               >
                 Edit
               </button>
-              <button
-                disabled
-                title="Pet archiving coming soon"
-                className="p-1.5 border border-stone-200 rounded-lg text-stone-300 cursor-not-allowed"
-              >
+              <button className="p-1.5 border border-stone-200 rounded-lg text-stone-400 hover:text-amber-600 hover:border-amber-200">
                 <Archive size={14} />
               </button>
             </div>
@@ -145,9 +155,8 @@ function ManagePets({ readOnly }: { readOnly: boolean }) {
       ))}
       {!readOnly && (
         <button
-          disabled
-          title="Adding pets coming soon"
-          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-stone-300 rounded-2xl text-sm text-stone-400 cursor-not-allowed"
+          onClick={() => setShowAddForm(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-stone-300 rounded-2xl text-sm text-stone-500 hover:border-(--color-accent) hover:text-(--color-accent-dark) transition-colors"
         >
           <Plus size={16} />
           Add New Pet

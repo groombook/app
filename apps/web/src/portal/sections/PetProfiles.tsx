@@ -2,6 +2,7 @@ import { useState } from "react";
 import { PawPrint, Heart, Scissors, Syringe, AlertTriangle, CheckCircle, Clock, Upload, Edit3 } from "lucide-react";
 import { PETS, PAST_APPOINTMENTS } from "../mockData.js";
 import type { Pet } from "../mockData.js";
+import { PetForm } from "./PetForm.js";
 
 interface Props {
   readOnly: boolean;
@@ -17,9 +18,21 @@ const VAX_STATUS_STYLES: Record<VaxStatus, { bg: string; text: string; icon: typ
 export function PetProfiles({ readOnly }: Props) {
   const [selectedPetId, setSelectedPetId] = useState<string>(PETS[0]?.id ?? "");
   const [activeTab, setActiveTab] = useState<"info" | "medical" | "grooming" | "vaccinations" | "history">("info");
+  const [editingPetId, setEditingPetId] = useState<string | null>(null);
 
   const pet = PETS.find(p => p.id === selectedPetId)!;
   const petHistory = PAST_APPOINTMENTS.filter(a => a.petId === selectedPetId);
+  const editingPet = editingPetId ? PETS.find(p => p.id === editingPetId) ?? undefined : undefined;
+
+  if (editingPet) {
+    return (
+      <PetForm
+        pet={editingPet}
+        onSave={() => setEditingPetId(null)}
+        onCancel={() => setEditingPetId(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -54,8 +67,8 @@ export function PetProfiles({ readOnly }: Props) {
             <p className="text-stone-400 text-xs mt-0.5">Born {new Date(pet.dob).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
           </div>
           {!readOnly && (
-            <button disabled title="Pet editing coming soon" className="p-2 rounded-lg cursor-not-allowed">
-              <Edit3 size={16} className="text-stone-300" />
+            <button onClick={() => setEditingPetId(pet.id)} className="p-2 hover:bg-stone-50 rounded-lg">
+              <Edit3 size={16} className="text-stone-400" />
             </button>
           )}
         </div>

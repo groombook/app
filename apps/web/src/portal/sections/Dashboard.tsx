@@ -4,6 +4,8 @@ import { PETS, UPCOMING_APPOINTMENTS, PAST_APPOINTMENTS, INVOICES, LOYALTY, BUSI
 interface Props {
   onNavigate: (section: "appointments" | "pets" | "billing" | "reports") => void;
   readOnly: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onReschedule?: (appointment: any) => void;
 }
 
 function daysUntil(dateStr: string): number {
@@ -18,7 +20,7 @@ function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-export function Dashboard({ onNavigate, readOnly }: Props) {
+export function Dashboard({ onNavigate, readOnly, onReschedule }: Props) {
   const nextAppt = UPCOMING_APPOINTMENTS[0];
   const outstanding = INVOICES.filter(i => i.status === "outstanding").reduce((sum, i) => sum + i.amount, 0);
   const recentEvents = [
@@ -78,24 +80,15 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
           {!readOnly && (
             <div className="flex gap-2 mt-4">
               <button
-                disabled
-                title="Rescheduling coming soon"
-                className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-400 cursor-not-allowed"
+                onClick={() => onReschedule?.(nextAppt)}
+                className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50"
               >
                 Reschedule
               </button>
-              <button
-                disabled
-                title="Cancellation coming soon"
-                className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-400 cursor-not-allowed"
-              >
+              <button className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50">
                 Cancel
               </button>
-              <button
-                disabled
-                title="Notes coming soon"
-                className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-400 cursor-not-allowed"
-              >
+              <button className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50">
                 Add Notes
               </button>
             </div>

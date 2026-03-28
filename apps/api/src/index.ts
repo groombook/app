@@ -2,7 +2,6 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
-import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.js";
 import { clientsRouter } from "./routes/clients.js";
 import { petsRouter } from "./routes/pets.js";
@@ -68,18 +67,16 @@ app.get("/api/branding", async (c) => {
 // Public iCal calendar feed — token auth in URL, no auth middleware required
 app.route("/api/calendar", calendarRouter);
 
-// Better-Auth handler — public, handles OAuth callbacks, session management
-// Mounted BEFORE auth middleware so it's accessible without authentication
-app.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/api/auth/**", (c) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { incoming, outgoing } = c.env as any;
-  return toNodeHandler(auth)(incoming, outgoing);
-});
-
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
 api.use("*", resolveStaffMiddleware);
+
+// Better-Auth handler — mounted as sub-app to handle all /api/auth/* routes
+// authMiddleware and resolveStaffMiddleware both skip /api/auth/ paths
+const authRouter = new Hono();
+authRouter.all("/*", (c) => auth.handler(c.req.raw));
+api.route("/auth", authRouter);
 
 // ── Role guards ────────────────────────────────────────────────────────────────
 // Manager-only: admin settings, reports, invoices, impersonation

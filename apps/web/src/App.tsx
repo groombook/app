@@ -19,6 +19,61 @@ import { BrandingProvider, useBranding } from "./BrandingContext.js";
 import { GlobalSearch } from "./components/GlobalSearch.js";
 import { useSession, signIn } from "./lib/auth-client.js";
 
+function LoginPage() {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async () => {
+    setIsLoading(true);
+    await signIn.social({ provider: "authentik", callbackURL: window.location.origin });
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+        fontFamily: "system-ui, sans-serif",
+        background: "#f0f2f5",
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 12,
+          padding: "2rem 2.5rem",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+          textAlign: "center",
+          minWidth: 280,
+        }}
+      >
+        <h1 style={{ fontSize: 22, marginBottom: "0.5rem", color: "#1a202c" }}>GroomBook</h1>
+        <p style={{ color: "#6b7280", marginBottom: "1.5rem", fontSize: 14 }}>
+          Sign in to continue
+        </p>
+        <button
+          onClick={handleLogin}
+          disabled={isLoading}
+          style={{
+            padding: "0.6rem 1.5rem",
+            borderRadius: 6,
+            border: "none",
+            background: "#4f8a6f",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: isLoading ? "wait" : "pointer",
+            opacity: isLoading ? 0.7 : 1,
+          }}
+        >
+          {isLoading ? "Redirecting…" : "Sign in with SSO"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const NAV_LINKS = [
   { to: "/admin", label: "Appointments" },
   { to: "/admin/clients", label: "Clients" },
@@ -170,10 +225,9 @@ export function App() {
     return <Navigate to="/login" replace />;
   }
 
-  // Production mode: if no session, redirect to Authentik sign-in
+  // Production mode: if no session, show login page (avoids redirect loops)
   if (!authDisabled && !session) {
-    signIn.social({ provider: "authentik" });
-    return null;
+    return <LoginPage />;
   }
 
   return (
