@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { and, eq, getDb, appointments, impersonationSessions, waitlistEntries } from "@groombook/db";
+import { and, eq, lt, gt, ne, getDb, appointments, impersonationSessions, waitlistEntries } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const portalRouter = new Hono<AppEnv>();
@@ -277,7 +277,7 @@ portalRouter.post(
       .from(appointments)
       .where(
         and(
-          eq(appointments.staffId, appt.staffId),
+          eq(appointments.staffId, appt.staffId!),
           lt(appointments.startTime, newEnd),
           gt(appointments.endTime, newStart),
           ne(appointments.status, "cancelled"),
