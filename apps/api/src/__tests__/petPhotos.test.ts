@@ -9,6 +9,7 @@ const MANAGER: StaffRow = {
   oidcSub: "oidc-manager-sub",
   userId: null,
   role: "manager",
+  isSuperUser: true,
   name: "Manager McManager",
   email: "manager@example.com",
   active: true,
