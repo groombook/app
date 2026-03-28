@@ -236,20 +236,23 @@ export function App() {
     );
   }
 
-  // Still loading auth state or setup check
-  if (authDisabled === null || sessionLoading || needsSetup === null) return null;
+  // Still loading auth state or setup check (skip setup check in dev mode)
+  if (authDisabled === null || sessionLoading) return null;
 
-  // Dev mode: show login selector
+  // Dev mode: show login selector (no setup check needed in dev mode)
   if (authDisabled && location.pathname === "/login") {
     return <DevLoginSelector />;
   }
 
-  // Dev mode: use dev login selector
+  // Dev mode: use dev login selector (no setup check needed in dev mode)
   if (authDisabled && !getDevUser()) {
     return <Navigate to="/login" replace />;
   }
 
-  // Production mode: if no session, show login page (avoids redirect loops)
+  // Production: need setup check
+  if (needsSetup === null) return null;
+
+  // Production mode: if no session, redirect to Authentik sign-in
   if (!authDisabled && !session) {
     return <LoginPage />;
   }

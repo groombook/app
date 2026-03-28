@@ -122,21 +122,22 @@ export function CustomerPortal() {
   const isReadOnly = session?.status === "active";
 
   const renderSection = () => {
+    const sessionId = session?.id ?? null;
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} onReschedule={handleReschedule} />;
+        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} sessionId={sessionId} clientName={clientName} onReschedule={handleReschedule} />;
       case "appointments":
-        return <AppointmentsSection readOnly={!!isReadOnly} sessionId={session?.id ?? null} />;
+        return <AppointmentsSection readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "pets":
-        return <PetProfiles readOnly={!!isReadOnly} />;
+        return <PetProfiles readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "reports":
-        return <ReportCards />;
+        return <ReportCards sessionId={sessionId} />;
       case "billing":
-        return <BillingPayments readOnly={!!isReadOnly} />;
+        return <BillingPayments readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "messages":
-        return <Communication readOnly={!!isReadOnly} />;
+        return <Communication readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "settings":
-        return <AccountSettings readOnly={!!isReadOnly} />;
+        return <AccountSettings readOnly={!!isReadOnly} sessionId={sessionId} />;
     }
   };
 
@@ -279,7 +280,7 @@ export function CustomerPortal() {
               </h1>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-stone-600">Hi, {CUSTOMER.name.split(" ")[0]}</span>
+              <span className="text-sm text-stone-600">Hi, {clientName.split(" ")[0] || "Guest"}</span>
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium" style={{ background: branding.accentColor }}>
                 SM
               </div>
