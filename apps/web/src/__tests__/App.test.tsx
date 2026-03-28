@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { App } from "../App.js";
+import { App } from "../App";
+
 
 // Mock fetch to return appropriate responses based on URL
 beforeEach(() => {
@@ -44,6 +45,32 @@ async function renderApp(route = "/admin") {
 }
 
 describe("App navigation", () => {
+  // Use authDisabled=true (dev mode) so nav renders without needing Better Auth useSession() mock
+  beforeEach(() => {
+    localStorage.setItem("dev-user", JSON.stringify({ type: "staff", id: "s1", name: "Sarah" }));
+    global.fetch = vi.fn((url: string) => {
+      if (url === "/api/dev/config") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ authDisabled: true }),
+        } as Response);
+      }
+      if (url === "/api/branding") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            businessName: "GroomBook",
+            primaryColor: "#4f8a6f",
+            accentColor: "#8b7355",
+            logoBase64: null,
+            logoMimeType: null,
+          }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => [] } as Response);
+    }) as unknown as typeof fetch;
+  });
+
   it("renders the Groom Book brand", async () => {
     const nav = await renderApp();
     expect(
@@ -122,6 +149,12 @@ describe("Dev login selector", () => {
             logoBase64: null,
             logoMimeType: null,
           }),
+        } as Response);
+      }
+      if (url === "/api/auth/get-session") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ user: null }),
         } as Response);
       }
       return Promise.resolve({ ok: true, json: async () => [] } as Response);

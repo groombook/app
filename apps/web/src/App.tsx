@@ -17,6 +17,7 @@ import { DevLoginSelector, getDevUser } from "./pages/DevLoginSelector.js";
 import { DevSessionIndicator } from "./components/DevSessionIndicator.js";
 import { BrandingProvider, useBranding } from "./BrandingContext.js";
 import { GlobalSearch } from "./components/GlobalSearch.js";
+import { useSession, signIn } from "./lib/auth-client.js";
 
 const NAV_LINKS = [
   { to: "/admin", label: "Appointments" },
@@ -133,6 +134,10 @@ function AdminLayout() {
 export function App() {
   const location = useLocation();
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
+  const { data: rawSession, isPending: rawSessionLoading } = useSession();
+  // In dev mode (authDisabled=true), session state is irrelevant - skip useSession result
+  const session = authDisabled ? null : rawSession;
+  const sessionLoading = authDisabled ? false : rawSessionLoading;
 
   useEffect(() => {
     fetch("/api/dev/config")
@@ -140,19 +145,6 @@ export function App() {
       .then((data) => setAuthDisabled(data.authDisabled === true))
       .catch(() => setAuthDisabled(false));
   }, []);
-
-  // Show login selector page
-  if (location.pathname === "/login") {
-    return <DevLoginSelector />;
-  }
-
-  // While checking auth config, render nothing briefly
-  if (authDisabled === null) return null;
-
-  // If auth is disabled and no dev user is selected, redirect to login selector
-  if (authDisabled && !getDevUser() && location.pathname !== "/login") {
-    return <Navigate to="/login" replace />;
-  }
 
   // Public booking redirect pages — no auth or portal chrome needed
   if (location.pathname === "/booking/confirmed") {
@@ -163,6 +155,25 @@ export function App() {
   }
   if (location.pathname === "/booking/error") {
     return <BookingErrorPage />;
+  }
+
+  // Still loading auth state
+  if (authDisabled === null || sessionLoading) return null;
+
+  // Dev mode: show login selector
+  if (authDisabled && location.pathname === "/login") {
+    return <DevLoginSelector />;
+  }
+
+  // Dev mode: use dev login selector
+  if (authDisabled && !getDevUser()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Production mode: if no session, redirect to Authentik sign-in
+  if (!authDisabled && !session) {
+    signIn.social({ provider: "authentik" });
+    return null;
   }
 
   return (

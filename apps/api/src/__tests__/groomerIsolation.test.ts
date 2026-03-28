@@ -15,6 +15,7 @@ import type { StaffRow } from "../middleware/rbac.js";
 const MANAGER: StaffRow = {
   id: "staff-manager-id",
   oidcSub: "oidc-manager-sub",
+  userId: null,
   role: "manager",
   name: "Manager McManager",
   email: "manager@example.com",

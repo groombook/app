@@ -50,6 +50,7 @@ export function buildStaff(overrides: Partial<StaffRow> = {}): StaffRow {
     name: `Staff Member ${id}`,
     email: `${id}@groombook.test`,
     oidcSub: `oidc-${id}`,
+    userId: null,
     role: "groomer",
     active: true,
     icalToken: null,

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
-import type { JwtPayload } from "../middleware/auth.js";
 import type { AppEnv, StaffRow } from "../middleware/rbac.js";
 import { buildStaff } from "@groombook/db/factories";
 
@@ -167,7 +166,7 @@ function createApp(
     if (!staffRow) {
       return c.json({ error: "Forbidden: no staff record found for authenticated user" }, 403);
     }
-    c.set("jwtPayload", { sub: staffRow.oidcSub } as JwtPayload);
+    c.set("jwtPayload", { sub: staffRow.oidcSub } as { sub: string; email?: string; name?: string });
     c.set("staff", staffRow as unknown as StaffRow);
     await next();
   });

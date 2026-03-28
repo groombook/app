@@ -20,6 +20,7 @@ devRouter.get("/users", async (c) => {
   const staffList = await db
     .select({
       id: staff.id,
+      userId: staff.userId,
       name: staff.name,
       email: staff.email,
       role: staff.role,

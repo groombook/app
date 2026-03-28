@@ -2,6 +2,8 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./lib/auth.js";
 import { clientsRouter } from "./routes/clients.js";
 import { petsRouter } from "./routes/pets.js";
 import { servicesRouter } from "./routes/services.js";
@@ -65,13 +67,24 @@ app.get("/api/branding", async (c) => {
 
 // Public iCal calendar feed — token auth in URL, no auth middleware required
 app.route("/api/calendar", calendarRouter);
+
+// Better-Auth handler — public, handles OAuth callbacks, session management
+// Mounted BEFORE auth middleware so it's accessible without authentication
+app.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/api/auth/**", (c) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { incoming, outgoing } = c.env as any;
+  return toNodeHandler(auth)(incoming, outgoing);
+});
+
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
 api.use("*", resolveStaffMiddleware);
 
 // ── Role guards ────────────────────────────────────────────────────────────────
-// Manager-only: staff, admin settings, reports, invoices, impersonation
+// Manager-only: admin settings, reports, invoices, impersonation
+// Staff CRUD: all roles may READ; manager-only for CREATE/UPDATE/DELETE
+api.on(["GET"], "/staff/*", requireRole("manager", "receptionist", "groomer"));
 api.use("/staff/*", requireRole("manager"));
 api.use("/admin/*", requireRole("manager"));
 api.use("/reports/*", requireRole("manager"));

@@ -12,18 +12,17 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.800.0",
+    "@aws-sdk/s3-request-presigner": "^3.800.0",
     "@groombook/db": "workspace:*",
     "@groombook/types": "workspace:*",
     "@hono/node-server": "^1.13.7",
-    "@hono/zod-validator": "^0.4.3",
+    "@hono/zod-validator": "^0.7.6",
+    "better-auth": "^1.5.6",
     "hono": "^4.6.17",
-    "jose": "^5.9.6",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.16",
-    "openid-client": "^6.1.7",
-    "zod": "^3.24.1",
-    "@aws-sdk/client-s3": "^3.800.0",
-    "@aws-sdk/s3-request-presigner": "^3.800.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",

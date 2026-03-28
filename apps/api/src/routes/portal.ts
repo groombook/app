@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { and, eq, getDb, appointments, impersonationSessions, waitlistEntries } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
