@@ -131,9 +131,18 @@ export function AppointmentsPage() {
     setError(null);
     Promise.all([
       loadAppointments(),
-      fetch("/api/clients").then((r) => r.json() as Promise<Client[]>).then(setClients),
-      fetch("/api/services").then((r) => r.json() as Promise<Service[]>).then(setServices),
-      fetch("/api/staff").then((r) => r.json() as Promise<Staff[]>).then(setStaff),
+      fetch("/api/clients").then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<Client[]>;
+      }).then(setClients),
+      fetch("/api/services").then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<Service[]>;
+      }).then(setServices),
+      fetch("/api/staff").then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<Staff[]>;
+      }).then(setStaff),
     ])
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Unknown error"))
       .finally(() => setLoading(false));
