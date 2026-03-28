@@ -13,7 +13,6 @@ import { Communication } from "./sections/Communication.js";
 import { AccountSettings } from "./sections/AccountSettings.js";
 import { ImpersonationBanner } from "./ImpersonationBanner.js";
 import { AuditLogViewer } from "./AuditLogViewer.js";
-import { CUSTOMER } from "./mockData.js";
 import { useBranding } from "../BrandingContext.js";
 import type { ImpersonationSession } from "@groombook/types";
 
@@ -37,6 +36,7 @@ export function CustomerPortal() {
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Record<string, unknown> | null>(null);
   const [session, setSession] = useState<ImpersonationSession | null>(null);
   const [sessionExtended, setSessionExtended] = useState(false);
+  const [clientName, setClientName] = useState<string>("");
   const { branding } = useBranding();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -57,6 +57,11 @@ export function CustomerPortal() {
       .then((s) => {
         if (s && s.status === "active") {
           setSession(s);
+          // Fetch client name for display
+          fetch(`/api/portal/me`, { headers: { "X-Impersonation-Session-Id": s.id } })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data?.name) setClientName(data.name); })
+            .catch(() => {});
         }
         // Clean sessionId from URL
         setSearchParams({}, { replace: true });

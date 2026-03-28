@@ -19,9 +19,10 @@ import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { searchRouter } from "./routes/search.js";
 import { calendarRouter } from "./routes/calendar.js";
+import { setupRouter } from "./routes/setup.js";
 import { getDb, businessSettings } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
-import { resolveStaffMiddleware, requireRole } from "./middleware/rbac.js";
+import { resolveStaffMiddleware, requireRole, requireSuperUser } from "./middleware/rbac.js";
 import { devRouter } from "./routes/dev.js";
 import { adminSeedRouter } from "./routes/admin/seed.js";
 import { startReminderScheduler } from "./services/reminders.js";
@@ -67,6 +68,10 @@ app.get("/api/branding", async (c) => {
 // Public iCal calendar feed — token auth in URL, no auth middleware required
 app.route("/api/calendar", calendarRouter);
 
+// Public setup status — no auth required, must be registered before auth middleware
+// GET /api/setup/status is handled by setupRouter
+app.route("/api/setup", setupRouter);
+
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
@@ -82,8 +87,11 @@ api.route("/auth", authRouter);
 // Manager-only: admin settings, reports, invoices, impersonation
 // Staff CRUD: all roles may READ; manager-only for CREATE/UPDATE/DELETE
 api.on(["GET"], "/staff/*", requireRole("manager", "receptionist", "groomer"));
-api.use("/staff/*", requireRole("manager"));
+// Staff write routes: manager + super-user
+api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireRole("manager"));
+api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireSuperUser());
 api.use("/admin/*", requireRole("manager"));
+api.use("/admin/settings/*", requireSuperUser());
 api.use("/reports/*", requireRole("manager"));
 api.use("/invoices/*", requireRole("manager"));
 api.use("/impersonation/*", requireRole("manager"));

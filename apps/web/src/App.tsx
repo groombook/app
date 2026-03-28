@@ -12,6 +12,7 @@ import { SettingsPage } from "./pages/Settings.js";
 import { BookingConfirmedPage } from "./pages/BookingConfirmed.js";
 import { BookingCancelledPage } from "./pages/BookingCancelled.js";
 import { BookingErrorPage } from "./pages/BookingError.js";
+import { SetupWizard } from "./pages/SetupWizard.js";
 import { CustomerPortal } from "./portal/CustomerPortal.js";
 import { DevLoginSelector, getDevUser } from "./pages/DevLoginSelector.js";
 import { DevSessionIndicator } from "./components/DevSessionIndicator.js";
@@ -189,6 +190,7 @@ function AdminLayout() {
 export function App() {
   const location = useLocation();
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
+  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const { data: rawSession, isPending: rawSessionLoading } = useSession();
   // In dev mode (authDisabled=true), session state is irrelevant - skip useSession result
   const session = authDisabled ? null : rawSession;
@@ -201,6 +203,19 @@ export function App() {
       .catch(() => setAuthDisabled(false));
   }, []);
 
+  // After session is confirmed, check if setup is needed
+  useEffect(() => {
+    if (authDisabled === null || sessionLoading) return;
+    // Skip if no authenticated session (will redirect to login or dev selector)
+    if (!authDisabled && !session) return;
+    if (authDisabled && !getDevUser()) return;
+
+    fetch("/api/setup/status")
+      .then((r) => r.json())
+      .then((data) => setNeedsSetup(data.needsSetup === true))
+      .catch(() => setNeedsSetup(false));
+  }, [authDisabled, session, sessionLoading]);
+
   // Public booking redirect pages — no auth or portal chrome needed
   if (location.pathname === "/booking/confirmed") {
     return <BookingConfirmedPage />;
@@ -212,8 +227,17 @@ export function App() {
     return <BookingErrorPage />;
   }
 
-  // Still loading auth state
-  if (authDisabled === null || sessionLoading) return null;
+  // Setup wizard — standalone, no admin chrome
+  if (location.pathname === "/setup") {
+    return (
+      <BrandingProvider>
+        <SetupWizard />
+      </BrandingProvider>
+    );
+  }
+
+  // Still loading auth state or setup check
+  if (authDisabled === null || sessionLoading || needsSetup === null) return null;
 
   // Dev mode: show login selector
   if (authDisabled && location.pathname === "/login") {
@@ -228,6 +252,11 @@ export function App() {
   // Production mode: if no session, show login page (avoids redirect loops)
   if (!authDisabled && !session) {
     return <LoginPage />;
+  }
+
+  // Redirect to setup wizard if needed
+  if (needsSetup) {
+    return <Navigate to="/setup" replace />;
   }
 
   return (
