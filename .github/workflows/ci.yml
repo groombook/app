@@ -268,3 +268,138 @@ jobs:
                 'Ready for UAT validation.'
               ].join('\n')
             });
+
+  cd:
+    name: Update Infra Repo with New Image Tags
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Generate image tag
+        id: version
+        run: |
+          TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Image tag: $TAG"
+
+      - name: Checkout groombook/infra
+        uses: actions/checkout@v4
+        with:
+          repository: groombook/infra
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: infra
+          ref: main
+
+      - name: Update image tags in infra repo
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+
+          # Update api.yaml — annotation + container image
+          sed -i "s|groombook.dev/image-version: \".*\"|groombook.dev/image-version: \"$TAG\"|" infra/apps/groombook/base/api.yaml
+          sed -i "s|ghcr.io/groombook/api:.*|ghcr.io/groombook/api:$TAG|" infra/apps/groombook/base/api.yaml
+
+          # Update web.yaml — annotation + container image
+          sed -i "s|groombook.dev/image-version: \".*\"|groombook.dev/image-version: \"$TAG\"|" infra/apps/groombook/base/web.yaml
+          sed -i "s|ghcr.io/groombook/web:.*|ghcr.io/groombook/web:$TAG|" infra/apps/groombook/base/web.yaml
+
+          # Update migrate-job.yaml — annotation + container image
+          sed -i "s|groombook.app/deploy-version: \".*\"|groombook.app/deploy-version: \"$TAG\"|" infra/apps/groombook/base/migrate-job.yaml
+          sed -i "s|ghcr.io/groombook/migrate:.*|ghcr.io/groombook/migrate:$TAG|" infra/apps/groombook/base/migrate-job.yaml
+
+          # Update seed-job.yaml — annotation + container image
+          sed -i "s|groombook.app/deploy-version: \".*\"|groombook.app/deploy-version: \"$TAG\"|" infra/apps/groombook/base/seed-job.yaml
+          sed -i "s|ghcr.io/groombook/seed:.*|ghcr.io/groombook/seed:$TAG|" infra/apps/groombook/base/seed-job.yaml
+
+          echo "Updated image tags to $TAG in:"
+          git -C infra diff --stat
+
+      - name: Create PR on groombook/infra
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = process.env.TAG;
+            const sha = process.env.GITHUB_SHA;
+            const shortSha = sha.slice(0, 7);
+            const branchName = `cd/update-images-${tag}`;
+
+            // Create a new branch
+            await github.rest.git.createRef({
+              owner: 'groombook',
+              repo: 'infra',
+              ref: `refs/heads/${branchName}`,
+              sha: sha
+            });
+
+            // Commit the changes
+            const fs = require('fs');
+            const path = require('path');
+
+            const files = [
+              'apps/groombook/base/api.yaml',
+              'apps/groombook/base/web.yaml',
+              'apps/groombook/base/migrate-job.yaml',
+              'apps/groombook/base/seed-job.yaml'
+            ];
+
+            const commits = [];
+            for (const file of files) {
+              const filePath = path.join(process.env.GITHUB_WORKSPACE, 'infra', file);
+              const content = fs.readFileSync(filePath, 'utf8');
+              const encoded = Buffer.from(content).toString('base64');
+              await github.rest.repos.createOrUpdateFileContents({
+                owner: 'groombook',
+                repo: 'infra',
+                path: file,
+                message: `chore: update ${path.basename(file)} image tag to ${tag}`,
+                content: encoded,
+                branch: branchName
+              });
+              commits.push(`Updated ${path.basename(file)}`);
+            }
+
+            // Create PR
+            const pr = await github.rest.pulls.create({
+              owner: 'groombook',
+              repo: 'infra',
+              title: `chore: deploy images ${tag}`,
+              body: [
+                `## Image Update`,
+                ``,
+                `Updating image tags to \`${tag}\` after main merge.`,
+                ``,
+                `Files changed:`,
+                ...commits.map(c => `- ${c}`),
+                ``,
+                `**Build:** ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+                ``,
+                `⚠️ **Note on deploy-dev:** The \`deploy-dev\` job currently uses \`kubectl set image\` directly against the groombook-dev cluster, bypassing GitOps. This creates drift between committed infra manifests and actual cluster state.`,
+                ``,
+                `Trade-off to consider:`,
+                `- **Current (kubectl):** Fast PR previews, no infra PR overhead`,
+                `- **GitOps route:** Consistent history, validated manifests, but slower preview loops`,
+                ``,
+                `For production, the GitOps path via this PR is the correct approach.`
+              ].join('\n'),
+              head: branchName,
+              base: 'main'
+            });
+
+            // Enable auto-merge
+            try {
+              await github.rest.pulls.merge({
+                owner: 'groombook',
+                repo: 'infra',
+                pull_number: pr.data.number,
+                merge_method: 'squash'
+              });
+              console.log(`Auto-merge enabled for PR #${pr.data.number}`);
+            } catch (e) {
+              console.log(`Could not enable auto-merge: ${e.message}`);
+              console.log(`PR #${pr.data.number} created — manual approval required.`);
+            }
+
+            // Output PR URL
+            console.log(`PR_URL=${pr.data.html_url}`);
