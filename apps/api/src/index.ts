@@ -82,7 +82,9 @@ api.use("*", authMiddleware);
 api.use("*", resolveStaffMiddleware);
 
 // ── Role guards ────────────────────────────────────────────────────────────────
-// Manager-only: staff, admin settings, reports, invoices, impersonation
+// Manager-only: admin settings, reports, invoices, impersonation
+// Staff CRUD: all roles may READ; manager-only for CREATE/UPDATE/DELETE
+api.on(["GET"], "/staff/*", requireRole("manager", "receptionist", "groomer"));
 api.use("/staff/*", requireRole("manager"));
 api.use("/admin/*", requireRole("manager"));
 api.use("/reports/*", requireRole("manager"));
