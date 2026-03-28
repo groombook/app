@@ -72,14 +72,11 @@ const api = app.basePath("/api");
 api.use("*", authMiddleware);
 api.use("*", resolveStaffMiddleware);
 
-// Debug: test if api sub-app routing works at all
-api.get("/auth-test", (c) => c.json({ test: "route works" }));
-
-// Better-Auth handler — registered on api sub-app so it shares the middleware chain
+// Better-Auth handler — mounted as sub-app to handle all /api/auth/* routes
 // authMiddleware and resolveStaffMiddleware both skip /api/auth/ paths
-api.on(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/auth/**", (c) => {
-  return auth.handler(c.req.raw);
-});
+const authRouter = new Hono();
+authRouter.all("/*", (c) => auth.handler(c.req.raw));
+api.route("/auth", authRouter);
 
 // ── Role guards ────────────────────────────────────────────────────────────────
 // Manager-only: admin settings, reports, invoices, impersonation
