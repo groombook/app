@@ -125,19 +125,19 @@ export function CustomerPortal() {
     const sessionId = session?.id ?? null;
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} sessionId={sessionId} clientName={clientName} onReschedule={handleReschedule} />;
+        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} onReschedule={handleReschedule} />;
       case "appointments":
         return <AppointmentsSection readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "pets":
-        return <PetProfiles readOnly={!!isReadOnly} sessionId={sessionId} />;
+        return <PetProfiles readOnly={!!isReadOnly} />;
       case "reports":
-        return <ReportCards sessionId={sessionId} />;
+        return <ReportCards />;
       case "billing":
-        return <BillingPayments readOnly={!!isReadOnly} sessionId={sessionId} />;
+        return <BillingPayments readOnly={!!isReadOnly} />;
       case "messages":
-        return <Communication readOnly={!!isReadOnly} sessionId={sessionId} />;
+        return <Communication readOnly={!!isReadOnly} />;
       case "settings":
-        return <AccountSettings readOnly={!!isReadOnly} sessionId={sessionId} />;
+        return <AccountSettings readOnly={!!isReadOnly} />;
     }
   };
 
