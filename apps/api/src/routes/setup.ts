@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { eq, exists, getDb, staff, businessSettings } from "@groombook/db";
+import { eq, getDb, staff, businessSettings } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const setupRouter = new Hono<AppEnv>();
@@ -70,7 +70,7 @@ setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
   });
 
   if ("error" in result) {
-    return c.json({ error: result.error }, result.code as 409);
+    return c.json({ error: result.error }, result.code as number);
   }
 
   return c.json({ ok: true, staff: result.staff }, 201);
