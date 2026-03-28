@@ -1,6 +1,5 @@
 import { Calendar, Clock, PawPrint, CreditCard, Star, ChevronRight, AlertTriangle } from "lucide-react";
 import { PETS, UPCOMING_APPOINTMENTS, PAST_APPOINTMENTS, INVOICES, LOYALTY, BUSINESS_NAME } from "../mockData.js";
-import type { Appointment } from "../mockData.js";
 
 interface Props {
   onNavigate: (section: "appointments" | "pets" | "billing" | "reports") => void;
