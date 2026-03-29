@@ -7,3 +7,10 @@ dist/
 *.log
 .turbo/
 coverage/
+
+# Vite resolves .js before .tsx — don't accidentally commit transpiled output
+apps/web/src/**/*.js
+!apps/web/src/lib/*.js
+!apps/web/src/portal/mockData.js
+!apps/web/src/portal/sections/PetForm.js
+!apps/web/src/test/setup.js
