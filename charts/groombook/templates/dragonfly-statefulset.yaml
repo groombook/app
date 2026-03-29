@@ -1,0 +1,46 @@
+{{- if and .Values.dragonfly.enabled (eq .Values.dragonfly.mode "integrated") }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "groombook.fullname" . }}-dragonfly
+  labels:
+    {{- include "groombook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dragonfly
+spec:
+  serviceName: {{ include "groombook.fullname" . }}-dragonfly
+  replicas: {{ .Values.dragonfly.integrated.replicas }}
+  selector:
+    matchLabels:
+      {{- include "groombook.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dragonfly
+  template:
+    metadata:
+      labels:
+        {{- include "groombook.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: dragonfly
+    spec:
+      containers:
+        - name: dragonfly
+          image: {{ printf "%s:%s" .Values.dragonfly.integrated.image.repository .Values.dragonfly.integrated.image.tag }}
+          imagePullPolicy: {{ .Values.dragonfly.integrated.image.pullPolicy }}
+          ports:
+            - containerPort: 6379
+              name: redis
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.dragonfly.integrated.resources | nindent 12 }}
+  {{- if .Values.dragonfly.integrated.storage.size }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.dragonfly.integrated.storage.storageClass }}
+        storageClassName: {{ .Values.dragonfly.integrated.storage.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.dragonfly.integrated.storage.size }}
+  {{- end }}
+{{- end }}
+

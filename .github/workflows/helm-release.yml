@@ -1,0 +1,54 @@
+name: Release Helm Chart
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'charts/**'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout groombook
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout groombook.github.io
+        uses: actions/checkout@v4
+        with:
+          repository: groombook/groombook.github.io
+          path: gh-pages
+          token: ${{ secrets.CHART_REPO_TOKEN }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Update Helm dependencies
+        run: helm dependency update charts/groombook
+
+      - name: Package chart
+        run: |
+          mkdir -p gh-pages/charts
+          helm package charts/groombook -d gh-pages/charts
+
+      - name: Update repo index
+        run: |
+          if [ -f gh-pages/charts/index.yaml ]; then
+            helm repo index gh-pages/charts --merge gh-pages/charts/index.yaml --url https://groombook.github.io/charts
+          else
+            helm repo index gh-pages/charts --url https://groombook.github.io/charts
+          fi
+
+      - name: Push to groombook.github.io
+        run: |
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add charts/
+          git diff --staged --quiet && echo 'No chart changes' && exit 0
+          git commit -m "Update Helm chart repository"
+          git push

@@ -1,51 +1,129 @@
-import { useState } from "react";
-import { CreditCard, Download, DollarSign, Package, Zap, Plus, Trash2 } from "lucide-react";
-import { INVOICES, SAVED_PAYMENT_METHODS, PREPAID_PACKAGES, Invoice } from "../mockData.js";
+import { useState, useEffect } from "react";
+import { CreditCard, Download, DollarSign, Package, Zap } from "lucide-react";
 
-interface Props {
+interface Invoice {
+  id: string;
+  status: "pending" | "paid" | "failed" | "refunded";
+  totalCents: number;
+  date: string;
+  description?: string;
+}
+
+interface PaymentMethod {
+  brand: string;
+  last4: string;
+  expiryMonth: number;
+  expiryYear: number;
+}
+
+interface Package {
+  name: string;
+  remaining: number;
+}
+
+interface BillingPaymentsProps {
+  sessionId: string | null;
   readOnly: boolean;
 }
 
 const STATUS_STYLES: Record<string, string> = {
   paid: "bg-green-100 text-green-700",
-  outstanding: "bg-amber-100 text-amber-700",
-  overdue: "bg-red-100 text-red-700",
+  pending: "bg-yellow-100 text-yellow-700",
+  failed: "bg-red-100 text-red-700",
+  refunded: "bg-gray-100 text-gray-700",
 };
 
-export function BillingPayments({ readOnly }: Props) {
+export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"invoices" | "payment" | "packages">("invoices");
   const [autopay, setAutopay] = useState(false);
-  const [showTipModal, setShowTipModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  const outstanding = INVOICES.filter(i => i.status === "outstanding");
-  const totalOutstanding = outstanding.reduce((sum, i) => sum + i.amount, 0);
+  useEffect(() => {
+    async function fetchData() {
+      if (!sessionId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/portal/invoices", {
+          headers: {
+            "x-session-id": sessionId,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch invoices");
+        }
+
+        const data = await response.json();
+        setInvoices(data.invoices || []);
+        setPaymentMethods(data.paymentMethods || []);
+        setPackages(data.packages || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [sessionId]);
+
+  const formatCents = (cents: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(cents / 100);
+  };
+
+  const pending = invoices.filter((i) => i.status === "pending");
+  const totalPending = pending.reduce((sum, i) => sum + i.totalCents, 0);
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-24 bg-gray-200 rounded"></div>
+          <div className="h-24 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="text-red-600">Error: {error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Outstanding Balance Banner */}
-      {totalOutstanding > 0 && (
+      {totalPending > 0 && (
         <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <p className="text-sm text-stone-500">Outstanding Balance</p>
-            <p className="text-3xl font-bold text-stone-800">${totalOutstanding.toFixed(2)}</p>
-            <p className="text-xs text-stone-400 mt-0.5">{outstanding.length} unpaid invoice{outstanding.length > 1 ? "s" : ""}</p>
+            <p className="text-3xl font-bold text-stone-800">{formatCents(totalPending)}</p>
+            <p className="text-xs text-stone-400 mt-0.5">
+              {pending.length} unpaid invoice{pending.length > 1 ? "s" : ""}
+            </p>
           </div>
           {!readOnly && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowTipModal(true)}
-                className="px-4 py-2 border border-stone-200 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-50"
-              >
-                Add Tip
-              </button>
-              <button
-                onClick={() => setShowPaymentModal(true)}
-                className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
-              >
-                Pay Now
-              </button>
-            </div>
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
+            >
+              Pay Now
+            </button>
           )}
         </div>
       )}
@@ -61,7 +139,9 @@ export function BillingPayments({ readOnly }: Props) {
             key={id}
             onClick={() => setTab(id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${
-              tab === id ? "bg-(--color-accent-light) text-(--color-accent-dark)" : "text-stone-500 hover:bg-stone-50"
+              tab === id
+                ? "bg-(--color-accent-light) text-(--color-accent-dark)"
+                : "text-stone-500 hover:bg-stone-50"
             }`}
           >
             <Icon size={14} />
@@ -78,23 +158,35 @@ export function BillingPayments({ readOnly }: Props) {
               <thead>
                 <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
                   <th className="px-5 py-3 font-medium">Date</th>
-                  <th className="px-5 py-3 font-medium">Items</th>
+                  <th className="px-5 py-3 font-medium">Description</th>
                   <th className="px-5 py-3 font-medium">Amount</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium"></th>
                 </tr>
               </thead>
               <tbody>
-                {INVOICES.map(inv => (
+                {invoices.map((inv) => (
                   <tr key={inv.id} className="border-b border-stone-50 hover:bg-stone-50/50">
                     <td className="px-5 py-3 text-stone-700">
-                      {new Date(inv.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      {new Date(inv.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
                     </td>
-                    <td className="px-5 py-3 text-stone-600">{inv.items.join(", ")}</td>
-                    <td className="px-5 py-3 font-medium text-stone-800">${inv.amount.toFixed(2)}</td>
+                    <td className="px-5 py-3 text-stone-600">
+                      {inv.description || `Invoice ${inv.id.slice(0, 8)}`}
+                    </td>
+                    <td className="px-5 py-3 font-medium text-stone-800">
+                      {formatCents(inv.totalCents)}
+                    </td>
                     <td className="px-5 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[inv.status]}`}>
-                        {inv.status}
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          STATUS_STYLES[inv.status] || "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
                       </span>
                     </td>
                     <td className="px-5 py-3">
@@ -113,37 +205,33 @@ export function BillingPayments({ readOnly }: Props) {
       {/* Payment Methods */}
       {tab === "payment" && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm space-y-3">
-            {SAVED_PAYMENT_METHODS.map(pm => (
-              <div key={pm.id} className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-stone-100 flex items-center justify-center">
-                    <CreditCard size={18} className="text-stone-500" />
+          {paymentMethods.length === 0 ? (
+            <p className="text-gray-500 italic">No payment methods on file</p>
+          ) : (
+            <div className="space-y-3">
+              {paymentMethods.map((method) => (
+                <div
+                  key={`${method.brand}-${method.last4}`}
+                  className="flex items-center justify-between p-4 border border-stone-200 rounded-lg bg-white"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-6 bg-gray-200 rounded flex items-center justify-center text-xs">
+                      {method.brand.toUpperCase()}
+                    </div>
+                    <span className="text-stone-700">**** {method.last4}</span>
+                    <span className="text-stone-500">
+                      {method.expiryMonth}/{method.expiryYear}
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-stone-800 capitalize">{pm.type} •••• {pm.last4}</p>
-                    <p className="text-xs text-stone-400">Expires {pm.expiry}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {pm.isDefault && (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Default</span>
-                  )}
                   {!readOnly && (
-                    <button className="p-1 text-stone-400 hover:text-red-500">
-                      <Trash2 size={14} />
+                    <button className="text-sm text-blue-600 hover:underline">
+                      Remove
                     </button>
                   )}
                 </div>
-              </div>
-            ))}
-            {!readOnly && (
-              <button className="flex items-center gap-2 text-sm text-(--color-accent-dark) font-medium hover:underline mt-2">
-                <Plus size={14} />
-                Add Payment Method
-              </button>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Autopay */}
           <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
@@ -154,18 +242,28 @@ export function BillingPayments({ readOnly }: Props) {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-stone-800">Autopay</p>
-                  <p className="text-xs text-stone-500">Automatically charge after each appointment</p>
+                  <p className="text-xs text-stone-500">
+                    Automatically charge after each appointment
+                  </p>
                 </div>
               </div>
               {!readOnly ? (
                 <button
                   onClick={() => setAutopay(!autopay)}
-                  className={`w-12 h-6 rounded-full transition-colors ${autopay ? "bg-(--color-accent)" : "bg-stone-300"}`}
+                  className={`w-12 h-6 rounded-full transition-colors ${
+                    autopay ? "bg-(--color-accent)" : "bg-stone-300"
+                  }`}
                 >
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${autopay ? "translate-x-6" : "translate-x-0.5"}`} />
+                  <div
+                    className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      autopay ? "translate-x-6" : "translate-x-0.5"
+                    }`}
+                  />
                 </button>
               ) : (
-                <span className="text-xs text-stone-400">{autopay ? "Enabled" : "Disabled"}</span>
+                <span className="text-xs text-stone-400">
+                  {autopay ? "Enabled" : "Disabled"}
+                </span>
               )}
             </div>
           </div>
@@ -175,40 +273,29 @@ export function BillingPayments({ readOnly }: Props) {
       {/* Packages */}
       {tab === "packages" && (
         <div className="space-y-4">
-          {PREPAID_PACKAGES.map(pkg => (
-            <div key={pkg.id} className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
-              <div className="flex items-center gap-3 mb-3">
-                <Package size={20} className="text-(--color-accent)" />
-                <h3 className="font-medium text-stone-800">{pkg.name}</h3>
-              </div>
-              <div className="flex items-center gap-4 mb-3">
-                <div>
-                  <p className="text-2xl font-bold text-stone-800">{pkg.totalCredits - pkg.usedCredits}</p>
-                  <p className="text-xs text-stone-500">remaining of {pkg.totalCredits}</p>
-                </div>
-                <div className="flex-1 bg-stone-100 rounded-full h-3 overflow-hidden">
-                  <div
-                    className="bg-(--color-accent) h-full rounded-full"
-                    style={{ width: `${((pkg.totalCredits - pkg.usedCredits) / pkg.totalCredits) * 100}%` }}
-                  />
+          {packages.length === 0 ? (
+            <p className="text-gray-500 italic">No packages purchased</p>
+          ) : (
+            packages.map((pkg, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-stone-800">{pkg.name}</span>
+                  <span className="text-stone-600">{pkg.remaining} remaining</span>
                 </div>
               </div>
-              <p className="text-xs text-stone-400">Expires {new Date(pkg.expiresAt).toLocaleDateString()}</p>
-            </div>
-          ))}
+            ))
+          )}
         </div>
-      )}
-
-      {/* Tip Modal */}
-      {showTipModal && !readOnly && (
-        <TipModal onClose={() => setShowTipModal(false)} />
       )}
 
       {/* Payment Modal */}
       {showPaymentModal && !readOnly && (
         <PaymentModal
-          outstanding={outstanding}
-          totalOutstanding={totalOutstanding}
+          pending={pending}
+          totalPending={totalPending}
           onClose={() => setShowPaymentModal(false)}
         />
       )}
@@ -216,10 +303,26 @@ export function BillingPayments({ readOnly }: Props) {
   );
 }
 
-function PaymentModal({ outstanding, totalOutstanding: _totalOutstanding, onClose }: { outstanding: Invoice[]; totalOutstanding: number; onClose: () => void }) {
-  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set(outstanding.map(i => i.id)));
+function PaymentModal({
+  pending,
+  totalPending: _totalPending,
+  onClose,
+}: {
+  pending: Invoice[];
+  totalPending: number;
+  onClose: () => void;
+}) {
+  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(
+    new Set(pending.map((i) => i.id))
+  );
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+
+  const formatCents = (cents: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(cents / 100);
 
   const toggleInvoice = (id: string) => {
     const next = new Set(selectedInvoices);
@@ -233,26 +336,45 @@ function PaymentModal({ outstanding, totalOutstanding: _totalOutstanding, onClos
 
   const handlePay = async () => {
     setIsProcessing(true);
-    // Simulate payment processing
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsProcessing(false);
     setIsComplete(true);
   };
 
-  const selectedTotal = outstanding.filter(i => selectedInvoices.has(i.id)).reduce((sum, i) => sum + i.amount, 0);
+  const selectedTotal = pending
+    .filter((i) => selectedInvoices.has(i.id))
+    .reduce((sum, i) => sum + i.totalCents, 0);
 
   if (isComplete) {
     return (
       <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-8 h-8 text-green-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
           </div>
-          <h2 className="font-semibold text-stone-800 text-lg mb-2">Payment Successful</h2>
-          <p className="text-stone-500 text-sm mb-6">Your payment of ${selectedTotal.toFixed(2)} has been processed. A receipt has been sent to your email.</p>
-          <button onClick={onClose} className="w-full px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium">
+          <h2 className="font-semibold text-stone-800 text-lg mb-2">
+            Payment Successful
+          </h2>
+          <p className="text-stone-500 text-sm mb-6">
+            Your payment of {formatCents(selectedTotal)} has been processed. A
+            receipt has been sent to your email.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium"
+          >
             Done
           </button>
         </div>
@@ -264,10 +386,25 @@ function PaymentModal({ outstanding, totalOutstanding: _totalOutstanding, onClos
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="font-semibold text-stone-800 text-lg">Pay Outstanding Balance</h2>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <h2 className="font-semibold text-stone-800 text-lg">
+            Pay Outstanding Balance
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-stone-400 hover:text-stone-600"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -275,11 +412,13 @@ function PaymentModal({ outstanding, totalOutstanding: _totalOutstanding, onClos
         <p className="text-sm text-stone-500 mb-4">Select invoices to pay:</p>
 
         <div className="space-y-3 mb-6">
-          {outstanding.map(inv => (
+          {pending.map((inv) => (
             <label
               key={inv.id}
               className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                selectedInvoices.has(inv.id) ? "border-(--color-accent) bg-(--color-accent-lighter)" : "border-stone-200 hover:border-stone-300"
+                selectedInvoices.has(inv.id)
+                  ? "border-(--color-accent) bg-(--color-accent-lighter)"
+                  : "border-stone-200 hover:border-stone-300"
               }`}
             >
               <div className="flex items-center gap-3">
@@ -290,11 +429,17 @@ function PaymentModal({ outstanding, totalOutstanding: _totalOutstanding, onClos
                   className="w-4 h-4 rounded border-stone-300 text-(--color-accent) focus:ring-(--color-accent)"
                 />
                 <div>
-                  <p className="text-sm font-medium text-stone-800">{inv.items.join(", ")}</p>
-                  <p className="text-xs text-stone-500">{new Date(inv.date).toLocaleDateString()}</p>
+                  <p className="text-sm font-medium text-stone-800">
+                    {inv.description || `Invoice ${inv.id.slice(0, 8)}`}
+                  </p>
+                  <p className="text-xs text-stone-500">
+                    {new Date(inv.date).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
-              <span className="text-sm font-medium text-stone-800">${inv.amount.toFixed(2)}</span>
+              <span className="text-sm font-medium text-stone-800">
+                {formatCents(inv.totalCents)}
+              </span>
             </label>
           ))}
         </div>
@@ -302,7 +447,9 @@ function PaymentModal({ outstanding, totalOutstanding: _totalOutstanding, onClos
         <div className="border-t border-stone-200 pt-4 mb-6">
           <div className="flex justify-between items-center">
             <span className="text-sm text-stone-600">Total</span>
-            <span className="text-lg font-bold text-stone-800">${selectedTotal.toFixed(2)}</span>
+            <span className="text-lg font-bold text-stone-800">
+              {formatCents(selectedTotal)}
+            </span>
           </div>
         </div>
 
@@ -326,50 +473,4 @@ function PaymentModal({ outstanding, totalOutstanding: _totalOutstanding, onClos
   );
 }
 
-function TipModal({ onClose }: { onClose: () => void }) {
-  const [tipPercent, setTipPercent] = useState<number | null>(20);
-  const [customTip, setCustomTip] = useState("");
-  const presets = [15, 20, 25];
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
-        <h2 className="font-semibold text-stone-800 mb-4">Add a Tip</h2>
-        <div className="flex gap-2 mb-4">
-          {presets.map(pct => (
-            <button
-              key={pct}
-              onClick={() => { setTipPercent(pct); setCustomTip(""); }}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
-                tipPercent === pct ? "border-(--color-accent) bg-(--color-accent-lighter) text-(--color-accent-dark)" : "border-stone-200 text-stone-600"
-              }`}
-            >
-              {pct}%
-            </button>
-          ))}
-          <button
-            onClick={() => { setTipPercent(null); }}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
-              tipPercent === null ? "border-(--color-accent) bg-(--color-accent-lighter) text-(--color-accent-dark)" : "border-stone-200 text-stone-600"
-            }`}
-          >
-            Custom
-          </button>
-        </div>
-        {tipPercent === null && (
-          <input
-            type="number"
-            placeholder="Enter amount"
-            value={customTip}
-            onChange={e => setCustomTip(e.target.value)}
-            className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm mb-4"
-          />
-        )}
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 px-4 py-2 border border-stone-200 rounded-lg text-sm">Cancel</button>
-          <button onClick={onClose} className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium">Add Tip</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+export default BillingPayments;

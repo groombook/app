@@ -8,7 +8,9 @@ import type { AppEnv, StaffRow } from "../middleware/rbac.js";
 const MANAGER: StaffRow = {
   id: "staff-manager-id",
   oidcSub: "oidc-manager-sub",
+  userId: "ba-user-manager",
   role: "manager",
+  isSuperUser: true,
   name: "Manager McManager",
   email: "manager@example.com",
   active: true,
@@ -21,6 +23,7 @@ const RECEPTIONIST: StaffRow = {
   ...MANAGER,
   id: "staff-receptionist-id",
   oidcSub: "oidc-receptionist-sub",
+  userId: "ba-user-receptionist",
   role: "receptionist",
   name: "Receptionist Rita",
   email: "receptionist@example.com",
@@ -30,6 +33,7 @@ const GROOMER: StaffRow = {
   ...MANAGER,
   id: "staff-groomer-id",
   oidcSub: "oidc-groomer-sub",
+  userId: "ba-user-groomer",
   role: "groomer",
   name: "Groomer Gary",
   email: "groomer@example.com",
@@ -89,7 +93,7 @@ function buildApp(
 ) {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
-    c.set("jwtPayload", { sub: staffLookupResult?.oidcSub ?? "unknown-sub" });
+    c.set("jwtPayload", { sub: staffLookupResult?.userId ?? "unknown-sub" });
     await next();
   });
   app.use("*", middleware);
@@ -106,7 +110,7 @@ function buildWithStaff(
 ) {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
-    c.set("jwtPayload", { sub: staffRow.oidcSub ?? "" });
+    c.set("jwtPayload", { sub: staffRow.userId ?? "" });
     c.set("staff", staffRow);
     await next();
   });
@@ -165,7 +169,7 @@ describe("resolveStaffMiddleware", () => {
     });
 
     const res = await app.request("/test", {
-      headers: { "X-Dev-User-Id": GROOMER.oidcSub! },
+      headers: { "X-Dev-User-Id": GROOMER.id },
     });
     expect(res.status).toBe(200);
     expect(capturedStaff!.role).toBe("groomer");

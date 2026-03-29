@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { eq, getDb, businessSettings } from "@groombook/db";
 
 export const settingsRouter = new Hono();

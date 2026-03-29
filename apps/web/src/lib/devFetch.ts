@@ -9,6 +9,9 @@ const originalFetch = window.fetch;
  * Intentionally mutates window.fetch — this is dev-only (AUTH_DISABLED=true).
  */
 export function installDevFetchInterceptor() {
+  // In production, Better-Auth handles auth via cookies — no interception needed
+  if (!import.meta.env.DEV) return;
+
   window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
     const user = getDevUser();
     if (!user) return originalFetch(input, init);

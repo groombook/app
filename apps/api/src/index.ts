@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
+import { auth } from "./lib/auth.js";
 import { clientsRouter } from "./routes/clients.js";
 import { petsRouter } from "./routes/pets.js";
 import { servicesRouter } from "./routes/services.js";
@@ -18,9 +19,10 @@ import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { searchRouter } from "./routes/search.js";
 import { calendarRouter } from "./routes/calendar.js";
-import { getDb, businessSettings } from "@groombook/db";
+import { setupRouter } from "./routes/setup.js";
+import { getDb, businessSettings, eq, staff } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
-import { resolveStaffMiddleware, requireRole } from "./middleware/rbac.js";
+import { resolveStaffMiddleware, requireRole, requireRoleOrSuperUser, requireSuperUser } from "./middleware/rbac.js";
 import { devRouter } from "./routes/dev.js";
 import { adminSeedRouter } from "./routes/admin/seed.js";
 import { startReminderScheduler } from "./services/reminders.js";
@@ -65,15 +67,37 @@ app.get("/api/branding", async (c) => {
 
 // Public iCal calendar feed — token auth in URL, no auth middleware required
 app.route("/api/calendar", calendarRouter);
+
+// Public setup status — no auth required, must be registered before auth middleware
+app.get("/api/setup/status", async (c) => {
+  const db = getDb();
+  const [superUser] = await db
+    .select({ id: staff.id })
+    .from(staff)
+    .where(eq(staff.isSuperUser, true))
+    .limit(1);
+  return c.json({ needsSetup: !superUser });
+});
+
 // Protected API routes
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
 api.use("*", resolveStaffMiddleware);
 
+// Better-Auth handler — mounted as sub-app to handle all /api/auth/* routes
+// authMiddleware and resolveStaffMiddleware both skip /api/auth/ paths
+const authRouter = new Hono();
+authRouter.all("/*", (c) => auth.handler(c.req.raw));
+api.route("/auth", authRouter);
+
 // ── Role guards ────────────────────────────────────────────────────────────────
-// Manager-only: staff, admin settings, reports, invoices, impersonation
-api.use("/staff/*", requireRole("manager"));
+// Manager-only: admin settings, reports, invoices, impersonation
+// Staff CRUD: all roles may READ; manager-only for CREATE/UPDATE/DELETE
+api.on(["GET"], "/staff/*", requireRole("manager", "receptionist", "groomer"));
+// Staff write routes: manager OR super-user (combined guard — avoids AND stacking)
+api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireRoleOrSuperUser("manager"));
 api.use("/admin/*", requireRole("manager"));
+api.use("/admin/settings/*", requireSuperUser());
 api.use("/reports/*", requireRole("manager"));
 api.use("/invoices/*", requireRole("manager"));
 api.use("/impersonation/*", requireRole("manager"));
@@ -112,6 +136,9 @@ api.on(
   requireRole("manager")
 );
 // ──────────────────────────────────────────────────────────────────────────────
+
+// Setup: POST /api/setup (authenticated) — requires staff context from auth middleware
+api.route("/setup", setupRouter);
 
 api.route("/clients", clientsRouter);
 api.route("/pets", petsRouter);

@@ -111,6 +111,8 @@ jobs:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
     needs: [build, e2e]
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     permissions:
       contents: read
       packages: write
@@ -244,8 +246,8 @@ jobs:
           kubectl set image deployment/web web=ghcr.io/groombook/web:$TAG -n groombook-dev
 
           # Wait for rollout
-          kubectl rollout status deployment/api -n groombook-dev --timeout=120s
-          kubectl rollout status deployment/web -n groombook-dev --timeout=120s
+          kubectl rollout status deployment/api -n groombook-dev --timeout=300s
+          kubectl rollout status deployment/web -n groombook-dev --timeout=300s
 
           echo "Deployment complete."
 
@@ -268,3 +270,71 @@ jobs:
                 'Ready for UAT validation.'
               ].join('\n')
             });
+
+  cd:
+    name: Update Infra Image Tags
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Generate infra repo token
+        id: infra-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ vars.GH_APP_ID }}
+          private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Clone groombook/infra
+        run: |
+          git clone https://x-access-token:${{ steps.infra-token.outputs.token }}@github.com/groombook/infra.git /tmp/infra
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update dev overlay image tags
+        env:
+          TAG: ${{ needs.docker.outputs.tag }}
+        run: |
+          if [ -z "$TAG" ]; then
+            TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
+          fi
+          echo "Updating dev overlay image tags to: $TAG"
+          cd /tmp/infra
+          DEV_KUST="apps/groombook/overlays/dev/kustomization.yaml"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/api")).newTag = env(TAG)' "$DEV_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/web")).newTag = env(TAG)' "$DEV_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/migrate")).newTag = env(TAG)' "$DEV_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/seed")).newTag = env(TAG)' "$DEV_KUST"
+          git -C /tmp/infra diff --stat
+
+      - name: Create PR on groombook/infra
+        env:
+          TAG: ${{ needs.docker.outputs.tag }}
+          GH_TOKEN: ${{ steps.infra-token.outputs.token }}
+        run: |
+          if [ -z "$TAG" ]; then
+            TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
+          fi
+
+          cd /tmp/infra
+          git config user.name "groombook-engineer[bot]"
+          git config user.email "3141748+groombook-engineer[bot]@users.noreply.github.com"
+          git checkout -b "chore/update-image-tags-${TAG}"
+          git add apps/groombook/overlays/dev/
+          git commit -m "chore: update image tags to ${TAG}"
+
+          git push -u origin "chore/update-image-tags-${TAG}"
+
+          # Create PR with auto-merge
+          PR_URL=$(gh pr create \
+            --repo groombook/infra \
+            --base main \
+            --head "chore/update-image-tags-${TAG}" \
+            --title "chore: deploy ${TAG} to dev" \
+            --body "[GRO-178](/GRO/issues/GRO-178) — automated image tag update from main merge")
+          gh pr merge "$PR_URL" --auto --merge

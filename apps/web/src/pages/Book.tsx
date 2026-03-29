@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { Service } from "@groombook/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ export function BookPage() {
 
   // Step 2 — date & time
   const [date, setDate] = useState(todayIso());
+  const [dateError, setDateError] = useState<string | null>(null);
   const [slots, setSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -124,6 +126,28 @@ export function BookPage() {
     notes: "",
   });
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Pre-fill form from URL params (e.g., ?clientName=Jane&clientEmail=jane@example.com)
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const clientName = searchParams.get("clientName");
+    const clientEmail = searchParams.get("clientEmail");
+    const clientPhone = searchParams.get("clientPhone");
+    const petName = searchParams.get("petName");
+    const petSpecies = searchParams.get("petSpecies");
+    const petBreed = searchParams.get("petBreed");
+    if (clientName || clientEmail || clientPhone || petName || petSpecies || petBreed) {
+      setForm((f) => ({
+        ...f,
+        ...(clientName && { clientName }),
+        ...(clientEmail && { clientEmail }),
+        ...(clientPhone && { clientPhone }),
+        ...(petName && { petName }),
+        ...(petSpecies && { petSpecies }),
+        ...(petBreed && { petBreed }),
+      }));
+    }
+  }, [searchParams]);
 
   // Step 4 — result
   const [submitting, setSubmitting] = useState(false);
@@ -328,8 +352,21 @@ export function BookPage() {
               value={date}
               min={todayIso()}
               style={{ ...input, width: "auto" }}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                // HTML5 date input enforces yyyy-MM-dd; empty value means invalid format
+                if (!val) {
+                  setDateError("Please enter a valid date (YYYY-MM-DD).");
+                  setDate("");
+                } else {
+                  setDateError(null);
+                  setDate(val);
+                }
+              }}
             />
+            {dateError && (
+              <p style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{dateError}</p>
+            )}
           </div>
 
           <div style={{ marginBottom: "1.25rem" }}>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 interface StaffUser {
   id: string;
+  userId: string | null;
   name: string;
   email: string;
   role: string;
@@ -66,7 +67,7 @@ export function DevLoginSelector() {
           {staff.map((s) => (
             <button
               key={s.id}
-              onClick={() => selectUser("staff", s.id, s.name)}
+              onClick={() => selectUser("staff", s.userId ?? s.id, s.name)}
               style={userButtonStyle}
             >
               <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>

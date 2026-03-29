@@ -10,6 +10,15 @@ test.beforeEach(async ({ page }) => {
   // Reports endpoints need shaped responses (not bare []) to avoid render crashes.
   await page.route("/api/**", (route) => {
     const url = route.request().url();
+    if (url.includes("/api/dev/config")) {
+      return route.fulfill({ json: { authDisabled: true } });
+    }
+    if (url.includes("/api/dev/users")) {
+      return route.fulfill({ json: { staff: [], clients: [] } });
+    }
+    if (url.includes("/api/branding")) {
+      return route.fulfill({ json: { businessName: "GroomBook", logoUrl: null, theme: "default" } });
+    }
     if (url.includes("/api/reports/summary")) {
       return route.fulfill({
         json: {

@@ -287,6 +287,7 @@ async function seedKnownUsers() {
       email: "demo-manager@groombook.dev",
       oidcSub: "demo-manager-001",
       role: "manager",
+      isSuperUser: true,
       active: true,
     });
     console.log("✓ Created staff 'Demo Manager' (oidcSub: demo-manager-001)");
@@ -384,35 +385,41 @@ async function seed() {
   // ── Staff ──
   // Deterministic staff IDs so they can be referenced in scripts/tests
   const managerStaff = [
-    { id: uuid(), name: "Jordan Lee", email: "jordan@groombook.dev", role: "manager" as const },
+    { id: uuid(), name: "Jordan Lee", email: "jordan@groombook.dev", role: "manager" as const, isSuperUser: true },
   ];
 
   const receptionistStaff = [
-    { id: uuid(), name: "Sam Rivera", email: "sam@groombook.dev", role: "receptionist" as const },
+    { id: uuid(), name: "Sam Rivera", email: "sam@groombook.dev", role: "receptionist" as const, isSuperUser: false },
   ];
 
   const groomers = [
-    { id: uuid(), name: "Sarah Mitchell", email: "sarah@groombook.dev", role: "groomer" as const },
-    { id: uuid(), name: "James Park", email: "james@groombook.dev", role: "groomer" as const },
-    { id: uuid(), name: "Maria Gonzalez", email: "maria@groombook.dev", role: "groomer" as const },
+    { id: uuid(), name: "Sarah Mitchell", email: "sarah@groombook.dev", role: "groomer" as const, isSuperUser: false },
+    { id: uuid(), name: "James Park", email: "james@groombook.dev", role: "groomer" as const, isSuperUser: false },
+    { id: uuid(), name: "Maria Gonzalez", email: "maria@groombook.dev", role: "groomer" as const, isSuperUser: false },
   ];
 
   // Bathers are groomers by role but serve as the secondary staff (bather) on appointments
   const bathers = [
-    { id: uuid(), name: "Tyler Johnson", email: "tyler@groombook.dev", role: "groomer" as const },
-    { id: uuid(), name: "Ashley Chen", email: "ashley@groombook.dev", role: "groomer" as const },
-    { id: uuid(), name: "Devon Williams", email: "devon@groombook.dev", role: "groomer" as const },
+    { id: uuid(), name: "Tyler Johnson", email: "tyler@groombook.dev", role: "groomer" as const, isSuperUser: false },
+    { id: uuid(), name: "Ashley Chen", email: "ashley@groombook.dev", role: "groomer" as const, isSuperUser: false },
+    { id: uuid(), name: "Devon Williams", email: "devon@groombook.dev", role: "groomer" as const, isSuperUser: false },
   ];
 
   const allStaff = [...managerStaff, ...receptionistStaff, ...groomers, ...bathers];
   for (const s of allStaff) {
-    await db.insert(schema.staff).values({
-      id: s.id,
-      name: s.name,
-      email: s.email,
-      role: s.role,
-      active: true,
-    });
+    await db.insert(schema.staff)
+      .values({
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        role: s.role,
+        isSuperUser: s.isSuperUser,
+        active: true,
+      })
+      .onConflictDoUpdate({
+        target: schema.staff.email,
+        set: { name: s.name, role: s.role, isSuperUser: s.isSuperUser, active: true },
+      });
   }
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
 
@@ -421,14 +428,19 @@ async function seed() {
   for (const s of servicesDef) {
     const id = uuid();
     serviceIds.push(id);
-    await db.insert(schema.services).values({
-      id,
-      name: s.name,
-      description: s.desc,
-      basePriceCents: s.price,
-      durationMinutes: s.dur,
-      active: true,
-    });
+    await db.insert(schema.services)
+      .values({
+        id,
+        name: s.name,
+        description: s.desc,
+        basePriceCents: s.price,
+        durationMinutes: s.dur,
+        active: true,
+      })
+      .onConflictDoUpdate({
+        target: schema.services.id,
+        set: { name: s.name, description: s.desc, basePriceCents: s.price, durationMinutes: s.dur, active: true },
+      });
   }
   console.log(`✓ Created ${servicesDef.length} services`);
 
@@ -500,8 +512,36 @@ async function seed() {
       }
     }
 
-    await db.insert(schema.clients).values(clientBatch);
-    await db.insert(schema.pets).values(petBatch);
+    for (const client of clientBatch) {
+      await db.insert(schema.clients)
+        .values(client)
+        .onConflictDoUpdate({
+          target: schema.clients.email,
+          set: { name: client.name, phone: client.phone, address: client.address, notes: client.notes, emailOptOut: client.emailOptOut },
+        });
+    }
+
+    for (const pet of petBatch) {
+      await db.insert(schema.pets)
+        .values(pet)
+        .onConflictDoUpdate({
+          target: schema.pets.id,
+          set: {
+            clientId: pet.clientId,
+            name: pet.name,
+            species: pet.species,
+            breed: pet.breed,
+            weightKg: pet.weightKg,
+            dateOfBirth: pet.dateOfBirth,
+            healthAlerts: pet.healthAlerts,
+            groomingNotes: pet.groomingNotes,
+            cutStyle: pet.cutStyle,
+            shampooPreference: pet.shampooPreference,
+            specialCareNotes: pet.specialCareNotes,
+            customFields: pet.customFields,
+          },
+        });
+    }
   }
 
   console.log(`✓ Created 500 clients with ${petRecords.length} pets`);

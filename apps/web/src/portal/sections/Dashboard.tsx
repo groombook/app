@@ -1,9 +1,53 @@
+import { useState, useEffect } from "react";
 import { Calendar, Clock, PawPrint, CreditCard, Star, ChevronRight, AlertTriangle } from "lucide-react";
-import { PETS, UPCOMING_APPOINTMENTS, PAST_APPOINTMENTS, INVOICES, LOYALTY, BUSINESS_NAME } from "../mockData.js";
 
-interface Props {
+interface DashboardProps {
+  sessionId: string | null;
+  clientName: string;
   onNavigate: (section: "appointments" | "pets" | "billing" | "reports") => void;
   readOnly: boolean;
+  onReschedule: (appointmentId: string) => void;
+}
+
+interface Appointment {
+  id: string;
+  date: string;
+  time: string;
+  petName: string;
+  serviceName: string;
+  status: string;
+  staffName?: string;
+  services?: string[];
+  addOns?: string[];
+  groomerName?: string;
+}
+
+interface Pet {
+  id: string;
+  name: string;
+  species: string;
+  breed?: string;
+  dateOfBirth?: string;
+  weight?: number;
+  healthAlerts: string[];
+  photo?: string;
+  vaccinations?: { name: string; status: string }[];
+}
+
+interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  date: string;
+  amount: number;
+  status: string;
+  dueDate?: string;
+  items: { description: string; price: number }[];
+}
+
+interface Branding {
+  clinicName: string;
+  logoUrl?: string;
+  primaryColor: string;
 }
 
 function daysUntil(dateStr: string): number {
@@ -15,27 +59,154 @@ function daysUntil(dateStr: string): number {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
-export function Dashboard({ onNavigate, readOnly }: Props) {
-  const nextAppt = UPCOMING_APPOINTMENTS[0];
-  const outstanding = INVOICES.filter(i => i.status === "outstanding").reduce((sum, i) => sum + i.amount, 0);
-  const recentEvents = [
-    ...PAST_APPOINTMENTS.slice(0, 3).map(a => ({
-      id: a.id, date: a.date, text: `${a.petName} — ${a.services.join(", ")}`, type: "appointment" as const,
-    })),
-    ...INVOICES.filter(i => i.status === "paid").slice(0, 2).map(i => ({
-      id: i.id, date: i.date, text: `Invoice paid — $${i.amount}`, type: "payment" as const,
-    })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+export function Dashboard({
+  sessionId,
+  clientName,
+  onNavigate,
+  readOnly,
+  onReschedule,
+}: DashboardProps) {
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [pendingInvoices, setPendingInvoices] = useState<Invoice[]>([]);
+  const [branding, setBranding] = useState<Branding | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!sessionId) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const headers = {
+          "x-session-id": sessionId,
+        };
+
+        const [appointmentsRes, petsRes, invoicesRes, brandingRes] = await Promise.all([
+          fetch("/api/portal/appointments", { headers }),
+          fetch("/api/portal/pets", { headers }),
+          fetch("/api/portal/invoices", { headers }),
+          fetch("/api/branding", { headers }),
+        ]);
+
+        if (!appointmentsRes.ok || !petsRes.ok || !invoicesRes.ok || !brandingRes.ok) {
+          throw new Error("Failed to fetch dashboard data");
+        }
+
+        const appointmentsData = await appointmentsRes.json();
+        const petsData = await petsRes.json();
+        const invoicesData = await invoicesRes.json();
+        const brandingData = await brandingRes.json();
+
+        setAppointments(appointmentsData.appointments || []);
+        setPets(petsData.pets || []);
+
+        // Filter for pending invoices only (not "outstanding")
+        const pending = (invoicesData.invoices || []).filter(
+          (invoice: Invoice) => invoice.status === "pending"
+        );
+        setPendingInvoices(pending);
+
+        setBranding(brandingData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [sessionId]);
+
+  const getUpcomingAppointments = (): Appointment[] => {
+    const now = new Date();
+    return appointments
+      .filter((apt) => new Date(`${apt.date}T${apt.time}`) >= now)
+      .sort(
+        (a, b) =>
+          new Date(`${a.date}T${a.time}`).getTime() -
+          new Date(`${b.date}T${b.time}`).getTime()
+      )
+      .slice(0, 5);
+  };
+
+  const getPetHealthAlerts = (): { petName: string; alert: string }[] => {
+    return pets
+      .filter((pet) => pet.healthAlerts && pet.healthAlerts.length > 0)
+      .flatMap((pet) =>
+        pet.healthAlerts.map((alert) => ({ petName: pet.name, alert }))
+      );
+  };
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
+  };
+
+  const getPendingBalance = (): number => {
+    return pendingInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(--color-accent)" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+          <p className="text-red-700">Error: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sessionId) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-stone-100 rounded-2xl p-5 text-center">
+          <p className="text-stone-600">Please sign in to view your dashboard.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const upcomingAppointments = getUpcomingAppointments();
+  const healthAlerts = getPetHealthAlerts();
+  const pendingBalance = getPendingBalance();
+  const nextAppt = upcomingAppointments[0];
 
   return (
     <div className="space-y-6">
       {/* Welcome */}
       <div>
-        <h2 className="text-2xl font-semibold text-stone-800">Welcome back, Sarah</h2>
-        <p className="text-stone-500 text-sm mt-1">Here's what's happening at {BUSINESS_NAME}</p>
+        <h2 className="text-2xl font-semibold text-stone-800">
+          Welcome back, {clientName}
+        </h2>
+        <p className="text-stone-500 text-sm mt-1">
+          Here's what's happening at {branding?.clinicName || "your clinic"}
+        </p>
       </div>
 
       {/* Next Appointment */}
@@ -53,11 +224,16 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <p className="text-lg font-semibold text-stone-800">
-                {nextAppt.petName} with {nextAppt.groomerName}
+                {nextAppt.petName}
+                {nextAppt.groomerName && ` with ${nextAppt.groomerName}`}
+                {nextAppt.staffName && ` with ${nextAppt.staffName}`}
               </p>
               <p className="text-stone-600 text-sm mt-1">
-                {nextAppt.services.join(", ")}
-                {nextAppt.addOns.length > 0 && ` + ${nextAppt.addOns.join(", ")}`}
+                {nextAppt.services?.join(", ") ||
+                  nextAppt.serviceName ||
+                  "Appointment"}
+                {nextAppt.addOns && nextAppt.addOns.length > 0 &&
+                  ` + ${nextAppt.addOns.join(", ")}`}
               </p>
               <div className="flex items-center gap-4 mt-2 text-sm text-stone-500">
                 <span className="flex items-center gap-1">
@@ -71,13 +247,18 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
               </div>
             </div>
             <div className="text-center sm:text-right">
-              <div className="text-3xl font-bold text-(--color-accent-dark)">{daysUntil(nextAppt.date)}</div>
+              <div className="text-3xl font-bold text-(--color-accent-dark)">
+                {daysUntil(nextAppt.date)}
+              </div>
               <div className="text-xs text-stone-500">days away</div>
             </div>
           </div>
           {!readOnly && (
             <div className="flex gap-2 mt-4">
-              <button className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50">
+              <button
+                onClick={() => onReschedule(nextAppt.id)}
+                className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50"
+              >
                 Reschedule
               </button>
               <button className="text-sm px-3 py-1.5 border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50">
@@ -94,8 +275,8 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
       {/* Pet Cards & Loyalty */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Pet Cards */}
-        {PETS.map(pet => {
-          const expiringVax = pet.vaccinations.filter(v => v.status !== "valid");
+        {pets.map((pet) => {
+          const petAlerts = pet.healthAlerts || [];
           return (
             <button
               key={pet.id}
@@ -104,59 +285,63 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
             >
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 rounded-full bg-(--color-accent-light) flex items-center justify-center text-2xl">
-                  {pet.photo}
+                  {pet.photo || pet.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <p className="font-semibold text-stone-800">{pet.name}</p>
-                  <p className="text-xs text-stone-500">{pet.breed} · {pet.weight} lbs</p>
+                  <p className="text-xs text-stone-500">
+                    {pet.breed || pet.species}
+                    {pet.weight && ` · ${pet.weight} lbs`}
+                  </p>
                 </div>
               </div>
-              {expiringVax.length > 0 ? (
+              {petAlerts.length > 0 ? (
                 <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-lg">
                   <AlertTriangle size={12} />
-                  {expiringVax.map(v => v.name).join(", ")} {expiringVax[0]?.status === "expired" ? "expired" : "expiring soon"}
+                  {petAlerts.join(", ")}
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-lg">
                   <PawPrint size={12} />
-                  All vaccinations current
+                  All health records current
                 </div>
               )}
             </button>
           );
         })}
 
-        {/* Loyalty Card */}
+        {/* Loyalty Card Placeholder */}
         <div className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-medium text-(--color-accent-dark) mb-3">
             <Star size={16} />
             Loyalty Rewards
           </div>
-          <p className="text-2xl font-bold text-stone-800">{LOYALTY.points} <span className="text-sm font-normal text-stone-500">pts</span></p>
-          <div className="mt-2 bg-stone-100 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-(--color-accent) h-full rounded-full transition-all"
-              style={{ width: `${(LOYALTY.points / LOYALTY.nextRewardAt) * 100}%` }}
-            />
+          <div className="flex flex-col items-center justify-center py-4">
+            <div className="w-16 h-16 rounded-full bg-(--color-accent-light) flex items-center justify-center mb-3">
+              <Star size={32} className="text-(--color-accent)" />
+            </div>
+            <p className="text-lg font-bold text-stone-800">Coming Soon</p>
+            <p className="text-xs text-stone-500 text-center mt-1">
+              Earn points with every visit and redeem for exclusive rewards
+            </p>
           </div>
-          <p className="text-xs text-stone-500 mt-1">
-            {LOYALTY.nextRewardAt - LOYALTY.points} pts to {LOYALTY.rewardName}
-          </p>
         </div>
       </div>
 
-      {/* Outstanding Balance & Recent Activity */}
+      {/* Pending Balance & Recent Activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Outstanding Balance */}
-        {outstanding > 0 && (
+        {/* Pending Invoices */}
+        {pendingInvoices.length > 0 && (
           <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div>
                 <div className="flex items-center gap-2 text-sm font-medium text-stone-500 mb-1">
                   <CreditCard size={16} />
-                  Outstanding Balance
+                  Pending Invoices
                 </div>
-                <p className="text-2xl font-bold text-stone-800">${outstanding.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-stone-800">
+                  {formatCurrency(pendingBalance)}
+                </p>
               </div>
               {!readOnly && (
                 <button
@@ -167,28 +352,50 @@ export function Dashboard({ onNavigate, readOnly }: Props) {
                 </button>
               )}
             </div>
+            <div className="space-y-2">
+              {pendingInvoices.slice(0, 3).map((invoice) => (
+                <div
+                  key={invoice.id}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <span className="text-stone-600">
+                    {invoice.invoiceNumber} - {formatCurrency(invoice.amount)}
+                  </span>
+                  <span className="text-xs text-stone-400">
+                    Due {invoice.dueDate ? formatDate(invoice.dueDate) : formatDate(invoice.date)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Recent Activity */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
-          <h3 className="text-sm font-medium text-stone-500 mb-3">Recent Activity</h3>
-          <div className="space-y-2.5">
-            {recentEvents.map(evt => (
-              <div key={evt.id} className="flex items-center gap-3 text-sm">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${evt.type === "payment" ? "bg-green-400" : "bg-(--color-accent)"}`} />
-                <span className="text-stone-600 flex-1">{evt.text}</span>
-                <span className="text-xs text-stone-400">{formatDate(evt.date)}</span>
-              </div>
-            ))}
+        {/* Health Alerts */}
+        {healthAlerts.length > 0 && (
+          <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-medium text-amber-700 mb-3">
+              <AlertTriangle size={16} />
+              Health Alerts
+            </div>
+            <div className="space-y-2">
+              {healthAlerts.slice(0, 5).map((item, index) => (
+                <div key={index} className="flex items-center gap-3 text-sm">
+                  <div className="w-2 h-2 rounded-full shrink-0 bg-amber-400" />
+                  <span className="text-stone-600 flex-1">
+                    <span className="font-medium">{item.petName}:</span>{" "}
+                    {item.alert}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => onNavigate("pets")}
+              className="flex items-center gap-1 text-sm text-(--color-accent-dark) font-medium mt-3 hover:text-(--color-accent)"
+            >
+              View all <ChevronRight size={14} />
+            </button>
           </div>
-          <button
-            onClick={() => onNavigate("appointments")}
-            className="flex items-center gap-1 text-sm text-(--color-accent-dark) font-medium mt-3 hover:text-(--color-accent)"
-          >
-            View all <ChevronRight size={14} />
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
