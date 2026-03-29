@@ -25,7 +25,15 @@ const updateStaffSchema = z.object({
 
 staffRouter.get("/me", async (c) => {
   const staffRow = c.get("staff");
-  return c.json(staffRow);
+  if (!staffRow) {
+    return c.json({ error: "Staff record not found in context" }, 500);
+  }
+  try {
+    return c.json(staffRow);
+  } catch (err) {
+    console.error("[/api/staff/me] serialization error:", err, "staffRow:", staffRow);
+    return c.json({ error: "Serialization error", detail: String(err) }, 500);
+  }
 });
 
 staffRouter.get("/", async (c) => {
