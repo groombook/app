@@ -1,0 +1,63 @@
+name: Promote to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to promote (e.g. 2026.03.28-f1b85bf)"
+        required: true
+        type: string
+
+jobs:
+  promote:
+    name: Promote to Production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Generate infra repo token
+        id: infra-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ vars.GH_APP_ID }}
+          private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Clone groombook/infra
+        run: |
+          git clone https://x-access-token:${{ steps.infra-token.outputs.token }}@github.com/groombook/infra.git /tmp/infra
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update prod overlay image tags
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          cd /tmp/infra
+          PROD_KUST="apps/groombook/overlays/prod/kustomization.yaml"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/api")).newTag = env(TAG)' "$PROD_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/web")).newTag = env(TAG)' "$PROD_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/migrate")).newTag = env(TAG)' "$PROD_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/seed")).newTag = env(TAG)' "$PROD_KUST"
+          git -C /tmp/infra diff --stat
+
+      - name: Create PR on groombook/infra
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ steps.infra-token.outputs.token }}
+        run: |
+          cd /tmp/infra
+          git config user.name "groombook-engineer[bot]"
+          git config user.email "3141748+groombook-engineer[bot]@users.noreply.github.com"
+          git checkout -b "release/promote-prod-${TAG}"
+          git add apps/groombook/overlays/prod/
+          git commit -m "release: promote ${TAG} to production"
+          git push -u origin "release/promote-prod-${TAG}"
+          gh pr create \
+            --repo groombook/infra \
+            --base main \
+            --head "release/promote-prod-${TAG}" \
+            --title "release: promote ${TAG} to production" \
+            --body "Promote image tag ${TAG} to production after UAT sign-off. cc @cpfarhood"
