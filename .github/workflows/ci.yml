@@ -246,8 +246,8 @@ jobs:
           kubectl set image deployment/web web=ghcr.io/groombook/web:$TAG -n groombook-dev
 
           # Wait for rollout
-          kubectl rollout status deployment/api -n groombook-dev --timeout=120s
-          kubectl rollout status deployment/web -n groombook-dev --timeout=120s
+          kubectl rollout status deployment/api -n groombook-dev --timeout=300s
+          kubectl rollout status deployment/web -n groombook-dev --timeout=300s
 
           echo "Deployment complete."
 
