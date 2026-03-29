@@ -5,7 +5,7 @@ import {
   Settings, LogOut, Shield,
 } from "lucide-react";
 import { Dashboard } from "./sections/Dashboard.js";
-import { AppointmentsSection, RescheduleFlow } from "./sections/Appointments.js";
+import { AppointmentsSection, RescheduleFlow, type Appointment } from "./sections/Appointments.js";
 import { PetProfiles } from "./sections/PetProfiles.js";
 import { ReportCards } from "./sections/ReportCards.js";
 import { BillingPayments } from "./sections/BillingPayments.js";
@@ -33,7 +33,7 @@ export function CustomerPortal() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
-  const [rescheduleAppointment, setRescheduleAppointment] = useState<Record<string, unknown> | null>(null);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState<{ id: string } | null>(null);
   const [session, setSession] = useState<ImpersonationSession | null>(null);
   const [sessionExtended, setSessionExtended] = useState(false);
   const [clientName, setClientName] = useState<string>("");
@@ -115,9 +115,7 @@ export function CustomerPortal() {
   };
 
   const handleReschedule = useCallback((appointmentId: string) => {
-    // Look up the full appointment from Dashboard's displayed data
-    // The appointment was already fetched by Dashboard, so we use the ID to find it
-    setRescheduleAppointment({ id: appointmentId } as Record<string, unknown>);
+    setRescheduleAppointment({ id: appointmentId });
     setShowReschedule(true);
   }, []);
 
@@ -176,9 +174,8 @@ export function CustomerPortal() {
       )}
 
       {showReschedule && rescheduleAppointment && (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         <RescheduleFlow
-          appointment={rescheduleAppointment as any}
+          appointment={rescheduleAppointment as unknown as Appointment}
           onClose={() => { setShowReschedule(false); setRescheduleAppointment(null); }}
           sessionId={session?.id ?? null}
         />
