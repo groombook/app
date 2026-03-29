@@ -7,7 +7,7 @@ interface StaffForm {
   role: "groomer" | "receptionist" | "manager";
 }
 
-const EMPTY_FORM: StaffForm = { name: "", email: "", role: "groomer" };
+const EMPTY_FORM: StaffForm = { name: "", email: "", role: "groomer" }; // GRO-206 rebuild trigger
 
 export function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
