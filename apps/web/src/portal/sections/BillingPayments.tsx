@@ -216,7 +216,7 @@ export function BillingPayments({ readOnly }: Props) {
   );
 }
 
-function PaymentModal({ outstanding, totalOutstanding, onClose }: { outstanding: Invoice[]; totalOutstanding: number; onClose: () => void }) {
+function PaymentModal({ outstanding, totalOutstanding: _totalOutstanding, onClose }: { outstanding: Invoice[]; totalOutstanding: number; onClose: () => void }) {
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set(outstanding.map(i => i.id)));
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
