@@ -249,13 +249,13 @@ export function App() {
     return <Navigate to="/login" replace />;
   }
 
-  // Production: need setup check
-  if (needsSetup === null) return null;
-
-  // Production mode: if no session, redirect to Authentik sign-in
+  // Show login BEFORE checking needsSetup (needsSetup is never set for unauthenticated users)
   if (!authDisabled && !session) {
     return <LoginPage />;
   }
+
+  // Production: need setup check
+  if (needsSetup === null) return null;
 
   // Redirect to setup wizard if needed
   if (needsSetup) {
