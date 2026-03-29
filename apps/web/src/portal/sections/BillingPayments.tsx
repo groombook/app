@@ -46,7 +46,7 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
       try {
         const response = await fetch("/api/portal/invoices", {
           headers: {
-            "x-session-id": sessionId,
+            "X-Impersonation-Session-Id": sessionId,
           },
         });
 
@@ -55,7 +55,7 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
         }
 
         const data = await response.json();
-        setInvoices(data.invoices || []);
+        setInvoices(Array.isArray(data) ? data : data.invoices || []);
         setPaymentMethods(data.paymentMethods || []);
         setPackages(data.packages || []);
       } catch (err) {
