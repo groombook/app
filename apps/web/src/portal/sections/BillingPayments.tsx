@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { CreditCard, DollarSign, Package, Zap } from "lucide-react";
 
 interface Invoice {
   id: string;
@@ -31,6 +32,9 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"invoices" | "payment" | "packages">("invoices");
+  const [autopay, setAutopay] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -71,6 +75,9 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
     }).format(cents / 100);
   };
 
+  const pending = invoices.filter((i) => i.status === "pending");
+  const totalPending = pending.reduce((sum, i) => sum + i.totalCents, 0);
+
   if (loading) {
     return (
       <div className="p-6">
@@ -92,98 +99,349 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
   }
 
   return (
-    <div className="p-6 space-y-8">
-      <h2 className="text-2xl font-semibold">Billing & Payments</h2>
-
-      {/* Payment Methods */}
-      <section>
-        <h3 className="text-lg font-medium mb-4">Payment Methods</h3>
-        {paymentMethods.length === 0 ? (
-          <p className="text-gray-500 italic">No payment methods on file</p>
-        ) : (
-          <div className="space-y-3">
-            {paymentMethods.map((method) => (
-              <div
-                key={`${method.brand}-${method.last4}`}
-                className="flex items-center justify-between p-4 border rounded-lg"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-6 bg-gray-200 rounded flex items-center justify-center text-xs">
-                    {method.brand.toUpperCase()}
-                  </div>
-                  <span>**** {method.last4}</span>
-                  <span className="text-gray-500">
-                    {method.expiryMonth}/{method.expiryYear}
-                  </span>
-                </div>
-                {!readOnly && (
-                  <button className="text-sm text-blue-600 hover:underline">
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
+    <div className="space-y-6">
+      {/* Outstanding Balance Banner */}
+      {totalPending > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-stone-500">Outstanding Balance</p>
+            <p className="text-3xl font-bold text-stone-800">{formatCents(totalPending)}</p>
+            <p className="text-xs text-stone-400 mt-0.5">
+              {pending.length} unpaid invoice{pending.length > 1 ? "s" : ""}
+            </p>
           </div>
-        )}
-      </section>
+          {!readOnly && (
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
+            >
+              Pay Now
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* Packages */}
-      <section>
-        <h3 className="text-lg font-medium mb-4">Packages</h3>
-        {packages.length === 0 ? (
-          <p className="text-gray-500 italic">No packages purchased</p>
-        ) : (
-          <div className="space-y-3">
-            {packages.map((pkg, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-4 border rounded-lg"
-              >
-                <span>{pkg.name}</span>
-                <span className="text-gray-600">{pkg.remaining} remaining</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {([
+          { id: "invoices" as const, label: "Invoices", icon: DollarSign },
+          { id: "payment" as const, label: "Payment Methods", icon: CreditCard },
+          { id: "packages" as const, label: "Packages", icon: Package },
+        ]).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium ${
+              tab === id
+                ? "bg-(--color-accent-light) text-(--color-accent-dark)"
+                : "text-stone-500 hover:bg-stone-50"
+            }`}
+          >
+            <Icon size={14} />
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* Invoices */}
-      <section>
-        <h3 className="text-lg font-medium mb-4">Invoice History</h3>
-        {invoices.length === 0 ? (
-          <p className="text-gray-500 italic">No invoices yet</p>
-        ) : (
-          <div className="space-y-3">
-            {invoices.map((invoice) => (
-              <div
-                key={invoice.id}
-                className="flex items-center justify-between p-4 border rounded-lg"
-              >
-                <div className="flex flex-col">
-                  <span className="font-medium">
-                    {invoice.description || `Invoice ${invoice.id.slice(0, 8)}`}
-                  </span>
-                  <span className="text-sm text-gray-500">{invoice.date}</span>
+      {tab === "invoices" && (
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
+                  <th className="px-5 py-3 font-medium">Date</th>
+                  <th className="px-5 py-3 font-medium">Description</th>
+                  <th className="px-5 py-3 font-medium">Amount</th>
+                  <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((inv) => (
+                  <tr key={inv.id} className="border-b border-stone-50 hover:bg-stone-50/50">
+                    <td className="px-5 py-3 text-stone-700">
+                      {new Date(inv.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </td>
+                    <td className="px-5 py-3 text-stone-600">
+                      {inv.description || `Invoice ${inv.id.slice(0, 8)}`}
+                    </td>
+                    <td className="px-5 py-3 font-medium text-stone-800">
+                      {formatCents(inv.totalCents)}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          inv.status === "paid"
+                            ? "bg-green-100 text-green-700"
+                            : inv.status === "pending"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : inv.status === "failed"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <button className="text-stone-400 hover:text-stone-600">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Methods */}
+      {tab === "payment" && (
+        <div className="space-y-4">
+          {paymentMethods.length === 0 ? (
+            <p className="text-gray-500 italic">No payment methods on file</p>
+          ) : (
+            <div className="space-y-3">
+              {paymentMethods.map((method) => (
+                <div
+                  key={`${method.brand}-${method.last4}`}
+                  className="flex items-center justify-between p-4 border border-stone-200 rounded-lg bg-white"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-6 bg-gray-200 rounded flex items-center justify-center text-xs">
+                      {method.brand.toUpperCase()}
+                    </div>
+                    <span className="text-stone-700">**** {method.last4}</span>
+                    <span className="text-stone-500">
+                      {method.expiryMonth}/{method.expiryYear}
+                    </span>
+                  </div>
+                  {!readOnly && (
+                    <button className="text-sm text-blue-600 hover:underline">
+                      Remove
+                    </button>
+                  )}
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="font-semibold">
-                    {formatCents(invoice.totalCents)}
-                  </span>
-                  <span
-                    className={`px-2 py-1 text-xs rounded ${
-                      invoice.status === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-green-100 text-green-800"
-                    }`}
-                  >
-                    {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                  </span>
+              ))}
+            </div>
+          )}
+
+          {/* Autopay */}
+          <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-(--color-accent-light) flex items-center justify-center">
+                  <Zap size={18} className="text-(--color-accent)" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-stone-800">Autopay</p>
+                  <p className="text-xs text-stone-500">
+                    Automatically charge after each appointment
+                  </p>
                 </div>
               </div>
-            ))}
+              {!readOnly ? (
+                <button
+                  onClick={() => setAutopay(!autopay)}
+                  className={`w-12 h-6 rounded-full transition-colors ${
+                    autopay ? "bg-(--color-accent)" : "bg-stone-300"
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      autopay ? "translate-x-6" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              ) : (
+                <span className="text-xs text-stone-400">
+                  {autopay ? "Enabled" : "Disabled"}
+                </span>
+              )}
+            </div>
           </div>
-        )}
-      </section>
+        </div>
+      )}
+
+      {/* Packages */}
+      {tab === "packages" && (
+        <div className="space-y-4">
+          {packages.length === 0 ? (
+            <p className="text-gray-500 italic">No packages purchased</p>
+          ) : (
+            packages.map((pkg, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-stone-800">{pkg.name}</span>
+                  <span className="text-stone-600">{pkg.remaining} remaining</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && !readOnly && (
+        <PaymentModal
+          pending={pending}
+          totalPending={totalPending}
+          onClose={() => setShowPaymentModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function PaymentModal({
+  pending,
+  totalPending: _totalPending,
+  onClose,
+}: {
+  pending: Invoice[];
+  totalPending: number;
+  onClose: () => void;
+}) {
+  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(
+    new Set(pending.map((i) => i.id))
+  );
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+
+  const formatCents = (cents: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(cents / 100);
+
+  const toggleInvoice = (id: string) => {
+    const next = new Set(selectedInvoices);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedInvoices(next);
+  };
+
+  const handlePay = async () => {
+    setIsProcessing(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setIsProcessing(false);
+    setIsComplete(true);
+  };
+
+  const selectedTotal = pending
+    .filter((i) => selectedInvoices.has(i.id))
+    .reduce((sum, i) => sum + i.totalCents, 0);
+
+  if (isComplete) {
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="font-semibold text-stone-800 text-lg mb-2">Payment Successful</h2>
+          <p className="text-stone-500 text-sm mb-6">
+            Your payment of {formatCents(selectedTotal)} has been processed. A receipt has been sent to your email.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-semibold text-stone-800 text-lg">Pay Outstanding Balance</h2>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <p className="text-sm text-stone-500 mb-4">Select invoices to pay:</p>
+
+        <div className="space-y-3 mb-6">
+          {pending.map((inv) => (
+            <label
+              key={inv.id}
+              className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                selectedInvoices.has(inv.id)
+                  ? "border-(--color-accent) bg-(--color-accent-lighter)"
+                  : "border-stone-200 hover:border-stone-300"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedInvoices.has(inv.id)}
+                  onChange={() => toggleInvoice(inv.id)}
+                  className="w-4 h-4 rounded border-stone-300 text-(--color-accent) focus:ring-(--color-accent)"
+                />
+                <div>
+                  <p className="text-sm font-medium text-stone-800">
+                    {inv.description || `Invoice ${inv.id.slice(0, 8)}`}
+                  </p>
+                  <p className="text-xs text-stone-500">
+                    {new Date(inv.date).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <span className="text-sm font-medium text-stone-800">
+                {formatCents(inv.totalCents)}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div className="border-t border-stone-200 pt-4 mb-6">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-stone-600">Total</span>
+            <span className="text-lg font-bold text-stone-800">
+              {formatCents(selectedTotal)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-stone-200 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePay}
+            disabled={selectedInvoices.size === 0 || isProcessing}
+            className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover) disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? "Processing..." : "Pay Now"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
