@@ -12,68 +12,12 @@ import { SettingsPage } from "./pages/Settings.js";
 import { BookingConfirmedPage } from "./pages/BookingConfirmed.js";
 import { BookingCancelledPage } from "./pages/BookingCancelled.js";
 import { BookingErrorPage } from "./pages/BookingError.js";
-import { SetupWizard } from "./pages/SetupWizard.jsx";
 import { CustomerPortal } from "./portal/CustomerPortal.js";
 import { DevLoginSelector, getDevUser } from "./pages/DevLoginSelector.js";
 import { DevSessionIndicator } from "./components/DevSessionIndicator.js";
 import { BrandingProvider, useBranding } from "./BrandingContext.js";
 import { GlobalSearch } from "./components/GlobalSearch.js";
 import { useSession, signIn } from "./lib/auth-client.js";
-
-function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleLogin = async () => {
-    setIsLoading(true);
-    await signIn.social({ provider: "authentik", callbackURL: window.location.origin });
-  };
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        fontFamily: "system-ui, sans-serif",
-        background: "#f0f2f5",
-      }}
-    >
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          padding: "2rem 2.5rem",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-          textAlign: "center",
-          minWidth: 280,
-        }}
-      >
-        <h1 style={{ fontSize: 22, marginBottom: "0.5rem", color: "#1a202c" }}>GroomBook</h1>
-        <p style={{ color: "#6b7280", marginBottom: "1.5rem", fontSize: 14 }}>
-          Sign in to continue
-        </p>
-        <button
-          onClick={handleLogin}
-          disabled={isLoading}
-          style={{
-            padding: "0.6rem 1.5rem",
-            borderRadius: 6,
-            border: "none",
-            background: "#4f8a6f",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: isLoading ? "wait" : "pointer",
-            opacity: isLoading ? 0.7 : 1,
-          }}
-        >
-          {isLoading ? "Redirecting…" : "Sign in with SSO"}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 const NAV_LINKS = [
   { to: "/admin", label: "Appointments" },
@@ -190,7 +134,6 @@ function AdminLayout() {
 export function App() {
   const location = useLocation();
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
-  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
   const { data: rawSession, isPending: rawSessionLoading } = useSession();
   // In dev mode (authDisabled=true), session state is irrelevant - skip useSession result
   const session = authDisabled ? null : rawSession;
@@ -203,19 +146,6 @@ export function App() {
       .catch(() => setAuthDisabled(false));
   }, []);
 
-  // After session is confirmed, check if setup is needed
-  useEffect(() => {
-    if (authDisabled === null || sessionLoading) return;
-    // Skip if no authenticated session (will redirect to login or dev selector)
-    if (!authDisabled && !session) return;
-    if (authDisabled && !getDevUser()) return;
-
-    fetch("/api/setup/status")
-      .then((r) => r.json())
-      .then((data) => setNeedsSetup(data.needsSetup === true))
-      .catch(() => setNeedsSetup(false));
-  }, [authDisabled, session, sessionLoading]);
-
   // Public booking redirect pages — no auth or portal chrome needed
   if (location.pathname === "/booking/confirmed") {
     return <BookingConfirmedPage />;
@@ -227,39 +157,24 @@ export function App() {
     return <BookingErrorPage />;
   }
 
-  // Setup wizard — standalone, no admin chrome
-  if (location.pathname === "/setup") {
-    return (
-      <BrandingProvider>
-        <SetupWizard />
-      </BrandingProvider>
-    );
-  }
-
-  // Still loading auth state or setup check (skip setup check in dev mode)
+  // Still loading auth state
   if (authDisabled === null || sessionLoading) return null;
 
-  // Dev mode: show login selector (no setup check needed in dev mode)
+  // Dev mode: show login selector
   if (authDisabled && location.pathname === "/login") {
     return <DevLoginSelector />;
   }
 
-  // Dev mode: use dev login selector (no setup check needed in dev mode)
-  if (authDisabled && !getDevUser()) {
+  // Dev mode: use dev login selector for non-admin routes
+  // Allow /admin/* access in dev mode even without stored dev user (skipLogin flow)
+  if (authDisabled && !getDevUser() && !location.pathname.startsWith("/admin")) {
     return <Navigate to="/login" replace />;
   }
 
-  // Production: need setup check
-  if (needsSetup === null) return null;
-
   // Production mode: if no session, redirect to Authentik sign-in
   if (!authDisabled && !session) {
-    return <LoginPage />;
-  }
-
-  // Redirect to setup wizard if needed
-  if (needsSetup) {
-    return <Navigate to="/setup" replace />;
+    signIn.social({ provider: "authentik" });
+    return null;
   }
 
   return (
