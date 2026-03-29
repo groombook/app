@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBranding } from "../BrandingContext.js";
 
@@ -17,6 +17,21 @@ export function SetupWizard() {
   const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [guardLoading, setGuardLoading] = useState(true);
+
+  // Guard: redirect if setup is not needed
+  useEffect(() => {
+    fetch("/api/setup/status")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.needsSetup === false) {
+          navigate("/admin", { replace: true });
+        } else {
+          setGuardLoading(false);
+        }
+      })
+      .catch(() => setGuardLoading(false));
+  }, [navigate]);
 
   const current = STEPS[step];
   const isLast = step === STEPS.length - 1;
@@ -60,6 +75,21 @@ export function SetupWizard() {
   const handleBack = () => {
     if (step > 0) setStep((s) => s - 1);
   };
+
+  if (guardLoading) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f0f2f5",
+        fontFamily: "system-ui, sans-serif",
+      }}>
+        <p style={{ color: "#6b7280" }}>Checking setup status…</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{
