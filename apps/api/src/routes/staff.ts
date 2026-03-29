@@ -24,21 +24,28 @@ const updateStaffSchema = z.object({
 });
 
 staffRouter.get("/me", async (c) => {
-  const staffRow = c.get("staff");
-  if (!staffRow) return c.json({ error: "Staff record not found" }, 404);
-  // Explicitly pick serializable fields to avoid BigInt/Date/undefined serialization issues
-  return c.json({
-    id: staffRow.id,
-    name: staffRow.name,
-    email: staffRow.email,
-    role: staffRow.role,
-    active: staffRow.active,
-    isSuperUser: staffRow.isSuperUser,
-    userId: staffRow.userId,
-    oidcSub: staffRow.oidcSub,
-    createdAt: staffRow.createdAt,
-    updatedAt: staffRow.updatedAt,
-  });
+  try {
+    const staffRow = c.get("staff");
+    if (!staffRow) {
+      return c.json({ error: "Staff record not found in context" }, 500);
+    }
+    // Explicitly pick serializable fields to avoid BigInt/Date/undefined serialization issues
+    return c.json({
+      id: staffRow.id,
+      name: staffRow.name,
+      email: staffRow.email,
+      role: staffRow.role,
+      active: staffRow.active,
+      isSuperUser: staffRow.isSuperUser,
+      userId: staffRow.userId,
+      oidcSub: staffRow.oidcSub,
+      createdAt: staffRow.createdAt,
+      updatedAt: staffRow.updatedAt,
+    });
+  } catch (err) {
+    console.error("[/api/staff/me] error:", err, "staffRow:", c.get("staff"));
+    return c.json({ error: "Internal error", detail: String(err) }, 500);
+  }
 });
 
 staffRouter.get("/", async (c) => {
