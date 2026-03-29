@@ -122,7 +122,47 @@ describe("App navigation", () => {
 });
 
 describe("Dev login selector", () => {
-  it("redirects to /login when auth is disabled and no user selected", async () => {
+  it("renders /admin routes without redirect when auth is disabled and no user selected", async () => {
+    // authDisabled=true, no dev-user in localStorage
+    // /admin/* routes should render without requiring a stored dev user
+    global.fetch = vi.fn((url: string) => {
+      if (url === "/api/dev/config") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ authDisabled: true }),
+        } as Response);
+      }
+      if (url === "/api/branding") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            businessName: "GroomBook",
+            primaryColor: "#4f8a6f",
+            accentColor: "#8b7355",
+            logoBase64: null,
+            logoMimeType: null,
+          }),
+        } as Response);
+      }
+      return Promise.resolve({ ok: true, json: async () => [] } as Response);
+    }) as unknown as typeof fetch;
+
+    render(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    // Should render admin nav (skipLogin flow: /admin accessible without stored dev user)
+    const nav = await screen.findByRole("navigation");
+    expect(
+      within(nav).getByText((_, el) => el?.tagName === "STRONG" && /Groom\s*Book/.test(el.textContent ?? ""))
+    ).toBeInTheDocument();
+  });
+
+  it("redirects non-/admin routes to /login when auth is disabled and no user selected", async () => {
+    // authDisabled=true, no dev-user in localStorage
+    // non-/admin/* routes should redirect to /login
     global.fetch = vi.fn((url: string) => {
       if (url === "/api/dev/config") {
         return Promise.resolve({
@@ -151,17 +191,11 @@ describe("Dev login selector", () => {
           }),
         } as Response);
       }
-      if (url === "/api/auth/get-session") {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ user: null }),
-        } as Response);
-      }
       return Promise.resolve({ ok: true, json: async () => [] } as Response);
     }) as unknown as typeof fetch;
 
     render(
-      <MemoryRouter initialEntries={["/admin"]}>
+      <MemoryRouter initialEntries={["/"]}>
         <App />
       </MemoryRouter>
     );
