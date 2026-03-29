@@ -65,42 +65,61 @@ staffRouter.patch("/:id", zValidator("json", updateStaffSchema), async (c) => {
     return c.json({ error: "Forbidden: super user privileges required to modify super user status" }, 403);
   }
 
-  // Before revoking super user, check if this is the last one
-  if (body.isSuperUser === false) {
-    const superUserCount = await db
-      .select({ id: staff.id })
-      .from(staff)
-      .where(and(eq(staff.isSuperUser, true), eq(staff.active, true)))
-      .limit(2);
-    // If only 1 or 0 active super users and the target is one of them, block revoke
-    if (superUserCount.length <= 1) {
-      return c.json(
-        { error: "Cannot revoke the last super user. Assign another super user first." },
-        400
-      );
-    }
-  }
+  // Before revoking or deactivating the last super user, serialize access with a
+  // transaction + FOR UPDATE to prevent a race where two concurrent requests both
+  // pass the count check and leave zero super users.
+  const needsSuperUserGuard = body.isSuperUser === false || body.active === false;
+  if (needsSuperUserGuard) {
+    const [guardError, row] = await db.transaction(async (tx) => {
+      // Lock the target row so no other request can modify it concurrently
+      const [target] = await tx
+        .select({ isSuperUser: staff.isSuperUser })
+        .from(staff)
+        .where(eq(staff.id, targetId))
+        .limit(1)
+        .for("update");
 
-  // When deactivating a super user, also check last-super-user guardrail
-  if (body.active === false) {
-    const [target] = await db
-      .select({ isSuperUser: staff.isSuperUser })
-      .from(staff)
-      .where(eq(staff.id, targetId))
-      .limit(1);
-    if (target?.isSuperUser) {
-      const superUserCount = await db
+      if (!target) return ["Not found", null as (typeof staff.$inferSelect | null)];
+
+      // Only enforce guard if the target is actually a super user
+      const isRevokingSuperUser = body.isSuperUser === false && target.isSuperUser;
+      const isDeactivatingSuperUser = body.active === false && target.isSuperUser;
+      if (!isRevokingSuperUser && !isDeactivatingSuperUser) {
+        const [updated] = await tx
+          .update(staff)
+          .set({ ...body, updatedAt: new Date() })
+          .where(eq(staff.id, targetId))
+          .returning();
+        return [null, updated];
+      }
+
+      // Count active super users (excluding target — it will be changed)
+      const superUserCount = await tx
         .select({ id: staff.id })
         .from(staff)
-        .where(and(eq(staff.isSuperUser, true), eq(staff.active, true)))
+        .where(and(eq(staff.isSuperUser, true), eq(staff.active, true), ne(staff.id, targetId)))
         .limit(2);
+
       if (superUserCount.length <= 1) {
-        return c.json(
-          { error: "Cannot deactivate the last super user. Assign another super user first." },
-          400
-        );
+        return [
+          body.isSuperUser === false
+            ? "Cannot revoke the last super user. Assign another super user first."
+            : "Cannot deactivate the last super user. Assign another super user first.",
+          null,
+        ];
       }
-    }
+
+      const [updated] = await tx
+        .update(staff)
+        .set({ ...body, updatedAt: new Date() })
+        .where(eq(staff.id, targetId))
+        .returning();
+      return [null, updated];
+    });
+
+    if (guardError) return c.json({ error: guardError }, guardError === "Not found" ? 404 : 400);
+    if (!row) return c.json({ error: "Not found" }, 404);
+    return c.json(row);
   }
 
   const [row] = await db
@@ -138,31 +157,34 @@ staffRouter.delete("/:id", async (c) => {
     );
   }
 
-  // Prevent deleting the last super user
-  const [targetStaff] = await db
-    .select({ isSuperUser: staff.isSuperUser })
-    .from(staff)
-    .where(eq(staff.id, id))
-    .limit(1);
-  if (targetStaff?.isSuperUser) {
-    const superUserCount = await db
-      .select({ id: staff.id })
+  // Prevent deleting the last super user — use transaction to avoid race
+  const [guardError, deleted] = await db.transaction(async (tx) => {
+    const [targetStaff] = await tx
+      .select({ isSuperUser: staff.isSuperUser })
       .from(staff)
-      .where(and(eq(staff.isSuperUser, true), eq(staff.active, true)))
-      .limit(2);
-    if (superUserCount.length <= 1) {
-      return c.json(
-        { error: "Cannot delete the last super user. Assign another super user first." },
-        400
-      );
-    }
-  }
+      .where(eq(staff.id, id))
+      .limit(1)
+      .for("update");
 
-  const [row] = await db
-    .delete(staff)
-    .where(eq(staff.id, id))
-    .returning();
-  if (!row) return c.json({ error: "Not found" }, 404);
+    if (!targetStaff) return ["Not found", null];
+
+    if (targetStaff.isSuperUser) {
+      const superUserCount = await tx
+        .select({ id: staff.id })
+        .from(staff)
+        .where(and(eq(staff.isSuperUser, true), eq(staff.active, true), ne(staff.id, id)))
+        .limit(2);
+      if (superUserCount.length <= 1) {
+        return ["Cannot delete the last super user. Assign another super user first.", null];
+      }
+    }
+
+    const [row] = await tx.delete(staff).where(eq(staff.id, id)).returning();
+    return [null, row];
+  });
+
+  if (guardError === "Not found") return c.json({ error: "Not found" }, 404);
+  if (guardError) return c.json({ error: guardError }, 400);
   return c.json({ ok: true });
 });
 

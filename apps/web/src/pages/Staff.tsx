@@ -143,9 +143,21 @@ export function StaffPage() {
                 <td style={tdStyle}><span style={{ textTransform: "capitalize" }}>{s.role}</span></td>
                 <td style={tdStyle}>
                   {s.isSuperUser ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#ede9fe", color: "#5b21b6" }}>
-                      ★ Super User
-                    </span>
+                    <>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#ede9fe", color: "#5b21b6" }}>
+                        ★ Super User
+                      </span>
+                      {isCurrentUserSuperUser && s.id !== me?.id && (
+                        <button
+                          onClick={() => toggleSuperUser(s)}
+                          disabled={togglingSuperUser === s.id || activeSuperUserCount <= 1}
+                          title={activeSuperUserCount <= 1 ? "Cannot revoke: last super user" : undefined}
+                          style={{ ...btnStyle, padding: "0.2rem 0.6rem", fontSize: 11, background: "#f3f4f6", color: "#374151", borderColor: "#d1d5db", marginLeft: 4 }}
+                        >
+                          {togglingSuperUser === s.id ? "…" : "Revoke"}
+                        </button>
+                      )}
+                    </>
                   ) : isCurrentUserSuperUser ? (
                     <button
                       onClick={() => toggleSuperUser(s)}
