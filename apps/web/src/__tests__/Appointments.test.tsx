@@ -1,32 +1,32 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import type { Appointment } from "../portal/mockData.js";
-import { parseTimeTo24Hour, isUpcoming, CustomerNotesSection, ConfirmationSection } from "../portal/sections/Appointments.js";
+import { parseTimeTo24Hour, isUpcoming, CustomerNotesSection, ConfirmationSection } from "../portal/sections/Appointments.tsx";
 
-const UPCOMING_APPT: Appointment = {
+const UPCOMING_APPT = {
   id: "appt-1",
   petId: "pet-1",
   petName: "Buddy",
   groomerId: "groomer-1",
   groomerName: "Sarah",
   services: ["Bath & Brush"],
+  serviceId: "service-1",
   addOns: [],
   date: "2027-01-01",
   time: "10:00 AM",
   duration: 60,
   price: 50,
-  status: "confirmed",
+  status: "confirmed" as const,
   notes: "",
   customerNotes: "",
-  confirmationStatus: "pending",
+  confirmationStatus: "pending" as const,
 };
 
-const PAST_APPT: Appointment = {
+const PAST_APPT = {
   ...UPCOMING_APPT,
   id: "appt-2",
   date: "2025-01-01",
   time: "10:00 AM",
-  status: "completed",
+  status: "completed" as const,
 };
 
 describe("parseTimeTo24Hour", () => {
@@ -78,7 +78,7 @@ describe("CustomerNotesSection", () => {
     expect(screen.getByRole("button", { name: /Save Notes/i })).toBeInTheDocument();
   });
 
-  it("sends X-Impersonation-Session-Id header when session exists", async () => {
+  it("sends Authorization header when session exists", async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ id: "appt-1", customerNotes: "Updated", updatedAt: new Date().toISOString() }),
@@ -93,14 +93,14 @@ describe("CustomerNotesSection", () => {
         "/api/portal/appointments/appt-1/notes",
         expect.objectContaining({
           headers: expect.objectContaining({
-            "X-Impersonation-Session-Id": "test-session-id",
+            "Authorization": "Bearer test-session-id",
           }),
         })
       );
     });
   });
 
-  it("does not send X-Impersonation-Session-Id header when sessionId is null", async () => {
+  it("does not send Authorization header when sessionId is null", async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ id: "appt-1", customerNotes: "Updated", updatedAt: new Date().toISOString() }),
@@ -115,7 +115,7 @@ describe("CustomerNotesSection", () => {
         "/api/portal/appointments/appt-1/notes",
         expect.objectContaining({
           headers: expect.not.objectContaining({
-            "X-Impersonation-Session-Id": expect.anything(),
+            "Authorization": expect.anything(),
           }),
         })
       );
@@ -212,7 +212,7 @@ describe("ConfirmationSection", () => {
 
   it("renders confirmed badge when confirmationStatus is confirmed", () => {
     render(<ConfirmationSection appointment={{ ...UPCOMING_APPT, confirmationStatus: "confirmed" }} sessionId="test-session-id" />);
-    expect(screen.getByText("✓ Confirmed")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument();
   });
 
   it("renders cancelled badge when confirmationStatus is cancelled", () => {
@@ -251,11 +251,11 @@ describe("ConfirmationSection", () => {
       );
     });
     await waitFor(() => {
-      expect(screen.getByText("✓ Confirmed")).toBeInTheDocument();
+      expect(screen.getByText("Confirmed")).toBeInTheDocument();
     });
   });
 
-  it("sends X-Impersonation-Session-Id header when session exists", async () => {
+  it("sends Authorization header when session exists", async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ id: "appt-1", confirmationStatus: "confirmed" }),
@@ -269,14 +269,14 @@ describe("ConfirmationSection", () => {
         "/api/portal/appointments/appt-1/confirm",
         expect.objectContaining({
           headers: expect.objectContaining({
-            "X-Impersonation-Session-Id": "test-session-id",
+            "Authorization": "Bearer test-session-id",
           }),
         })
       );
     });
   });
 
-  it("does not send X-Impersonation-Session-Id header when sessionId is null", async () => {
+  it("does not send Authorization header when sessionId is null", async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ id: "appt-1", confirmationStatus: "confirmed" }),
@@ -290,7 +290,7 @@ describe("ConfirmationSection", () => {
         "/api/portal/appointments/appt-1/confirm",
         expect.objectContaining({
           headers: expect.not.objectContaining({
-            "X-Impersonation-Session-Id": expect.anything(),
+            "Authorization": expect.anything(),
           }),
         })
       );

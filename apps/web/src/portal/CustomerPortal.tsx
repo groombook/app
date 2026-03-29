@@ -13,7 +13,6 @@ import { Communication } from "./sections/Communication.js";
 import { AccountSettings } from "./sections/AccountSettings.js";
 import { ImpersonationBanner } from "./ImpersonationBanner.js";
 import { AuditLogViewer } from "./AuditLogViewer.js";
-import { CUSTOMER } from "./mockData.js";
 import { useBranding } from "../BrandingContext.js";
 import type { ImpersonationSession } from "@groombook/types";
 
@@ -37,6 +36,7 @@ export function CustomerPortal() {
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Record<string, unknown> | null>(null);
   const [session, setSession] = useState<ImpersonationSession | null>(null);
   const [sessionExtended, setSessionExtended] = useState(false);
+  const [clientName, setClientName] = useState<string>("");
   const { branding } = useBranding();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -57,6 +57,11 @@ export function CustomerPortal() {
       .then((s) => {
         if (s && s.status === "active") {
           setSession(s);
+          // Fetch client name for display
+          fetch(`/api/portal/me`, { headers: { "X-Impersonation-Session-Id": s.id } })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data?.name) setClientName(data.name); })
+            .catch(() => {});
         }
         // Clean sessionId from URL
         setSearchParams({}, { replace: true });
@@ -109,31 +114,36 @@ export function CustomerPortal() {
     }
   };
 
-  const handleReschedule = useCallback((appointment: Record<string, unknown>) => {
-    setRescheduleAppointment(appointment);
+  const handleReschedule = useCallback((appointmentId: string) => {
+    // Look up the full appointment from Dashboard's displayed data
+    // The appointment was already fetched by Dashboard, so we use the ID to find it
+    setRescheduleAppointment({ id: appointmentId } as Record<string, unknown>);
     setShowReschedule(true);
   }, []);
 
   const isReadOnly = session?.status === "active";
 
   const renderSection = () => {
+    const sessionId = session?.id ?? null;
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} onReschedule={handleReschedule} />;
+        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} sessionId={sessionId} clientName={clientName} onReschedule={handleReschedule} />;
       case "appointments":
-        return <AppointmentsSection readOnly={!!isReadOnly} sessionId={session?.id ?? null} />;
+        return <AppointmentsSection readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "pets":
-        return <PetProfiles readOnly={!!isReadOnly} />;
+        return <PetProfiles readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "reports":
         return <ReportCards />;
       case "billing":
-        return <BillingPayments readOnly={!!isReadOnly} />;
+        return <BillingPayments readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "messages":
         return <Communication readOnly={!!isReadOnly} />;
       case "settings":
-        return <AccountSettings readOnly={!!isReadOnly} />;
+        return <AccountSettings readOnly={!!isReadOnly} sessionId={sessionId} />;
     }
   };
+
+  const avatarInitials = (clientName.split(" ")[0] || "G").charAt(0).toUpperCase();
 
   return (
     <div
@@ -187,7 +197,7 @@ export function CustomerPortal() {
         </button>
         <span className="text-lg font-semibold text-stone-800">{branding.businessName}</span>
         <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium" style={{ background: branding.accentColor }}>
-          SM
+          {avatarInitials}
         </div>
       </header>
 
@@ -274,9 +284,9 @@ export function CustomerPortal() {
               </h1>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-stone-600">Hi, {CUSTOMER.name.split(" ")[0]}</span>
+              <span className="text-sm text-stone-600">Hi, {clientName.split(" ")[0] || "Guest"}</span>
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium" style={{ background: branding.accentColor }}>
-                SM
+                {avatarInitials}
               </div>
             </div>
           </div>
