@@ -15,7 +15,31 @@ const createStaffSchema = z.object({
   active: z.boolean().default(true),
 });
 
-const updateStaffSchema = createStaffSchema.partial().omit({ email: true });
+const updateStaffSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  role: z.enum(["groomer", "receptionist", "manager"]).optional(),
+  active: z.boolean().optional(),
+  isSuperUser: z.boolean().optional(),
+  oidcSub: z.string().optional(),
+});
+
+staffRouter.get("/me", async (c) => {
+  const staffRow = c.get("staff");
+  if (!staffRow) return c.json({ error: "Staff record not found" }, 404);
+  // Explicitly pick serializable fields to avoid BigInt/Date/undefined serialization issues
+  return c.json({
+    id: staffRow.id,
+    name: staffRow.name,
+    email: staffRow.email,
+    role: staffRow.role,
+    active: staffRow.active,
+    isSuperUser: staffRow.isSuperUser,
+    userId: staffRow.userId,
+    oidcSub: staffRow.oidcSub,
+    createdAt: staffRow.createdAt,
+    updatedAt: staffRow.updatedAt,
+  });
+});
 
 staffRouter.get("/", async (c) => {
   const db = getDb();
@@ -45,11 +69,83 @@ staffRouter.post("/", zValidator("json", createStaffSchema), async (c) => {
 
 staffRouter.patch("/:id", zValidator("json", updateStaffSchema), async (c) => {
   const db = getDb();
+  const currentStaff = c.get("staff");
   const body = c.req.valid("json");
+  const targetId = c.req.param("id");
+
+  // Only super users can change isSuperUser
+  if (body.isSuperUser !== undefined && !currentStaff.isSuperUser) {
+    return c.json({ error: "Forbidden: super user privileges required to modify super user status" }, 403);
+  }
+
+  // Before revoking or deactivating the last super user, serialize access with a
+  // transaction + FOR UPDATE to prevent a race where two concurrent requests both
+  // pass the count check and leave zero super users.
+  const needsSuperUserGuard = body.isSuperUser === false || body.active === false;
+  if (needsSuperUserGuard) {
+    const [guardError, row] = await db.transaction(async (tx) => {
+      // Lock the target row so no other request can modify it concurrently
+      const [target] = await tx
+        .select({ isSuperUser: staff.isSuperUser })
+        .from(staff)
+        .where(eq(staff.id, targetId))
+        .limit(1)
+        .for("update");
+
+      if (!target) return ["Not found", null as (typeof staff.$inferSelect | null)];
+
+      // Only enforce guard if the target is actually a super user
+      const isRevokingSuperUser = body.isSuperUser === false && target.isSuperUser;
+      const isDeactivatingSuperUser = body.active === false && target.isSuperUser;
+      if (!isRevokingSuperUser && !isDeactivatingSuperUser) {
+        const [updated] = await tx
+          .update(staff)
+          .set({ ...body, updatedAt: new Date() })
+          .where(eq(staff.id, targetId))
+          .returning();
+        return [null, updated];
+      }
+
+      // Count active super users (excluding target — it will be changed)
+      const superUserCount = await tx
+        .select({ id: staff.id })
+        .from(staff)
+        .where(and(eq(staff.isSuperUser, true), eq(staff.active, true), ne(staff.id, targetId)))
+        .limit(2);
+
+      if (superUserCount.length <= 1) {
+        return [
+          body.isSuperUser === false
+            ? "Cannot revoke the last super user. Assign another super user first."
+            : "Cannot deactivate the last super user. Assign another super user first.",
+          null,
+        ];
+      }
+
+      // Perform the update (outside the count query but still in the transaction)
+      await tx
+        .update(staff)
+        .set({ ...body, updatedAt: new Date() })
+        .where(eq(staff.id, targetId));
+
+      // Re-select to get the post-update state (avoids FOR UPDATE + RETURNING issues in some DB drivers)
+      const [updated] = await tx
+        .select()
+        .from(staff)
+        .where(eq(staff.id, targetId))
+        .limit(1);
+      return [null, updated];
+    });
+
+    if (guardError) return c.json({ error: guardError }, guardError === "Not found" ? 404 : 400);
+    if (!row) return c.json({ error: "Not found" }, 404);
+    return c.json(row);
+  }
+
   const [row] = await db
     .update(staff)
     .set({ ...body, updatedAt: new Date() })
-    .where(eq(staff.id, c.req.param("id")))
+    .where(eq(staff.id, targetId))
     .returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json(row);
@@ -81,11 +177,34 @@ staffRouter.delete("/:id", async (c) => {
     );
   }
 
-  const [row] = await db
-    .delete(staff)
-    .where(eq(staff.id, id))
-    .returning();
-  if (!row) return c.json({ error: "Not found" }, 404);
+  // Prevent deleting the last super user — use transaction to avoid race
+  const [guardError] = await db.transaction(async (tx) => {
+    const [targetStaff] = await tx
+      .select({ isSuperUser: staff.isSuperUser })
+      .from(staff)
+      .where(eq(staff.id, id))
+      .limit(1)
+      .for("update");
+
+    if (!targetStaff) return ["Not found", null];
+
+    if (targetStaff.isSuperUser) {
+      const superUserCount = await tx
+        .select({ id: staff.id })
+        .from(staff)
+        .where(and(eq(staff.isSuperUser, true), eq(staff.active, true), ne(staff.id, id)))
+        .limit(2);
+      if (superUserCount.length <= 1) {
+        return ["Cannot delete the last super user. Assign another super user first.", null];
+      }
+    }
+
+    const [row] = await tx.delete(staff).where(eq(staff.id, id)).returning();
+    return [null, row];
+  });
+
+  if (guardError === "Not found") return c.json({ error: "Not found" }, 404);
+  if (guardError) return c.json({ error: guardError }, 400);
   return c.json({ ok: true });
 });
 
