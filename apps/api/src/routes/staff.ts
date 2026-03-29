@@ -120,7 +120,7 @@ staffRouter.patch("/:id", zValidator("json", updateStaffSchema), async (c) => {
         .where(and(eq(staff.isSuperUser, true), eq(staff.active, true), ne(staff.id, targetId)))
         .limit(2);
 
-      if (superUserCount.length <= 1) {
+      if (superUserCount.length < 1) {
         return [
           body.isSuperUser === false
             ? "Cannot revoke the last super user. Assign another super user first."
@@ -201,7 +201,7 @@ staffRouter.delete("/:id", async (c) => {
         .from(staff)
         .where(and(eq(staff.isSuperUser, true), eq(staff.active, true), ne(staff.id, id)))
         .limit(2);
-      if (superUserCount.length <= 1) {
+      if (superUserCount.length < 1) {
         return ["Cannot delete the last super user. Assign another super user first.", null];
       }
     }
