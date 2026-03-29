@@ -38,11 +38,13 @@ setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
       .from(businessSettings)
       .limit(1);
 
-    // Check if any super user already exists (race condition guard)
+    // Lock super user rows to prevent concurrent claims
+    // FOR UPDATE serializes concurrent claims: second transaction blocks until first commits
     const [existingSuperUser] = await tx
       .select({ id: staff.id })
       .from(staff)
       .where(eq(staff.isSuperUser, true))
+      .for("update")
       .limit(1);
 
     if (existingSuperUser) {
