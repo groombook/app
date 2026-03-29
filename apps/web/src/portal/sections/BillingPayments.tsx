@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CreditCard, Download, DollarSign, Package, Zap, Plus, Trash2 } from "lucide-react";
-import { INVOICES, SAVED_PAYMENT_METHODS, PREPAID_PACKAGES } from "../mockData.js";
+import { INVOICES, SAVED_PAYMENT_METHODS, PREPAID_PACKAGES, Invoice } from "../mockData.js";
 
 interface Props {
   readOnly: boolean;
@@ -16,6 +16,7 @@ export function BillingPayments({ readOnly }: Props) {
   const [tab, setTab] = useState<"invoices" | "payment" | "packages">("invoices");
   const [autopay, setAutopay] = useState(false);
   const [showTipModal, setShowTipModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const outstanding = INVOICES.filter(i => i.status === "outstanding");
   const totalOutstanding = outstanding.reduce((sum, i) => sum + i.amount, 0);
@@ -38,7 +39,10 @@ export function BillingPayments({ readOnly }: Props) {
               >
                 Add Tip
               </button>
-              <button className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)">
+              <button
+                onClick={() => setShowPaymentModal(true)}
+                className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
+              >
                 Pay Now
               </button>
             </div>
@@ -199,6 +203,125 @@ export function BillingPayments({ readOnly }: Props) {
       {showTipModal && !readOnly && (
         <TipModal onClose={() => setShowTipModal(false)} />
       )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && !readOnly && (
+        <PaymentModal
+          outstanding={outstanding}
+          totalOutstanding={totalOutstanding}
+          onClose={() => setShowPaymentModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function PaymentModal({ outstanding, totalOutstanding, onClose }: { outstanding: Invoice[]; totalOutstanding: number; onClose: () => void }) {
+  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set(outstanding.map(i => i.id)));
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+
+  const toggleInvoice = (id: string) => {
+    const next = new Set(selectedInvoices);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedInvoices(next);
+  };
+
+  const handlePay = async () => {
+    setIsProcessing(true);
+    // Simulate payment processing
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsProcessing(false);
+    setIsComplete(true);
+  };
+
+  const selectedTotal = outstanding.filter(i => selectedInvoices.has(i.id)).reduce((sum, i) => sum + i.amount, 0);
+
+  if (isComplete) {
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="font-semibold text-stone-800 text-lg mb-2">Payment Successful</h2>
+          <p className="text-stone-500 text-sm mb-6">Your payment of ${selectedTotal.toFixed(2)} has been processed. A receipt has been sent to your email.</p>
+          <button onClick={onClose} className="w-full px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium">
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-semibold text-stone-800 text-lg">Pay Outstanding Balance</h2>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <p className="text-sm text-stone-500 mb-4">Select invoices to pay:</p>
+
+        <div className="space-y-3 mb-6">
+          {outstanding.map(inv => (
+            <label
+              key={inv.id}
+              className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                selectedInvoices.has(inv.id) ? "border-(--color-accent) bg-(--color-accent-lighter)" : "border-stone-200 hover:border-stone-300"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedInvoices.has(inv.id)}
+                  onChange={() => toggleInvoice(inv.id)}
+                  className="w-4 h-4 rounded border-stone-300 text-(--color-accent) focus:ring-(--color-accent)"
+                />
+                <div>
+                  <p className="text-sm font-medium text-stone-800">{inv.items.join(", ")}</p>
+                  <p className="text-xs text-stone-500">{new Date(inv.date).toLocaleDateString()}</p>
+                </div>
+              </div>
+              <span className="text-sm font-medium text-stone-800">${inv.amount.toFixed(2)}</span>
+            </label>
+          ))}
+        </div>
+
+        <div className="border-t border-stone-200 pt-4 mb-6">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-stone-600">Total</span>
+            <span className="text-lg font-bold text-stone-800">${selectedTotal.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-stone-200 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePay}
+            disabled={selectedInvoices.size === 0 || isProcessing}
+            className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover) disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? "Processing..." : "Pay Now"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
