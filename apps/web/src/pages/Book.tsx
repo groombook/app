@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { Service } from "@groombook/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -124,6 +125,28 @@ export function BookPage() {
     notes: "",
   });
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Pre-fill form from URL params (e.g., ?clientName=Jane&clientEmail=jane@example.com)
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const clientName = searchParams.get("clientName");
+    const clientEmail = searchParams.get("clientEmail");
+    const clientPhone = searchParams.get("clientPhone");
+    const petName = searchParams.get("petName");
+    const petSpecies = searchParams.get("petSpecies");
+    const petBreed = searchParams.get("petBreed");
+    if (clientName || clientEmail || clientPhone || petName || petSpecies || petBreed) {
+      setForm((f) => ({
+        ...f,
+        ...(clientName && { clientName }),
+        ...(clientEmail && { clientEmail }),
+        ...(clientPhone && { clientPhone }),
+        ...(petName && { petName }),
+        ...(petSpecies && { petSpecies }),
+        ...(petBreed && { petBreed }),
+      }));
+    }
+  }, [searchParams]);
 
   // Step 4 — result
   const [submitting, setSubmitting] = useState(false);
