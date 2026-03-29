@@ -241,8 +241,17 @@ function ReportCardDetail({ card, onBack }: { card: Appointment; onBack: () => v
               <p className="text-sm font-medium text-stone-800">Book your next visit</p>
               <p className="text-xs text-stone-500">Schedule your next grooming appointment</p>
             </div>
-            <button className="px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)">
-              Book Now
+            <button
+              onClick={() => {
+                // TODO: Pre-select the service from report card (serviceId/serviceName) once BookPage supports service pre-selection via URL param
+                const params = new URLSearchParams();
+                if (card.petName) params.set("petName", card.petName);
+                if (card.serviceName) params.set("serviceName", card.serviceName);
+                window.location.href = `/admin/book${params.size > 0 ? `?${params.toString()}` : ""}`;
+              }}
+              className="px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
+            >
+              Rebook Now
             </button>
           </div>
         </div>
