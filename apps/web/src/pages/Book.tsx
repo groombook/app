@@ -108,6 +108,7 @@ export function BookPage() {
 
   // Step 2 — date & time
   const [date, setDate] = useState(todayIso());
+  const [dateError, setDateError] = useState<string | null>(null);
   const [slots, setSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -351,8 +352,21 @@ export function BookPage() {
               value={date}
               min={todayIso()}
               style={{ ...input, width: "auto" }}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                // HTML5 date input enforces yyyy-MM-dd; empty value means invalid format
+                if (!val) {
+                  setDateError("Please enter a valid date (YYYY-MM-DD).");
+                  setDate("");
+                } else {
+                  setDateError(null);
+                  setDate(val);
+                }
+              }}
             />
+            {dateError && (
+              <p style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{dateError}</p>
+            )}
           </div>
 
           <div style={{ marginBottom: "1.25rem" }}>
