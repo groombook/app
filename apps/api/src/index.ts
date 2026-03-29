@@ -20,7 +20,7 @@ import { settingsRouter } from "./routes/settings.js";
 import { searchRouter } from "./routes/search.js";
 import { calendarRouter } from "./routes/calendar.js";
 import { setupRouter } from "./routes/setup.js";
-import { getDb, businessSettings } from "@groombook/db";
+import { getDb, businessSettings, eq, staff } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
 import { resolveStaffMiddleware, requireRole, requireSuperUser } from "./middleware/rbac.js";
 import { devRouter } from "./routes/dev.js";
@@ -69,8 +69,15 @@ app.get("/api/branding", async (c) => {
 app.route("/api/calendar", calendarRouter);
 
 // Public setup status — no auth required, must be registered before auth middleware
-// GET /api/setup/status is handled by setupRouter
-app.route("/api/setup", setupRouter);
+app.get("/api/setup/status", async (c) => {
+  const db = getDb();
+  const [superUser] = await db
+    .select({ id: staff.id })
+    .from(staff)
+    .where(eq(staff.isSuperUser, true))
+    .limit(1);
+  return c.json({ needsSetup: !superUser });
+});
 
 // Protected API routes
 const api = app.basePath("/api");
@@ -130,6 +137,9 @@ api.on(
   requireRole("manager")
 );
 // ──────────────────────────────────────────────────────────────────────────────
+
+// Setup: POST /api/setup (authenticated) — requires staff context from auth middleware
+api.route("/setup", setupRouter);
 
 api.route("/clients", clientsRouter);
 api.route("/pets", petsRouter);
