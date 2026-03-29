@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { and, eq, lte, getDb, appointments, impersonationSessions, waitlistEntries, clients, pets, services, staff, invoices, invoiceLineItems } from "@groombook/db";
+import { and, eq, inArray } from "@groombook/db";
+import { getDb, appointments, impersonationSessions, waitlistEntries, clients, pets, services, staff, invoices, invoiceLineItems } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const portalRouter = new Hono<AppEnv>();
@@ -64,11 +65,11 @@ portalRouter.get("/appointments", async (c) => {
     .where(eq(appointments.clientId, clientId))
     .orderBy(appointments.startTime);
 
-  const petIds = [...new Set(allAppts.map(a => a.petId).filter(Boolean))];
-  const staffIds = [...new Set(allAppts.map(a => a.staffId).filter(Boolean))];
+  const petIds = allAppts.map(a => a.petId).filter((id): id is string => id !== null);
+  const staffIds = allAppts.map(a => a.staffId).filter((id): id is string => id !== null);
 
-  const petRows = petIds.length ? await db.select().from(pets).where(lte(pets.id, petIds[petIds.length - 1] || "")) : [];
-  const staffRows = staffIds.length ? await db.select().from(staff).where(lte(staff.id, staffIds[staffIds.length - 1] || "")) : [];
+  const petRows = petIds.length ? await db.select().from(pets).where(inArray(pets.id, petIds)) : [];
+  const staffRows = staffIds.length ? await db.select().from(staff).where(inArray(staff.id, staffIds)) : [];
 
   const petMap = Object.fromEntries(petRows.map(p => [p.id, p]));
   const staffMap = Object.fromEntries(staffRows.map(s => [s.id, s]));
@@ -110,7 +111,7 @@ portalRouter.get("/invoices", async (c) => {
 
   const clientInvoices = await db.select().from(invoices).where(eq(invoices.clientId, clientId));
   const invoiceIds = clientInvoices.map(i => i.id);
-  const lineItems = invoiceIds.length ? await db.select().from(invoiceLineItems).where(lte(invoiceLineItems.invoiceId, invoiceIds[invoiceIds.length - 1] || "")) : [];
+  const lineItems = invoiceIds.length ? await db.select().from(invoiceLineItems).where(inArray(invoiceLineItems.invoiceId, invoiceIds)) : [];
 
   const itemsByInvoice: Record<string, typeof lineItems> = {};
   for (const li of lineItems) {
