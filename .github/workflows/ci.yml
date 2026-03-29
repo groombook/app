@@ -120,8 +120,11 @@ jobs:
       - name: Generate image tag
         id: version
         run: |
+          # Always include short SHA so each build is immutable and cache-from can never
+          # cross-contaminate between commits. For PRs the format is pr-N-sha7; for main
+          # it is YYYY.MM.DD-sha7.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            TAG="pr-${{ github.event.pull_request.number }}"
+            TAG="pr-${{ github.event.pull_request.number }}-${GITHUB_SHA::7}"
           else
             TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
           fi
@@ -207,7 +210,7 @@ jobs:
 
       - name: Deploy to groombook-dev
         env:
-          TAG: pr-${{ github.event.pull_request.number }}
+          TAG: pr-${{ github.event.pull_request.number }}-${{ github.sha ::7}}
           PR_NUM: ${{ github.event.pull_request.number }}
         run: |
           echo "Deploying images tagged $TAG to groombook-dev..."
