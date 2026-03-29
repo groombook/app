@@ -22,7 +22,7 @@ import { calendarRouter } from "./routes/calendar.js";
 import { setupRouter } from "./routes/setup.js";
 import { getDb, businessSettings, eq, staff } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
-import { resolveStaffMiddleware, requireRole, requireSuperUser } from "./middleware/rbac.js";
+import { resolveStaffMiddleware, requireRole, requireRoleOrSuperUser, requireSuperUser } from "./middleware/rbac.js";
 import { devRouter } from "./routes/dev.js";
 import { adminSeedRouter } from "./routes/admin/seed.js";
 import { startReminderScheduler } from "./services/reminders.js";
@@ -94,9 +94,8 @@ api.route("/auth", authRouter);
 // Manager-only: admin settings, reports, invoices, impersonation
 // Staff CRUD: all roles may READ; manager-only for CREATE/UPDATE/DELETE
 api.on(["GET"], "/staff/*", requireRole("manager", "receptionist", "groomer"));
-// Staff write routes: manager + super-user
-api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireRole("manager"));
-api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireSuperUser());
+// Staff write routes: manager OR super-user (combined guard — avoids AND stacking)
+api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireRoleOrSuperUser("manager"));
 api.use("/admin/*", requireRole("manager"));
 api.use("/admin/settings/*", requireSuperUser());
 api.use("/reports/*", requireRole("manager"));

@@ -127,6 +127,37 @@ export function requireRole(
 }
 
 /**
+ * Middleware that allows access if the staff member has any of the allowed roles OR is a super user.
+ * Use for routes where managers OR super-users should have access.
+ *
+ * @example
+ *   api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireRoleOrSuperUser("manager"));
+ */
+export function requireRoleOrSuperUser(
+  ...allowedRoles: StaffRole[]
+): MiddlewareHandler<AppEnv> {
+  return async (c, next) => {
+    const staffRow = c.get("staff");
+    if (!staffRow) {
+      return c.json({ error: "Forbidden: staff record not resolved" }, 403);
+    }
+    const hasAllowedRole = (allowedRoles as string[]).includes(staffRow.role);
+    if (hasAllowedRole || staffRow.isSuperUser) {
+      await next();
+      return;
+    }
+    return c.json(
+      {
+        error: staffRow.isSuperUser
+          ? `Forbidden: role '${staffRow.role}' is not permitted`
+          : "Forbidden: super user privileges required",
+      },
+      403
+    );
+  };
+}
+
+/**
  * Middleware that enforces the staff member is a super user.
  * Must be applied after resolveStaffMiddleware and (typically) after requireRole.
  *
