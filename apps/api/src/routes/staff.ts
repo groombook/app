@@ -158,7 +158,7 @@ staffRouter.delete("/:id", async (c) => {
   }
 
   // Prevent deleting the last super user — use transaction to avoid race
-  const [guardError, deleted] = await db.transaction(async (tx) => {
+  const [guardError] = await db.transaction(async (tx) => {
     const [targetStaff] = await tx
       .select({ isSuperUser: staff.isSuperUser })
       .from(staff)
