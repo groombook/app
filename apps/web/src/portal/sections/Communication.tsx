@@ -1,7 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Send, Check, CheckCheck, Bell, Mail, Smartphone, Megaphone, FileText, CreditCard } from "lucide-react";
-import { MESSAGES, BUSINESS_NAME } from "../mockData.js";
-import type { Message } from "../mockData.js";
+
+interface Message {
+  id: string;
+  sender: "customer" | "business";
+  senderName: string;
+  text: string;
+  timestamp: string;
+  read: boolean;
+}
+
+interface NotificationCategory {
+  email: boolean;
+  sms: boolean;
+  push: boolean;
+}
+
+interface NotificationPreferences {
+  appointmentReminders: NotificationCategory;
+  vaccinationAlerts: NotificationCategory;
+  promotional: NotificationCategory;
+  reportCards: NotificationCategory;
+  invoiceReceipts: NotificationCategory;
+}
 
 interface Props {
   readOnly: boolean;
@@ -39,15 +60,31 @@ export function Communication({ readOnly }: Props) {
 }
 
 function MessageThread({ readOnly }: { readOnly: boolean }) {
-  const [messages, setMessages] = useState<Message[]>(MESSAGES);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [businessName, setBusinessName] = useState<string>("Business");
+
+  useEffect(() => {
+    async function fetchBranding() {
+      try {
+        const response = await fetch("/api/branding");
+        if (response.ok) {
+          const data = await response.json();
+          setBusinessName(data.businessName || data.name || "Business");
+        }
+      } catch {
+        setBusinessName("Business");
+      }
+    }
+    fetchBranding();
+  }, []);
 
   const handleSend = () => {
     if (!newMessage.trim() || readOnly) return;
     const msg: Message = {
       id: `m-${Date.now()}`,
       sender: "customer",
-      senderName: "Sarah",
+      senderName: "You",
       text: newMessage.trim(),
       timestamp: new Date().toISOString(),
       read: false,
@@ -59,32 +96,36 @@ function MessageThread({ readOnly }: { readOnly: boolean }) {
   return (
     <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "500px" }}>
       <div className="px-5 py-3 border-b border-stone-200 bg-stone-50">
-        <p className="text-sm font-medium text-stone-800">{BUSINESS_NAME}</p>
+        <p className="text-sm font-medium text-stone-800">{businessName}</p>
         <p className="text-xs text-stone-400">Usually replies within a few hours</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map(msg => (
-          <div key={msg.id} className={`flex ${msg.sender === "customer" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-              msg.sender === "customer"
-                ? "bg-(--color-accent) text-white rounded-br-md"
-                : "bg-stone-100 text-stone-800 rounded-bl-md"
-            }`}>
-              <p className="text-sm">{msg.text}</p>
-              <div className={`flex items-center gap-1 mt-1 ${msg.sender === "customer" ? "justify-end" : ""}`}>
-                <span className={`text-xs ${msg.sender === "customer" ? "text-white/60" : "text-stone-400"}`}>
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                </span>
-                {msg.sender === "customer" && (
-                  msg.read
-                    ? <CheckCheck size={12} className="text-white/60" />
-                    : <Check size={12} className="text-white/60" />
-                )}
+        {messages.length === 0 ? (
+          <p className="text-stone-400 text-center text-sm italic">No messages yet</p>
+        ) : (
+          messages.map(msg => (
+            <div key={msg.id} className={`flex ${msg.sender === "customer" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                msg.sender === "customer"
+                  ? "bg-(--color-accent) text-white rounded-br-md"
+                  : "bg-stone-100 text-stone-800 rounded-bl-md"
+              }`}>
+                <p className="text-sm">{msg.text}</p>
+                <div className={`flex items-center gap-1 mt-1 ${msg.sender === "customer" ? "justify-end" : ""}`}>
+                  <span className={`text-xs ${msg.sender === "customer" ? "text-white/60" : "text-stone-400"}`}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                  {msg.sender === "customer" && (
+                    msg.read
+                      ? <CheckCheck size={12} className="text-white/60" />
+                      : <Check size={12} className="text-white/60" />
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {!readOnly && (
@@ -111,7 +152,7 @@ function MessageThread({ readOnly }: { readOnly: boolean }) {
 }
 
 function NotificationPreferences({ readOnly }: { readOnly: boolean }) {
-  const [prefs, setPrefs] = useState({
+  const [prefs, setPrefs] = useState<NotificationPreferences>({
     appointmentReminders: { email: true, sms: true, push: true },
     vaccinationAlerts: { email: true, sms: false, push: true },
     promotional: { email: false, sms: false, push: false },
@@ -119,7 +160,7 @@ function NotificationPreferences({ readOnly }: { readOnly: boolean }) {
     invoiceReceipts: { email: true, sms: false, push: false },
   });
 
-  type PrefKey = keyof typeof prefs;
+  type PrefKey = keyof NotificationPreferences;
   type ChannelKey = "email" | "sms" | "push";
 
   const toggle = (category: PrefKey, channel: ChannelKey) => {
@@ -194,3 +235,5 @@ function NotificationPreferences({ readOnly }: { readOnly: boolean }) {
     </div>
   );
 }
+
+export default Communication;

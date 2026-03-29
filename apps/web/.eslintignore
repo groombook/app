@@ -1,0 +1,7 @@
+# Ignore untracked .js files containing JSX (build artifacts)
+src/__tests__/*.js
+src/portal/sections/*.js
+src/portal/*.js
+src/pages/*.js
+src/components/*.js
+src/lib/*.js

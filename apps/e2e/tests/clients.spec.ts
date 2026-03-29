@@ -53,7 +53,7 @@ test("clients page shows client list", async ({ page }) => {
 
 test("clients page shows search input", async ({ page }) => {
   await page.goto("/admin/clients");
-  await expect(page.getByPlaceholder(/search/i)).toBeVisible();
+  await expect(page.getByPlaceholder(/search/i).first()).toBeVisible();
 });
 
 test("clicking a client shows their details", async ({ page }) => {

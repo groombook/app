@@ -1,13 +1,31 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { User, Lock, PawPrint, FileCheck, Plus, Archive } from "lucide-react";
-import { CUSTOMER, PETS, SIGNED_AGREEMENTS } from "../mockData.js";
 import { PetForm } from "./PetForm.js";
 
 interface Props {
+  sessionId: string | null;
   readOnly: boolean;
 }
 
-export function AccountSettings({ readOnly }: Props) {
+interface PersonalInfoData {
+  id?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  address?: string;
+}
+
+interface PetData {
+  id: string;
+  name: string;
+  species?: string;
+  breed?: string;
+  weight?: number;
+  photo?: string;
+}
+
+export function AccountSettings({ sessionId, readOnly }: Props) {
   const [tab, setTab] = useState<"personal" | "password" | "pets" | "agreements">("personal");
 
   return (
@@ -32,21 +50,65 @@ export function AccountSettings({ readOnly }: Props) {
         ))}
       </div>
 
-      {tab === "personal" && <PersonalInfo readOnly={readOnly} />}
+      {tab === "personal" && <PersonalInfo sessionId={sessionId} readOnly={readOnly} />}
       {tab === "password" && <PasswordChange readOnly={readOnly} />}
-      {tab === "pets" && <ManagePets readOnly={readOnly} />}
+      {tab === "pets" && <ManagePets sessionId={sessionId} readOnly={readOnly} />}
       {tab === "agreements" && <Agreements />}
     </div>
   );
 }
 
-function PersonalInfo({ readOnly }: { readOnly: boolean }) {
+function PersonalInfo({ sessionId, readOnly }: { sessionId: string | null; readOnly: boolean }) {
   const [form, setForm] = useState({
-    name: CUSTOMER.name,
-    email: CUSTOMER.email,
-    phone: CUSTOMER.phone,
-    address: CUSTOMER.address,
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPersonalInfo = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch("/api/portal/me");
+        if (response.ok) {
+          const data: PersonalInfoData = await response.json();
+          setForm({
+            name: [data.firstName, data.lastName].filter(Boolean).join(" ") || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            address: data.address || "",
+          });
+        } else {
+          setError("Failed to load personal info");
+        }
+      } catch {
+        setError("Failed to load personal info");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPersonalInfo();
+  }, [sessionId]);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+        <p className="text-sm text-stone-500">Loading personal info...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+        <p className="text-sm text-red-500">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
@@ -112,15 +174,58 @@ function PasswordChange({ readOnly }: { readOnly: boolean }) {
   );
 }
 
-function ManagePets({ readOnly }: { readOnly: boolean }) {
+function ManagePets({ sessionId, readOnly }: { sessionId: string | null; readOnly: boolean }) {
+  const [pets, setPets] = useState<PetData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingPetId, setEditingPetId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const editingPet = editingPetId ? PETS.find(p => p.id === editingPetId) ?? undefined : undefined;
+
+  useEffect(() => {
+    const fetchPets = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch("/api/portal/pets");
+        if (response.ok) {
+          const data = await response.json();
+          setPets(Array.isArray(data) ? data : []);
+        } else {
+          setError("Failed to load pets");
+        }
+      } catch {
+        setError("Failed to load pets");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPets();
+  }, [sessionId]);
+
+  const editingPet = editingPetId ? pets.find(p => p.id === editingPetId) ?? undefined : undefined;
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+        <p className="text-sm text-stone-500">Loading pets...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+        <p className="text-sm text-red-500">{error}</p>
+      </div>
+    );
+  }
 
   if (editingPet || showAddForm) {
     return (
       <PetForm
-        pet={editingPet ?? undefined}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        pet={(editingPet ?? undefined) as any}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onSave={() => { setEditingPetId(null); setShowAddForm(false); }}
         onCancel={() => { setEditingPetId(null); setShowAddForm(false); }}
       />
@@ -129,7 +234,7 @@ function ManagePets({ readOnly }: { readOnly: boolean }) {
 
   return (
     <div className="space-y-4">
-      {PETS.map(pet => (
+      {pets.map(pet => (
         <div key={pet.id} className="bg-white rounded-2xl border border-stone-200 p-4 shadow-sm flex items-center gap-4">
           <div className="w-14 h-14 rounded-xl bg-(--color-accent-light) flex items-center justify-center text-3xl">
             {pet.photo}
@@ -168,31 +273,10 @@ function ManagePets({ readOnly }: { readOnly: boolean }) {
 
 function Agreements() {
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs text-stone-400 border-b border-stone-100">
-              <th className="px-5 py-3 font-medium">Document</th>
-              <th className="px-5 py-3 font-medium">Date Signed</th>
-              <th className="px-5 py-3 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {SIGNED_AGREEMENTS.map(agr => (
-              <tr key={agr.id} className="border-b border-stone-50">
-                <td className="px-5 py-3 font-medium text-stone-800">{agr.name}</td>
-                <td className="px-5 py-3 text-stone-600">
-                  {new Date(agr.dateSigned).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                </td>
-                <td className="px-5 py-3">
-                  <button className="text-sm text-(--color-accent-dark) font-medium hover:underline">View</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
+      <p className="text-sm text-stone-500">
+        No agreements found. There is currently no agreements table in the database.
+      </p>
     </div>
   );
 }
