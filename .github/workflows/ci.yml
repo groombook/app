@@ -291,33 +291,25 @@ jobs:
         run: |
           git clone https://x-access-token:${{ steps.infra-token.outputs.token }}@github.com/groombook/infra.git /tmp/infra
 
-      - name: Update image tags
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update dev overlay image tags
         env:
           TAG: ${{ needs.docker.outputs.tag }}
         run: |
           if [ -z "$TAG" ]; then
             TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
           fi
-          echo "Updating image tags to: $TAG"
-
+          echo "Updating dev overlay image tags to: $TAG"
           cd /tmp/infra
-
-          # Update api.yaml
-          sed -i "s|ghcr.io/groombook/api:[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]-[a-f0-9]*|ghcr.io/groombook/api:${TAG}|g" apps/groombook/base/api.yaml
-          sed -i "s|groombook.dev/image-version: \"[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]-[a-f0-9]*\"|groombook.dev/image-version: \"${TAG}\"|g" apps/groombook/base/api.yaml
-
-          # Update web.yaml
-          sed -i "s|ghcr.io/groombook/web:[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]-[a-f0-9]*|ghcr.io/groombook/web:${TAG}|g" apps/groombook/base/web.yaml
-          sed -i "s|groombook.dev/image-version: \"[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]-[a-f0-9]*\"|groombook.dev/image-version: \"${TAG}\"|g" apps/groombook/base/web.yaml
-
-          # Update migrate-job.yaml
-          sed -i "s|ghcr.io/groombook/migrate:[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]-[a-f0-9]*|ghcr.io/groombook/migrate:${TAG}|g" apps/groombook/base/migrate-job.yaml
-          sed -i "s|groombook.app/deploy-version: \"[a-zA-Z0-9-]*\"|groombook.app/deploy-version: \"${TAG}\"|g" apps/groombook/base/migrate-job.yaml
-
-          # Update seed-job.yaml
-          sed -i "s|ghcr.io/groombook/seed:[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]-[a-f0-9]*|ghcr.io/groombook/seed:${TAG}|g" apps/groombook/base/seed-job.yaml
-          sed -i "s|groombook.app/deploy-version: \"[a-zA-Z0-9-]*\"|groombook.app/deploy-version: \"${TAG}\"|g" apps/groombook/base/seed-job.yaml
-
+          DEV_KUST="apps/groombook/overlays/dev/kustomization.yaml"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/api")).newTag = env(TAG)' "$DEV_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/web")).newTag = env(TAG)' "$DEV_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/migrate")).newTag = env(TAG)' "$DEV_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/seed")).newTag = env(TAG)' "$DEV_KUST"
           git -C /tmp/infra diff --stat
 
       - name: Create PR on groombook/infra
@@ -333,7 +325,7 @@ jobs:
           git config user.name "groombook-engineer[bot]"
           git config user.email "3141748+groombook-engineer[bot]@users.noreply.github.com"
           git checkout -b "chore/update-image-tags-${TAG}"
-          git add apps/groombook/base/
+          git add apps/groombook/overlays/dev/
           git commit -m "chore: update image tags to ${TAG}"
 
           git push -u origin "chore/update-image-tags-${TAG}"
@@ -343,6 +335,6 @@ jobs:
             --repo groombook/infra \
             --base main \
             --head "chore/update-image-tags-${TAG}" \
-            --title "chore: update image tags to ${TAG}" \
+            --title "chore: deploy ${TAG} to dev" \
             --body "[GRO-178](/GRO/issues/GRO-178) — automated image tag update from main merge")
           gh pr merge "$PR_URL" --auto --merge
