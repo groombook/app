@@ -516,8 +516,8 @@ async function seed() {
       await db.insert(schema.clients)
         .values(client)
         .onConflictDoUpdate({
-          target: schema.clients.email,
-          set: { name: client.name, phone: client.phone, address: client.address, notes: client.notes, emailOptOut: client.emailOptOut },
+          target: schema.clients.id,
+          set: { name: client.name, email: client.email, phone: client.phone, address: client.address, notes: client.notes, emailOptOut: client.emailOptOut },
         });
     }
 
@@ -570,7 +570,7 @@ async function seed() {
   for (const uc of uatClients) {
     await db.insert(schema.clients)
       .values({ id: uc.id, name: uc.name, email: uc.email, phone: uc.phone, address: uc.address })
-      .onConflictDoUpdate({ target: schema.clients.email, set: { name: uc.name, phone: uc.phone, address: uc.address } });
+      .onConflictDoUpdate({ target: schema.clients.id, set: { name: uc.name, email: uc.email, phone: uc.phone, address: uc.address } });
     await db.insert(schema.pets)
       .values({ id: uc.petId, clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z") })
       .onConflictDoUpdate({ target: schema.pets.id, set: { clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z") } });
