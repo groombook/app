@@ -31,14 +31,14 @@ function parseDate(value: string | undefined, fallback: Date): Date {
 
 function defaultFrom(): Date {
   const d = new Date();
-  d.setDate(d.getDate() - 30);
-  d.setHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - 30);
+  d.setUTCHours(0, 0, 0, 0);
   return d;
 }
 
 function defaultTo(): Date {
   const d = new Date();
-  d.setHours(23, 59, 59, 999);
+  d.setUTCHours(23, 59, 59, 999);
   return d;
 }
 
@@ -283,7 +283,7 @@ reportsRouter.get("/clients", async (c) => {
 
   // Clients with no appointment in last 90 days (churn risk)
   const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  ninetyDaysAgo.setUTCDate(ninetyDaysAgo.getUTCDate() - 90);
   const ninetyDaysAgoISO = ninetyDaysAgo.toISOString();
 
   const churnRisk = await db
