@@ -447,3 +447,51 @@ portalRouter.delete("/waitlist/:id", async (c) => {
 
   return c.json({ ok: true });
 });
+
+// ─── Dev-mode session creation ──────────────────────────────────────────────
+// Allows the dev login selector to vend an impersonation session for a client
+// without requiring manager auth. Only available when AUTH_DISABLED=true.
+
+const devSessionSchema = z.object({
+  clientId: z.string().uuid(),
+});
+
+portalRouter.post(
+  "/dev-session",
+  zValidator("json", devSessionSchema),
+  async (c) => {
+    if (process.env.AUTH_DISABLED !== "true") {
+      return c.json({ error: "Not available when auth is enabled" }, 403);
+    }
+
+    const db = getDb();
+    const body = c.req.valid("json");
+
+    // Verify client exists
+    const [client] = await db
+      .select()
+      .from(clients)
+      .where(eq(clients.id, body.clientId))
+      .limit(1);
+    if (!client) {
+      return c.json({ error: "Client not found" }, 404);
+    }
+
+    // Create a long-lived impersonation session for the dev client.
+    // Use a fixed "dev-staff" staffId so multiple dev sessions don't conflict
+    // with the one-active-session-per-staff rule in the real impersonation flow.
+    const DEV_STAFF_ID = "00000000-0000-0000-0000-000000000000";
+
+    const [session] = await db
+      .insert(impersonationSessions)
+      .values({
+        staffId: DEV_STAFF_ID,
+        clientId: body.clientId,
+        reason: "dev-mode-client-portal",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      })
+      .returning();
+
+    return c.json(session, 201);
+  }
+);
