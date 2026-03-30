@@ -110,14 +110,12 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
               {pending.length} unpaid invoice{pending.length > 1 ? "s" : ""}
             </p>
           </div>
-          {!readOnly && (
             <button
               onClick={() => setShowPaymentModal(true)}
               className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
             >
               Pay Now
             </button>
-          )}
         </div>
       )}
 
@@ -293,7 +291,7 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
       )}
 
       {/* Payment Modal */}
-      {showPaymentModal && !readOnly && (
+      {showPaymentModal && (
         <PaymentModal
           pending={pending}
           totalPending={totalPending}
