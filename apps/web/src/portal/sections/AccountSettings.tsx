@@ -72,7 +72,9 @@ function PersonalInfo({ sessionId, readOnly }: { sessionId: string | null; readO
     const fetchPersonalInfo = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/portal/me");
+        const response = await fetch("/api/portal/me", {
+          headers: { "X-Impersonation-Session-Id": sessionId ?? "" },
+        });
         if (response.ok) {
           const data: PersonalInfoData = await response.json();
           setForm({
@@ -142,6 +144,14 @@ function PersonalInfo({ sessionId, readOnly }: { sessionId: string | null; readO
 }
 
 function PasswordChange({ readOnly }: { readOnly: boolean }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const passwordsMatch = newPassword === confirmPassword;
+  const canSubmit = currentPassword.length > 0 && newPassword.length > 0 && passwordsMatch;
+
   if (readOnly) {
     return (
       <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
@@ -150,23 +160,56 @@ function PasswordChange({ readOnly }: { readOnly: boolean }) {
     );
   }
 
+  function handleSubmit() {
+    if (!canSubmit) return;
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    // TODO: Wire up to actual password-change API endpoint once backend support exists
+    setError(null);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
       <h3 className="font-medium text-stone-800 mb-4">Change Password</h3>
       <div className="space-y-4 max-w-md">
         <div>
           <label className="block text-sm font-medium text-stone-700 mb-1">Current Password</label>
-          <input type="password" className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+          <input
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-stone-700 mb-1">New Password</label>
-          <input type="password" className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-stone-700 mb-1">Confirm New Password</label>
-          <input type="password" className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm" />
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm"
+          />
         </div>
-        <button className="px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)">
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <button
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className="px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover) disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           Update Password
         </button>
       </div>
@@ -185,7 +228,9 @@ function ManagePets({ sessionId, readOnly }: { sessionId: string | null; readOnl
     const fetchPets = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/portal/pets");
+        const response = await fetch("/api/portal/pets", {
+          headers: { "X-Impersonation-Session-Id": sessionId ?? "" },
+        });
         if (response.ok) {
           const data = await response.json();
           setPets(Array.isArray(data) ? data : []);
@@ -225,7 +270,6 @@ function ManagePets({ sessionId, readOnly }: { sessionId: string | null; readOnl
       <PetForm
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pet={(editingPet ?? undefined) as any}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onSave={() => { setEditingPetId(null); setShowAddForm(false); }}
         onCancel={() => { setEditingPetId(null); setShowAddForm(false); }}
       />
