@@ -293,22 +293,22 @@ async function seedKnownUsers() {
     console.log("✓ Created staff 'Demo Manager' (oidcSub: demo-manager-001)");
   }
 
-  // ── Services: only seed if none exist ──
-  const existingServices = await db.select().from(schema.services).limit(1);
-  if (existingServices.length > 0) {
-    console.log("✓ Services already exist — skipping");
-  } else {
-    const demoSvcs = [
-      { name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
-      { name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
-      { name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
-      { name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
-    ];
-    for (const svc of demoSvcs) {
-      await db.insert(schema.services).values({ ...svc, active: true });
-    }
-    console.log(`✓ Created ${demoSvcs.length} services`);
+  // ── Services: idempotent upsert using deterministic IDs ──
+  const demoSvcs = [
+    { id: "a0000001-0000-0000-0000-000000000001", name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
+    { id: "a0000001-0000-0000-0000-000000000002", name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
+    { id: "a0000001-0000-0000-0000-000000000003", name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
+    { id: "a0000001-0000-0000-0000-000000000004", name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
+  ];
+  for (const svc of demoSvcs) {
+    await db.insert(schema.services)
+      .values({ ...svc, active: true })
+      .onConflictDoUpdate({
+        target: schema.services.id,
+        set: { name: svc.name, description: svc.description, basePriceCents: svc.basePriceCents, durationMinutes: svc.durationMinutes, active: true },
+      });
   }
+  console.log(`✓ Seeded ${demoSvcs.length} services`);
 
   // ── Client: Demo Client ──
   const [existingClient] = await db

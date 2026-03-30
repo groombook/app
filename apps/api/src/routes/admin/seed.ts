@@ -37,10 +37,10 @@ const DEMO_PET = {
 };
 
 const DEMO_SERVICES = [
-  { name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
-  { name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
-  { name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
-  { name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
+  { id: "a0000001-0000-0000-0000-000000000001", name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
+  { id: "a0000001-0000-0000-0000-000000000002", name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
+  { id: "a0000001-0000-0000-0000-000000000003", name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
+  { id: "a0000001-0000-0000-0000-000000000004", name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
 ];
 
 adminSeedRouter.post("/seed", async (c) => {
@@ -71,18 +71,16 @@ adminSeedRouter.post("/seed", async (c) => {
     results.push(`Created staff '${KNOWN_STAFF.name}' (id: ${created!.id}, oidcSub: ${KNOWN_STAFF.oidcSub})`);
   }
 
-  // ── Services: only seed if none exist ─────────────────────────────────────
-  const existingServices = await db.select().from(services).limit(1);
-  if (existingServices.length > 0) {
-    results.push("Services already exist — skipping");
-  } else {
-    const created: { id: string; name: string }[] = [];
-    for (const svc of DEMO_SERVICES) {
-      const [row] = await db.insert(services).values({ ...svc, active: true }).returning();
-      created.push(row!);
-    }
-    results.push(`Created ${created.length} services: ${created.map((s) => s.name).join(", ")}`);
+  // ── Services: idempotent upsert ─────────────────────────────────────────────
+  for (const svc of DEMO_SERVICES) {
+    await db.insert(services)
+      .values({ ...svc, active: true })
+      .onConflictDoUpdate({
+        target: services.id,
+        set: { name: svc.name, description: svc.description, basePriceCents: svc.basePriceCents, durationMinutes: svc.durationMinutes, active: true },
+      });
   }
+  results.push(`Upserted ${DEMO_SERVICES.length} services`);
 
   // ── Client: Demo Client ───────────────────────────────────────────────────
   const [existingClient] = await db
