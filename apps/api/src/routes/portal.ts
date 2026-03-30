@@ -477,15 +477,36 @@ portalRouter.post(
       return c.json({ error: "Client not found" }, 404);
     }
 
-    // Create a long-lived impersonation session for the dev client.
-    // Use a fixed "dev-staff" staffId so multiple dev sessions don't conflict
-    // with the one-active-session-per-staff rule in the real impersonation flow.
-    const DEV_STAFF_ID = "00000000-0000-0000-0000-000000000000";
+    // Find a staff record to associate with the dev impersonation session.
+    // Use the demo-manager if it exists (created by seed with known ID),
+    // otherwise fall back to the first active staff record.
+    // This avoids hardcoding a UUID that may not exist in all environments.
+    const DEMO_STAFF_ID = "00000000-0000-0000-0000-000000000001";
+
+    let staffId = DEMO_STAFF_ID;
+    const [demoStaff] = await db
+      .select({ id: staff.id })
+      .from(staff)
+      .where(eq(staff.id, DEMO_STAFF_ID))
+      .limit(1);
+
+    if (!demoStaff) {
+      // Fall back to any active staff member
+      const [firstStaff] = await db
+        .select({ id: staff.id })
+        .from(staff)
+        .where(eq(staff.active, true))
+        .limit(1);
+      if (!firstStaff) {
+        return c.json({ error: "No staff records found. Run the database seed." }, 500);
+      }
+      staffId = firstStaff.id;
+    }
 
     const [session] = await db
       .insert(impersonationSessions)
       .values({
-        staffId: DEV_STAFF_ID,
+        staffId,
         clientId: body.clientId,
         reason: "dev-mode-client-portal",
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
