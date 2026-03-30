@@ -417,7 +417,7 @@ async function seedUatClients(db: ReturnType<typeof drizzle>) {
         address: null,
       })
       .onConflictDoUpdate({
-        target: schema.clients.email,
+        target: schema.clients.id,
         set: { name: uat.name },
       });
 
