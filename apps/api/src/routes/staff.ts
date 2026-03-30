@@ -13,9 +13,15 @@ const createStaffSchema = z.object({
   role: z.enum(["groomer", "receptionist", "manager"]).default("groomer"),
   oidcSub: z.string().optional(),
   active: z.boolean().default(true),
+  isSuperUser: z.boolean().optional(),
 });
 
 const updateStaffSchema = createStaffSchema.partial().omit({ email: true });
+
+staffRouter.get("/me", async (c) => {
+  const staffRow = c.get("staff");
+  return c.json(staffRow);
+});
 
 staffRouter.get("/", async (c) => {
   const db = getDb();
@@ -46,10 +52,55 @@ staffRouter.post("/", zValidator("json", createStaffSchema), async (c) => {
 staffRouter.patch("/:id", zValidator("json", updateStaffSchema), async (c) => {
   const db = getDb();
   const body = c.req.valid("json");
+  const currentStaff = c.get("staff");
+  const targetId = c.req.param("id");
+
+  // Super user check: only super users can change isSuperUser
+  if (body.isSuperUser !== undefined && !currentStaff.isSuperUser) {
+    return c.json({ error: "Forbidden: only super users can grant or revoke super user status" }, 403);
+  }
+
+  // If revoking super user status, check last-super-user guardrail
+  if (body.isSuperUser === false) {
+    const superUserCount = await db
+      .select({ id: staff.id })
+      .from(staff)
+      .where(eq(staff.isSuperUser, true))
+      .limit(2); // just need count; fetch 2 to know if > 1
+    if (superUserCount.length <= 1) {
+      return c.json(
+        { error: "Cannot revoke the last super user. Assign another super user first." },
+        400
+      );
+    }
+  }
+
+  // If deactivating a super user, check last-super-user guardrail
+  if (body.active === false) {
+    const [target] = await db
+      .select({ isSuperUser: staff.isSuperUser })
+      .from(staff)
+      .where(eq(staff.id, targetId))
+      .limit(1);
+    if (target?.isSuperUser) {
+      const superUserCount = await db
+        .select({ id: staff.id })
+        .from(staff)
+        .where(eq(staff.isSuperUser, true))
+        .limit(2);
+      if (superUserCount.length <= 1) {
+        return c.json(
+          { error: "Cannot deactivate the last super user. Assign another super user first." },
+          400
+        );
+      }
+    }
+  }
+
   const [row] = await db
     .update(staff)
     .set({ ...body, updatedAt: new Date() })
-    .where(eq(staff.id, c.req.param("id")))
+    .where(eq(staff.id, targetId))
     .returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json(row);
@@ -79,6 +130,26 @@ staffRouter.delete("/:id", async (c) => {
       },
       409
     );
+  }
+
+  // Prevent deleting the last super user
+  const [target] = await db
+    .select({ isSuperUser: staff.isSuperUser })
+    .from(staff)
+    .where(eq(staff.id, id))
+    .limit(1);
+  if (target?.isSuperUser) {
+    const superUserCount = await db
+      .select({ id: staff.id })
+      .from(staff)
+      .where(eq(staff.isSuperUser, true))
+      .limit(2);
+    if (superUserCount.length <= 1) {
+      return c.json(
+        { error: "Cannot delete the last super user. Assign another super user first." },
+        400
+      );
+    }
   }
 
   const [row] = await db
