@@ -218,9 +218,10 @@ jobs:
 
       - name: Deploy to groombook-dev
         env:
-          TAG: pr-${{ github.event.pull_request.number }}-${{ github.sha::7 }}
           PR_NUM: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.sha }}
         run: |
+          TAG="pr-$PR_NUM-${SHA::7}"
           echo "Deploying images tagged $TAG to groombook-dev..."
 
           # Run migration with PR image
