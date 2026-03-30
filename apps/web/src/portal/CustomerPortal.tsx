@@ -86,6 +86,7 @@ export function CustomerPortal() {
         .then((r) => {
           if (!r.ok) {
             setSessionError("Failed to create portal session. Please try again.");
+            setIsInitializing(false);
             return null;
           }
           return r.json() as Promise<ImpersonationSession>;
@@ -96,11 +97,12 @@ export function CustomerPortal() {
             setClientName(devUser.name);
             setSessionError(null);
           }
+          setIsInitializing(false);
         })
         .catch(() => {
           setSessionError("Failed to connect. Please check your connection and try again.");
-        })
-        .finally(() => setIsInitializing(false));
+          setIsInitializing(false);
+        });
     } else {
       // No sessionId param and no dev user — init is complete with no session
       setIsInitializing(false);
