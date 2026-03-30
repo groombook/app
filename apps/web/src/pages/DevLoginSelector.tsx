@@ -39,6 +39,7 @@ export function DevLoginSelector() {
 
   function skipLogin() {
     localStorage.removeItem("dev-user");
+    localStorage.setItem("dev-login-skipped", "1");
     navigate("/admin");
   }
 

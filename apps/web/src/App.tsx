@@ -245,7 +245,8 @@ export function App() {
   }
 
   // Dev mode: use dev login selector (no setup check needed in dev mode)
-  if (authDisabled && !getDevUser()) {
+  // Skip redirect if user explicitly chose "continue as default dev user" (dev-login-skipped flag)
+  if (authDisabled && !getDevUser() && !localStorage.getItem("dev-login-skipped")) {
     return <Navigate to="/login" replace />;
   }
 
