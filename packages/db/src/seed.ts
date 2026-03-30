@@ -546,6 +546,64 @@ async function seed() {
 
   console.log(`✓ Created 500 clients with ${petRecords.length} pets`);
 
+  // ── UAT test clients (guaranteed pending invoices) ─────────────────────────────
+  // These 5 clients are deterministic and documented in Shedward AGENTS.md so
+  // UAT can reliably find billing test data without searching.
+  interface UatClient {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    petId: string;
+    petName: string;
+    petBreed: string;
+  }
+  const uatClients: UatClient[] = [
+    { id: uuid(), name: "UAT Test Alpha", email: "uat-alpha@groombook.dev", phone: "(555) 100-0001", address: "100 Test Lane, Springfield, CA 90210", petId: uuid(), petName: "TestBuddy", petBreed: "Golden Retriever" },
+    { id: uuid(), name: "UAT Test Bravo", email: "uat-bravo@groombook.dev", phone: "(555) 100-0002", address: "200 Test Lane, Springfield, CA 90210", petId: uuid(), petName: "TestMax", petBreed: "Labrador Retriever" },
+    { id: uuid(), name: "UAT Test Charlie", email: "uat-charlie@groombook.dev", phone: "(555) 100-0003", address: "300 Test Lane, Springfield, CA 90210", petId: uuid(), petName: "TestCooper", petBreed: "Poodle" },
+    { id: uuid(), name: "UAT Test Delta", email: "uat-delta@groombook.dev", phone: "(555) 100-0004", address: "400 Test Lane, Springfield, CA 90210", petId: uuid(), petName: "TestRocky", petBreed: "French Bulldog" },
+    { id: uuid(), name: "UAT Test Echo", email: "uat-echo@groombook.dev", phone: "(555) 100-0005", address: "500 Test Lane, Springfield, CA 90210", petId: uuid(), petName: "TestDuke", petBreed: "Beagle" },
+  ];
+
+  for (const uc of uatClients) {
+    await db.insert(schema.clients)
+      .values({ id: uc.id, name: uc.name, email: uc.email, phone: uc.phone, address: uc.address })
+      .onConflictDoUpdate({ target: schema.clients.email, set: { name: uc.name, phone: uc.phone, address: uc.address } });
+    await db.insert(schema.pets)
+      .values({ id: uc.petId, clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z") })
+      .onConflictDoUpdate({ target: schema.pets.id, set: { clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z") } });
+    // Create one completed appointment for this client
+    const apptId = uuid();
+    const svcIdx = 0;
+    const svc = servicesDef[svcIdx]!;
+    const completedTime = randDate(oneYearAgo, now);
+    completedTime.setHours(randInt(8, 16), pick([0, 15, 30, 45]), 0, 0);
+    const endTime = new Date(completedTime.getTime() + svc.dur * 60 * 1000);
+    await db.insert(schema.appointments).values({
+      id: apptId, clientId: uc.id, petId: uc.petId, serviceId: serviceIds[svcIdx]!, staffId: groomers[0]!.id,
+      batherStaffId: bathers[0]!.id, status: "completed" as const, startTime: completedTime, endTime, notes: null, priceCents: svc.price,
+    });
+    // Create a PENDING invoice for that appointment
+    const invoiceId = uuid();
+    const taxCents = Math.round(svc.price * 0.08);
+    const totalCents = svc.price + taxCents;
+    await db.insert(schema.invoices).values({
+      id: invoiceId, appointmentId: apptId, clientId: uc.id, subtotalCents: svc.price,
+      taxCents, tipCents: 0, totalCents, status: "pending" as const,
+      paymentMethod: null, paidAt: null, notes: null,
+    });
+    await db.insert(schema.invoiceLineItems).values({
+      id: uuid(), invoiceId, description: svc.name, quantity: 1, unitPriceCents: svc.price, totalCents: svc.price,
+    });
+    await db.insert(schema.groomingVisitLogs).values({
+      id: uuid(), petId: uc.petId, appointmentId: apptId, staffId: groomers[0]!.id,
+      cutStyle: null, productsUsed: null, notes: null, groomedAt: endTime,
+    });
+  }
+  console.log(`✓ Created ${uatClients.length} UAT test clients with guaranteed pending invoices`);
+
   // ── Appointments, Invoices, Visit Logs ──
   // Generate ~5 appointments per client on average = ~2500 total
   const statuses: (typeof schema.appointmentStatusEnum.enumValues)[number][] = [
