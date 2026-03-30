@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import {
   Home, Calendar, PawPrint, FileText, CreditCard, MessageSquare,
   Settings, LogOut, Shield,
@@ -37,6 +37,8 @@ export function CustomerPortal() {
   const [rescheduleAppointment, setRescheduleAppointment] = useState<Record<string, unknown> | null>(null);
   const [session, setSession] = useState<ImpersonationSession | null>(null);
   const [sessionExtended, setSessionExtended] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [clientName, setClientName] = useState<string>("");
   const { branding } = useBranding();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -68,7 +70,8 @@ export function CustomerPortal() {
         })
         .catch(() => {
           setSearchParams({}, { replace: true });
-        });
+        })
+        .finally(() => setIsInitializing(false));
       return;
     }
 
@@ -81,16 +84,26 @@ export function CustomerPortal() {
         body: JSON.stringify({ clientId: devUser.id }),
       })
         .then((r) => {
-          if (!r.ok) return null;
+          if (!r.ok) {
+            setSessionError("Failed to create portal session. Please try again.");
+            return null;
+          }
           return r.json() as Promise<ImpersonationSession>;
         })
         .then((s) => {
           if (s && s.id) {
             setSession(s);
             setClientName(devUser.name);
+            setSessionError(null);
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          setSessionError("Failed to connect. Please check your connection and try again.");
+        })
+        .finally(() => setIsInitializing(false));
+    } else {
+      // No sessionId param and no dev user — init is complete with no session
+      setIsInitializing(false);
     }
   }, []);
 
@@ -167,6 +180,11 @@ export function CustomerPortal() {
   };
 
   const avatarInitials = (clientName.split(" ")[0] || "G").charAt(0).toUpperCase();
+
+  // Redirect to login if init is complete and no valid session exists
+  if (!isInitializing && !session) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div
@@ -314,6 +332,11 @@ export function CustomerPortal() {
             </div>
           </div>
           <div className="p-4 md:p-8 max-w-6xl">
+            {sessionError && (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6">
+                <p className="text-red-700 text-sm">{sessionError}</p>
+              </div>
+            )}
             {renderSection()}
           </div>
         </main>

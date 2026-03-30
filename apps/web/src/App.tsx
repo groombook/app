@@ -249,6 +249,11 @@ export function App() {
     return <Navigate to="/login" replace />;
   }
 
+  // Dev mode: staff users should not land on the customer portal — redirect to admin
+  if (authDisabled && getDevUser()?.type === "staff") {
+    return <Navigate to="/admin" replace />;
+  }
+
   // Show login BEFORE checking needsSetup (needsSetup is never set for unauthenticated users)
   if (!authDisabled && !session) {
     return <LoginPage />;
