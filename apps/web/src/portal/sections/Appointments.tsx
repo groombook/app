@@ -118,7 +118,7 @@ export const AppointmentsSection: React.FC<AppointmentsSectionProps> = ({ sessio
 
       try {
         const response = await fetch('/api/portal/appointments', {
-          headers: { Authorization: `Bearer ${sessionId}` },
+          headers: { "X-Impersonation-Session-Id": sessionId ?? "" },
         });
 
         if (response.ok) {
@@ -744,10 +744,10 @@ function BookingFlow({ onClose, sessionId }: BookingFlowProps) {
       try {
         const [petsRes, servicesRes] = await Promise.all([
           fetch('/api/portal/pets', {
-            headers: { Authorization: `Bearer ${sessionId}` },
+            headers: { "X-Impersonation-Session-Id": sessionId ?? "" },
           }),
           fetch('/api/portal/services', {
-            headers: { Authorization: `Bearer ${sessionId}` },
+            headers: { "X-Impersonation-Session-Id": sessionId ?? "" },
           }),
         ]);
 

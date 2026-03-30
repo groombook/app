@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FileText, Share2, Calendar, Smile, Meh, ChevronRight, Loader2 } from "lucide-react";
 
 type MoodKey = "calm" | "cooperative" | "anxious" | "wiggly";
@@ -24,36 +24,44 @@ interface Appointment {
   reportCardId?: string;
 }
 
-export function ReportCards() {
+interface Props {
+  sessionId: string | null;
+}
+
+export function ReportCards({ sessionId }: Props) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<Appointment | null>(null);
 
-  useEffect(() => {
-    const fetchReportCards = async () => {
-      try {
-        const response = await fetch("/api/portal/appointments");
+  const fetchReportCardsRef = useRef<() => Promise<void>>(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/portal/appointments", {
+        headers: { "X-Impersonation-Session-Id": sessionId ?? "" },
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          const allAppointments: Appointment[] = data.appointments || data || [];
-          const reportCardAppointments = allAppointments.filter(
-            (appt) => appt.reportCardId
-          );
-          setAppointments(reportCardAppointments);
-        } else {
-          setError("Failed to load report cards.");
-        }
-      } catch {
-        setError("Failed to load report cards. Please try again.");
-      } finally {
-        setIsLoading(false);
+      if (response.ok) {
+        const data = await response.json();
+        const allAppointments: Appointment[] = data.appointments || data || [];
+        const reportCardAppointments = allAppointments.filter(
+          (appt) => appt.reportCardId
+        );
+        setAppointments(reportCardAppointments);
+      } else {
+        setError("Failed to load report cards.");
       }
-    };
+    } catch {
+      setError("Failed to load report cards. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  });
 
-    fetchReportCards();
-  }, []);
+  useEffect(() => {
+    void fetchReportCardsRef.current();
+  }, [sessionId]);
 
   if (isLoading) {
     return (
@@ -69,7 +77,7 @@ export function ReportCards() {
       <div className="text-center py-12">
         <p className="text-red-600 mb-4">{error}</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => { void fetchReportCardsRef.current(); }}
           className="px-4 py-2 bg-stone-100 text-stone-700 rounded-md hover:bg-stone-200"
         >
           Retry
