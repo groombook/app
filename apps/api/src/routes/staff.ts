@@ -65,7 +65,7 @@ staffRouter.patch("/:id", zValidator("json", updateStaffSchema), async (c) => {
     const superUserCount = await db
       .select({ id: staff.id })
       .from(staff)
-      .where(eq(staff.isSuperUser, true))
+      .where(and(eq(staff.isSuperUser, true), eq(staff.active, true)))
       .limit(2); // just need count; fetch 2 to know if > 1
     if (superUserCount.length <= 1) {
       return c.json(
@@ -86,7 +86,7 @@ staffRouter.patch("/:id", zValidator("json", updateStaffSchema), async (c) => {
       const superUserCount = await db
         .select({ id: staff.id })
         .from(staff)
-        .where(eq(staff.isSuperUser, true))
+        .where(and(eq(staff.isSuperUser, true), eq(staff.active, true)))
         .limit(2);
       if (superUserCount.length <= 1) {
         return c.json(
@@ -142,7 +142,7 @@ staffRouter.delete("/:id", async (c) => {
     const superUserCount = await db
       .select({ id: staff.id })
       .from(staff)
-      .where(eq(staff.isSuperUser, true))
+      .where(and(eq(staff.isSuperUser, true), eq(staff.active, true)))
       .limit(2);
     if (superUserCount.length <= 1) {
       return c.json(
