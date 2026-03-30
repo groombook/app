@@ -362,6 +362,169 @@ async function seedKnownUsers() {
   await client.end();
 }
 
+// ── UAT test clients seed ──────────────────────────────────────────────────
+
+const UAT_CLIENTS = [
+  { name: "UAT Test Alpha", email: "uat-alpha@groombook.dev", petName: "TestBuddy", breed: "Golden Retriever" },
+  { name: "UAT Test Bravo", email: "uat-bravo@groombook.dev", petName: "TestMax", breed: "Labrador Retriever" },
+  { name: "UAT Test Charlie", email: "uat-charlie@groombook.dev", petName: "TestCooper", breed: "Poodle" },
+  { name: "UAT Test Delta", email: "uat-delta@groombook.dev", petName: "TestRocky", breed: "French Bulldog" },
+  { name: "UAT Test Echo", email: "uat-echo@groombook.dev", petName: "TestDuke", breed: "Beagle" },
+] as const;
+
+const UAT_SERVICE_ID = "cafecafe-cafe-cafe-cafe-cafecafecafe";
+const UAT_STAFF_ID = "00000000-0000-0000-0000-000000000001"; // demo manager
+
+async function seedUatClients(db: ReturnType<typeof drizzle>) {
+  console.log("Seeding UAT test clients...\n");
+
+  // ── UAT grooming service (fixed ID so appointments can reference it) ──
+  await db.insert(schema.services)
+    .values({
+      id: UAT_SERVICE_ID,
+      name: "UAT Full Groom",
+      description: "Full grooming service for UAT testing",
+      basePriceCents: 5000,
+      durationMinutes: 60,
+      active: true,
+    })
+    .onConflictDoUpdate({
+      target: schema.services.id,
+      set: { name: "UAT Full Groom", description: "Full grooming service for UAT testing", basePriceCents: 5000, durationMinutes: 60, active: true },
+    });
+
+  // ── UAT clients, pets, appointments, visit logs, invoices ──
+  // Use deterministic past dates so appointments are always in the past
+  const now = new Date();
+  const pastDate = new Date(now);
+  pastDate.setDate(pastDate.getDate() - Math.floor(rand() * 30) - 1); // 1-30 days ago
+
+  for (const uat of UAT_CLIENTS) {
+    const clientId = `${uat.email.split("@")[0]}-client-001`.replace(/[^a-z0-9-]/g, "-");
+    const petId = `${uat.email.split("@")[0]}-pet-001`.replace(/[^a-z0-9-]/g, "-");
+    const apptId = `${uat.email.split("@")[0]}-appt-001`.replace(/[^a-z0-9-]/g, "-");
+    const invoiceId = `${uat.email.split("@")[0]}-invoice-001`.replace(/[^a-z0-9-]/g, "-");
+    const visitLogId = `${uat.email.split("@")[0]}-visitlog-001`.replace(/[^a-z0-9-]/g, "-");
+    const lineItemId = `${uat.email.split("@")[0]}-lineitem-001`.replace(/[^a-z0-9-]/g, "-");
+
+    // ── Client ──
+    await db.insert(schema.clients)
+      .values({
+        id: clientId,
+        name: uat.name,
+        email: uat.email,
+        phone: null,
+        address: null,
+      })
+      .onConflictDoUpdate({
+        target: schema.clients.email,
+        set: { name: uat.name },
+      });
+
+    // ── Pet ──
+    await db.insert(schema.pets)
+      .values({
+        id: petId,
+        clientId,
+        name: uat.petName,
+        species: "Dog",
+        breed: uat.breed,
+        weightKg: "25.00",
+        dateOfBirth: new Date("2021-03-15T00:00:00Z"),
+      })
+      .onConflictDoUpdate({
+        target: schema.pets.id,
+        set: { clientId, name: uat.petName, species: "Dog", breed: uat.breed },
+      });
+
+    // ── Completed appointment ──
+    const apptStart = new Date(pastDate);
+    apptStart.setHours(10, 0, 0, 0);
+    const apptEnd = new Date(apptStart.getTime() + 60 * 60 * 1000); // 60 min
+
+    await db.insert(schema.appointments)
+      .values({
+        id: apptId,
+        clientId,
+        petId,
+        serviceId: UAT_SERVICE_ID,
+        staffId: UAT_STAFF_ID,
+        batherStaffId: null,
+        status: "completed",
+        startTime: apptStart,
+        endTime: apptEnd,
+        notes: null,
+        priceCents: null,
+        confirmationStatus: "confirmed",
+        confirmedAt: new Date(apptStart.getTime() - 2 * 24 * 60 * 60 * 1000), // confirmed 2 days before
+      })
+      .onConflictDoUpdate({
+        target: schema.appointments.id,
+        set: { status: "completed", startTime: apptStart, endTime: apptEnd },
+      });
+
+    // ── Grooming visit log ──
+    await db.insert(schema.groomingVisitLogs)
+      .values({
+        id: visitLogId,
+        petId,
+        appointmentId: apptId,
+        staffId: UAT_STAFF_ID,
+        cutStyle: "Puppy Cut",
+        productsUsed: "Oatmeal shampoo, conditioner",
+        notes: "UAT test visit log",
+        groomedAt: apptEnd,
+      })
+      .onConflictDoUpdate({
+        target: schema.groomingVisitLogs.id,
+        set: { petId, appointmentId: apptId, staffId: UAT_STAFF_ID },
+      });
+
+    // ── Pending invoice ──
+    const subtotalCents = 5000;
+    const taxCents = 400;
+    const totalCents = subtotalCents + taxCents;
+
+    await db.insert(schema.invoices)
+      .values({
+        id: invoiceId,
+        appointmentId: apptId,
+        clientId,
+        subtotalCents,
+        taxCents,
+        tipCents: 0,
+        totalCents,
+        status: "pending",
+        paymentMethod: "card",
+        paidAt: null,
+        notes: null,
+      })
+      .onConflictDoUpdate({
+        target: schema.invoices.id,
+        set: { status: "pending", subtotalCents, taxCents, totalCents },
+      });
+
+    // ── Invoice line item ──
+    await db.insert(schema.invoiceLineItems)
+      .values({
+        id: lineItemId,
+        invoiceId,
+        description: "UAT Full Groom",
+        quantity: 1,
+        unitPriceCents: subtotalCents,
+        totalCents: subtotalCents,
+      })
+      .onConflictDoUpdate({
+        target: schema.invoiceLineItems.id,
+        set: { invoiceId, description: "UAT Full Groom", quantity: 1, unitPriceCents: subtotalCents, totalCents: subtotalCents },
+      });
+
+    console.log(`✓ Created UAT client '${uat.name}' with pet '${uat.petName}', completed appointment, visit log, and pending invoice`);
+  }
+
+  console.log(`\n✓ Seeded ${UAT_CLIENTS.length} UAT test clients`);
+}
+
 // ── Main seed ────────────────────────────────────────────────────────────────
 
 async function seed() {
@@ -779,6 +942,10 @@ async function seed() {
   console.log(`✓ Created ${appointmentCount} appointments`);
   console.log(`✓ Created ${invoiceCount} invoices with line items and tip splits`);
   console.log(`✓ Created ${visitLogCount} grooming visit logs`);
+
+  // ── UAT test clients ──
+  await seedUatClients(db);
+
   console.log("\nSeed complete!");
 
   await client.end();
