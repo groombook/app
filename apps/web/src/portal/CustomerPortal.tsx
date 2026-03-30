@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Navigate } from "react-router-dom";
 import {
   Home, Calendar, PawPrint, FileText, CreditCard, MessageSquare,
   Settings, LogOut, Shield,
@@ -34,6 +34,8 @@ export function CustomerPortal() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [session, setSession] = useState<ImpersonationSession | null>(null);
+  const [sessionError, setSessionError] = useState(false);
+  const [initComplete, setInitComplete] = useState(false);
   const [sessionExtended, setSessionExtended] = useState(false);
   const { branding } = useBranding();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -45,7 +47,10 @@ export function CustomerPortal() {
     initDone.current = true;
 
     const sessionId = searchParams.get("sessionId");
-    if (!sessionId) return;
+    if (!sessionId) {
+      setInitComplete(true);
+      return;
+    }
 
     fetch(`/api/impersonation/sessions/${sessionId}`)
       .then((r) => {
@@ -55,14 +60,25 @@ export function CustomerPortal() {
       .then((s) => {
         if (s && s.status === "active") {
           setSession(s);
+        } else {
+          setSessionError(true);
         }
         // Clean sessionId from URL
         setSearchParams({}, { replace: true });
       })
       .catch(() => {
+        setSessionError(true);
         setSearchParams({}, { replace: true });
+      })
+      .finally(() => {
+        setInitComplete(true);
       });
   }, []);
+
+  // Redirect to login if session initialization completed but no valid session exists
+  if (initComplete && !session) {
+    return <Navigate to="/login" replace />;
+  }
 
   const handleEnd = useCallback(async () => {
     if (!session) return;
