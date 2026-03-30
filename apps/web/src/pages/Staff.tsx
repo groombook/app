@@ -11,6 +11,7 @@ const EMPTY_FORM: StaffForm = { name: "", email: "", role: "groomer" };
 
 export function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [currentUser, setCurrentUser] = useState<Staff | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Staff | null>(null);
@@ -18,11 +19,18 @@ export function StaffPage() {
   const [form, setForm] = useState<StaffForm>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   async function load() {
-    const r = await fetch("/api/staff?includeInactive=true");
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    setStaff((await r.json()) as Staff[]);
+    const [staffRes, meRes] = await Promise.all([
+      fetch("/api/staff?includeInactive=true"),
+      fetch("/api/staff/me"),
+    ]);
+    if (!staffRes.ok) throw new Error(`HTTP ${staffRes.status}`);
+    if (!meRes.ok) throw new Error(`HTTP ${meRes.status}`);
+    setStaff((await staffRes.json()) as Staff[]);
+    setCurrentUser((await meRes.json()) as Staff);
   }
 
   useEffect(() => {
@@ -71,6 +79,29 @@ export function StaffPage() {
     await load();
   }
 
+  async function toggleSuperUser(s: Staff) {
+    setTogglingId(s.id);
+    setToggleError(null);
+    try {
+      const res = await fetch(`/api/staff/${s.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isSuperUser: !s.isSuperUser }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        setToggleError(err.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      await load();
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  const isLastSuperUser = (s: Staff) =>
+    s.isSuperUser && staff.filter((st) => st.isSuperUser).length === 1;
+
   if (loading) return <p style={{ padding: "1rem" }}>Loading…</p>;
   if (error) return <p style={{ padding: "1rem", color: "red" }}>Error: {error}</p>;
 
@@ -83,6 +114,10 @@ export function StaffPage() {
         </button>
       </div>
 
+      {toggleError && (
+        <p style={{ color: "red", marginBottom: "0.5rem" }}>{toggleError}</p>
+      )}
+
       {staff.length === 0 ? (
         <p>No staff members yet.</p>
       ) : (
@@ -90,7 +125,7 @@ export function StaffPage() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr style={{ background: "#f8fafc" }}>
-              {["Name", "Email", "Role", "Status", ""].map((h) => (
+              {["Name", "Email", "Role", "Super User", "Status", ""].map((h) => (
                 <th key={h} style={{ textAlign: "left", padding: "0.55rem 0.75rem", borderBottom: "1px solid #e5e7eb", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
               ))}
             </tr>
@@ -102,11 +137,32 @@ export function StaffPage() {
                 <td style={tdStyle}>{s.email}</td>
                 <td style={tdStyle}><span style={{ textTransform: "capitalize" }}>{s.role}</span></td>
                 <td style={tdStyle}>
+                  {s.isSuperUser ? (
+                    <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>
+                      Super User
+                    </span>
+                  ) : (
+                    <span style={{ color: "#9ca3af", fontSize: 13 }}>—</span>
+                  )}
+                </td>
+                <td style={tdStyle}>
                   <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: s.active ? "#d1fae5" : "#f3f4f6", color: s.active ? "#065f46" : "#6b7280" }}>
                     {s.active ? "Active" : "Inactive"}
                   </span>
                 </td>
                 <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                  {currentUser?.isSuperUser && (
+                    <>
+                      <button
+                        onClick={() => toggleSuperUser(s)}
+                        disabled={togglingId === s.id || isLastSuperUser(s)}
+                        title={isLastSuperUser(s) ? "Cannot revoke the last super user" : s.isSuperUser ? "Revoke super user" : "Grant super user"}
+                        style={{ ...btnStyle, marginRight: "0.4rem", ...(s.isSuperUser ? { color: "#b45309", borderColor: "#f59e0b" } : {}) }}
+                      >
+                        {togglingId === s.id ? "…" : s.isSuperUser ? "Revoke SU" : "Grant SU"}
+                      </button>
+                    </>
+                  )}
                   <button onClick={() => openEdit(s)} style={{ ...btnStyle, marginRight: "0.4rem" }}>Edit</button>
                   <button onClick={() => toggleActive(s)} style={btnStyle}>{s.active ? "Deactivate" : "Activate"}</button>
                 </td>
