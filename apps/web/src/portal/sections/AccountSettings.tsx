@@ -292,7 +292,6 @@ function ManagePets({ sessionId, readOnly }: { sessionId: string | null; readOnl
       <PetForm
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         pet={(editingPet ?? undefined) as any}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onSave={() => { setEditingPetId(null); setShowAddForm(false); }}
         onCancel={() => { setEditingPetId(null); setShowAddForm(false); }}
       />
