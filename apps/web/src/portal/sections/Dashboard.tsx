@@ -92,7 +92,7 @@ export function Dashboard({
 
       try {
         const headers = {
-          "x-session-id": sessionId,
+          "X-Impersonation-Session-Id": sessionId,
         };
 
         const [appointmentsRes, petsRes, invoicesRes, brandingRes] = await Promise.all([
