@@ -30,29 +30,31 @@ export function ReportCards() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<Appointment | null>(null);
 
-  useEffect(() => {
-    const fetchReportCards = async () => {
-      try {
-        const response = await fetch("/api/portal/appointments");
+  const loadReportCards = async () => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      const response = await fetch("/api/portal/appointments");
 
-        if (response.ok) {
-          const data = await response.json();
-          const allAppointments: Appointment[] = data.appointments || data || [];
-          const reportCardAppointments = allAppointments.filter(
-            (appt) => appt.reportCardId
-          );
-          setAppointments(reportCardAppointments);
-        } else {
-          setError("Failed to load report cards.");
-        }
-      } catch {
-        setError("Failed to load report cards. Please try again.");
-      } finally {
-        setIsLoading(false);
+      if (response.ok) {
+        const data = await response.json();
+        const allAppointments: Appointment[] = data.appointments || data || [];
+        const reportCardAppointments = allAppointments.filter(
+          (appt) => appt.reportCardId
+        );
+        setAppointments(reportCardAppointments);
+      } else {
+        setError("Failed to load report cards.");
       }
-    };
+    } catch {
+      setError("Failed to load report cards. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    fetchReportCards();
+  useEffect(() => {
+    loadReportCards();
   }, []);
 
   if (isLoading) {
@@ -69,7 +71,7 @@ export function ReportCards() {
       <div className="text-center py-12">
         <p className="text-red-600 mb-4">{error}</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => loadReportCards()}
           className="px-4 py-2 bg-stone-100 text-stone-700 rounded-md hover:bg-stone-200"
         >
           Retry
