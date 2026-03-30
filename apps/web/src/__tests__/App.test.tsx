@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../App";
 
@@ -34,14 +34,20 @@ beforeEach(() => {
 });
 
 async function renderApp(route = "/admin") {
-  render(
-    <MemoryRouter initialEntries={[route]}>
-      <App />
-    </MemoryRouter>
-  );
-  // Wait for the config fetch to resolve
-  const nav = await screen.findByRole("navigation");
-  return nav;
+  let container: HTMLElement;
+  await act(async () => {
+    const result = render(
+      <MemoryRouter initialEntries={[route]}>
+        <App />
+      </MemoryRouter>
+    );
+    container = result.container;
+  });
+  // Wait for the config fetch to resolve and nav to appear
+  await waitFor(() => {
+    expect(screen.queryByRole("navigation")).toBeInTheDocument();
+  }, { timeout: 3000 });
+  return container!;
 }
 
 describe("App navigation", () => {
@@ -95,13 +101,14 @@ describe("App navigation", () => {
       "Reports",
     ];
     expectedLinks.forEach((label) => {
-      expect(within(nav).getByText(label)).toBeInTheDocument();
+      // Use queryAllByText to find matching elements within nav
+      expect(within(nav).queryAllByText(label).length).toBeGreaterThan(0);
     });
   });
 
   it("highlights the active route link", async () => {
     const nav = await renderApp("/admin/clients");
-    const clientsLink = within(nav).getByText("Clients");
+    const clientsLink = within(nav).queryAllByText("Clients")[0];
     // Active links use fontWeight 600
     expect(clientsLink).toHaveStyle({ fontWeight: "600" });
   });

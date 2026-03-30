@@ -250,7 +250,8 @@ export function App() {
   }
 
   // Dev mode: staff users should not land on the customer portal — redirect to admin
-  if (authDisabled && getDevUser()?.type === "staff") {
+  // Don't redirect if already on an admin route (prevents redirect loop in tests)
+  if (authDisabled && getDevUser()?.type === "staff" && !location.pathname.startsWith("/admin")) {
     return <Navigate to="/admin" replace />;
   }
 
