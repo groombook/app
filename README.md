@@ -215,4 +215,3 @@ All PRs require CI to pass before merge. See [CONTRIBUTING.md](./CONTRIBUTING.md
 ## License
 
 AGPL-3.0
-# GRO-206 CI trigger

@@ -212,7 +212,7 @@ jobs:
 
       - name: Deploy to groombook-dev
         env:
-          TAG: pr-${{ github.event.pull_request.number }}-${{ github.sha::7 }}
+          TAG: ${{ steps.version.outputs.tag }}
           PR_NUM: ${{ github.event.pull_request.number }}
         run: |
           echo "Deploying images tagged $TAG to groombook-dev..."
