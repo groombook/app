@@ -133,7 +133,7 @@ export function CustomerPortal() {
       case "pets":
         return <PetProfiles readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "reports":
-        return <ReportCards />;
+        return <ReportCards sessionId={sessionId} />;
       case "billing":
         return <BillingPayments readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "messages":

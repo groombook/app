@@ -72,7 +72,9 @@ function PersonalInfo({ sessionId, readOnly }: { sessionId: string | null; readO
     const fetchPersonalInfo = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/portal/me");
+        const response = await fetch("/api/portal/me", {
+          headers: { "X-Impersonation-Session-Id": sessionId },
+        });
         if (response.ok) {
           const data: PersonalInfoData = await response.json();
           setForm({
@@ -252,7 +254,9 @@ function ManagePets({ sessionId, readOnly }: { sessionId: string | null; readOnl
     const fetchPets = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/portal/pets");
+        const response = await fetch("/api/portal/pets", {
+          headers: { "X-Impersonation-Session-Id": sessionId },
+        });
         if (response.ok) {
           const data = await response.json();
           setPets(Array.isArray(data) ? data : []);

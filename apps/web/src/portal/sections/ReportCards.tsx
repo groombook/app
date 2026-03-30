@@ -24,17 +24,28 @@ interface Appointment {
   reportCardId?: string;
 }
 
-export function ReportCards() {
+interface ReportCardsProps {
+  sessionId: string | null;
+}
+
+export function ReportCards({ sessionId }: ReportCardsProps) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<Appointment | null>(null);
 
   const loadReportCards = async () => {
+    if (!sessionId) {
+      setAppointments([]);
+      setIsLoading(false);
+      return;
+    }
     try {
       setError(null);
       setIsLoading(true);
-      const response = await fetch("/api/portal/appointments");
+      const response = await fetch("/api/portal/appointments", {
+        headers: { "X-Impersonation-Session-Id": sessionId },
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -55,7 +66,7 @@ export function ReportCards() {
 
   useEffect(() => {
     loadReportCards();
-  }, []);
+  }, [sessionId]);
 
   if (isLoading) {
     return (
