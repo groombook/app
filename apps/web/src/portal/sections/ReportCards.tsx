@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FileText, Share2, Calendar, Smile, Meh, ChevronRight, Loader2 } from "lucide-react";
 
 type MoodKey = "calm" | "cooperative" | "anxious" | "wiggly";
