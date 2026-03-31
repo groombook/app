@@ -18,7 +18,7 @@
 
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import * as schema from "./schema.js";
 
 // ── Deterministic PRNG (Mulberry32) ──────────────────────────────────────────
@@ -234,18 +234,18 @@ const productsUsed = [
 ];
 
 // ── Service definitions ──────────────────────────────────────────────────────
-
+// Deterministic service IDs so seed is idempotent (ON CONFLICT targets id, not name).
 const servicesDef = [
-  { name: "Bath & Brush", desc: "Full bath, blow-dry, brush out, and ear cleaning", price: 4500, dur: 45 },
-  { name: "Full Groom — Small", desc: "Complete grooming for dogs under 25 lbs", price: 6500, dur: 60 },
-  { name: "Full Groom — Medium", desc: "Complete grooming for dogs 25-50 lbs", price: 8000, dur: 75 },
-  { name: "Full Groom — Large", desc: "Complete grooming for dogs over 50 lbs", price: 9500, dur: 90 },
-  { name: "Nail Trim", desc: "Nail clipping and filing", price: 1500, dur: 15 },
-  { name: "Teeth Brushing", desc: "Dental cleaning with enzymatic toothpaste", price: 1000, dur: 10 },
-  { name: "De-shedding Treatment", desc: "Specialised de-shedding bath and blowout", price: 5500, dur: 60 },
-  { name: "Puppy First Groom", desc: "Gentle introduction to grooming for puppies under 6 months", price: 4000, dur: 30 },
-  { name: "Flea & Tick Treatment", desc: "Medicated bath with flea and tick shampoo", price: 5000, dur: 45 },
-  { name: "Sanitary Trim", desc: "Hygienic trim of paw pads, face, and sanitary areas", price: 2500, dur: 20 },
+  { id: "b0000001-0000-0000-0000-000000000001", name: "Bath & Brush", desc: "Full bath, blow-dry, brush out, and ear cleaning", price: 4500, dur: 45 },
+  { id: "b0000001-0000-0000-0000-000000000002", name: "Full Groom — Small", desc: "Complete grooming for dogs under 25 lbs", price: 6500, dur: 60 },
+  { id: "b0000001-0000-0000-0000-000000000003", name: "Full Groom — Medium", desc: "Complete grooming for dogs 25-50 lbs", price: 8000, dur: 75 },
+  { id: "b0000001-0000-0000-0000-000000000004", name: "Full Groom — Large", desc: "Complete grooming for dogs over 50 lbs", price: 9500, dur: 90 },
+  { id: "b0000001-0000-0000-0000-000000000005", name: "Nail Trim", desc: "Nail clipping and filing", price: 1500, dur: 15 },
+  { id: "b0000001-0000-0000-0000-000000000006", name: "Teeth Brushing", desc: "Dental cleaning with enzymatic toothpaste", price: 1000, dur: 10 },
+  { id: "b0000001-0000-0000-0000-000000000007", name: "De-shedding Treatment", desc: "Specialised de-shedding bath and blowout", price: 5500, dur: 60 },
+  { id: "b0000001-0000-0000-0000-000000000008", name: "Puppy First Groom", desc: "Gentle introduction to grooming for puppies under 6 months", price: 4000, dur: 30 },
+  { id: "b0000001-0000-0000-0000-000000000009", name: "Flea & Tick Treatment", desc: "Medicated bath with flea and tick shampoo", price: 5000, dur: 45 },
+  { id: "b0000001-0000-0000-0000-00000000000a", name: "Sanitary Trim", desc: "Hygienic trim of paw pads, face, and sanitary areas", price: 2500, dur: 20 },
 ];
 
 // ── Known-users-only seed (prod/demo) ───────────────────────────────────────
@@ -424,13 +424,17 @@ async function seed() {
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
 
   // ── Services ──
-  const serviceIds: string[] = [];
+  // Deduplicate existing services (keep lowest id per name) before inserting.
+  await db.execute(sql`
+    DELETE FROM services WHERE id NOT IN (
+      SELECT MIN(id) FROM services GROUP BY name
+    )
+  `);
+
   for (const s of servicesDef) {
-    const id = uuid();
-    serviceIds.push(id);
     await db.insert(schema.services)
       .values({
-        id,
+        id: s.id,
         name: s.name,
         description: s.desc,
         basePriceCents: s.price,
