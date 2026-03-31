@@ -19,6 +19,7 @@ const MOCK_SESSION = {
 
 test.describe("ImpersonationBanner", () => {
   test.beforeEach(async ({ page }) => {
+    // Impersonation session endpoints
     await page.route("**/api/impersonation/sessions/session-1", (route) =>
       route.fulfill({ json: MOCK_SESSION })
     );
@@ -31,23 +32,8 @@ test.describe("ImpersonationBanner", () => {
     await page.route("**/api/impersonation/sessions/session-1/audit-log", (route) =>
       route.fulfill({ json: { logs: [] } })
     );
-    // Portal session endpoint: CustomerPortal.tsx expects a FLAT ImpersonationSession object
-    await page.route("POST **/api/portal/dev-session", (route) =>
-      route.fulfill({
-        json: {
-          id: "session-1",
-          staffId: "staff-1",
-          clientId: "client-1",
-          reason: null,
-          status: "active",
-          startedAt: new Date().toISOString(),
-          endedAt: null,
-          expiresAt: new Date(Date.now() + 3600000).toISOString(),
-          createdAt: new Date().toISOString(),
-        },
-      })
-    );
-    await page.route("GET **/api/portal/me", (route) =>
+    // Portal profile endpoint used during impersonation
+    await page.route("**/api/portal/me**", (route) =>
       route.fulfill({ json: { id: "client-1", name: "Carol Client", email: "carol@test.com" } })
     );
   });
