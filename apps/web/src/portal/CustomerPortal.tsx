@@ -184,12 +184,12 @@ export function CustomerPortal() {
 
   const avatarInitials = (clientName.split(" ")[0] || "G").charAt(0).toUpperCase();
 
-  // After init completes, redirect unauthenticated users to /login and staff to /admin
+  // After init completes, redirect unauthenticated users to /login and staff to /admin.
   // The portal chrome must NEVER be visible to users without a valid client session.
-  // Only redirect if we have NOT attempted a session fetch yet — if a fetch is in-flight
-  // (E2E mock resolves synchronously, batched with setInitComplete), sessionAttempted
-  // is still false so we don't redirect prematurely.
-  if (initComplete && !session && !sessionAttempted) {
+  // We check !session rather than sessionAttempted because a failed session fetch still
+  // means we must redirect — sessionAttempted being true only means we attempted to
+  // create a session, not that one exists.
+  if (initComplete && !session) {
     const devUser = getDevUser();
     if (devUser && devUser.type === "staff") {
       return <Navigate to="/admin" replace />;
