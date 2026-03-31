@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
 import { Calendar, Clock, PawPrint, CreditCard, Star, ChevronRight, AlertTriangle } from "lucide-react";
 
 interface DashboardProps {
@@ -184,7 +183,13 @@ export function Dashboard({
   }
 
   if (!sessionId) {
-    return <Navigate to="/login" replace />;
+    return (
+      <div className="space-y-6">
+        <div className="bg-stone-100 rounded-2xl p-5 text-center">
+          <p className="text-stone-600">Please sign in to view your dashboard.</p>
+        </div>
+      </div>
+    );
   }
 
   const upcomingAppointments = getUpcomingAppointments();
