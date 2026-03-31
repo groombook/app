@@ -16,7 +16,7 @@ test.describe("Admin Reports Data", () => {
     await staffPage.waitForLoadState("networkidle");
 
     // Wait for reports to load
-    await expect(staffPage.getByText("Reports")).toBeVisible({ timeout: 10000 });
+    await expect(staffPage.getByRole("heading", { name: "Reports" })).toBeVisible({ timeout: 10000 });
 
     // Calculate 60 days ago date
     const today = new Date();

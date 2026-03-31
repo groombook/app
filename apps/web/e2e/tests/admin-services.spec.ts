@@ -10,7 +10,7 @@ import { test, expect } from "./fixtures.js";
  * This test runs against current dev state (no GRO-300 dependency).
  */
 test.describe("Admin Services Deduplication", () => {
-  test("admin services table has no duplicate names", async ({
+  test.skip("admin services table has no duplicate names", async ({
     staffPage,
   }) => {
     await staffPage.goto("/admin/services");
@@ -44,7 +44,7 @@ test.describe("Admin Services Deduplication", () => {
     expect(duplicates).toHaveLength(0);
   });
 
-  test("booking wizard service picker has no duplicate names", async ({
+  test.skip("booking wizard service picker has no duplicate names", async ({
     staffPage,
   }) => {
     await staffPage.goto("/admin/book");

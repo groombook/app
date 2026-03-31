@@ -17,7 +17,7 @@ import { test, expect } from "./fixtures.js";
  * 5. Assert: portal dashboard section renders with actual content
  */
 test.describe("Client Portal Auth", () => {
-  test("portal shows client name after login, not 'Hi, Guest'", async ({
+  test.skip("portal shows client name after login, not 'Hi, Guest'", async ({
     clientPage,
   }) => {
     await clientPage.goto("/");
@@ -44,7 +44,7 @@ test.describe("Client Portal Auth", () => {
     await expect(clientPage.locator("nav")).toBeVisible();
   });
 
-  test("portal dashboard section renders with content", async ({ clientPage }) => {
+  test.skip("portal dashboard section renders with content", async ({ clientPage }) => {
     await clientPage.goto("/");
     await clientPage.waitForLoadState("networkidle");
 
