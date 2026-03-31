@@ -431,7 +431,9 @@ async function seed() {
     )
   `);
 
+  const serviceIds: string[] = [];
   for (const s of servicesDef) {
+    serviceIds.push(s.id);
     await db.insert(schema.services)
       .values({
         id: s.id,
