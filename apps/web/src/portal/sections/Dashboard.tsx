@@ -8,6 +8,8 @@ interface DashboardProps {
   onNavigate: (section: "appointments" | "pets" | "billing" | "reports") => void;
   readOnly: boolean;
   onReschedule: (appointmentId: string) => void;
+  /** True when a sessionId param was in the URL and the session is still loading */
+  isImpersonating?: boolean;
 }
 
 interface Appointment {
@@ -73,6 +75,7 @@ export function Dashboard({
   onNavigate,
   readOnly,
   onReschedule,
+  isImpersonating,
 }: DashboardProps) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [pets, setPets] = useState<Pet[]>([]);
@@ -183,7 +186,7 @@ export function Dashboard({
     );
   }
 
-  if (!sessionId) {
+  if (!sessionId && !isImpersonating) {
     return <Navigate to="/login" replace />;
   }
 

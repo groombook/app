@@ -42,6 +42,9 @@ export function CustomerPortal() {
   // Track whether we've attempted to fetch a session — used to prevent premature redirect
   // when a session fetch is in-flight (E2E mocks resolve synchronously, batched with setInitComplete)
   const [sessionAttempted, setSessionAttempted] = useState(false);
+  // Track whether an impersonation session fetch from URL param is in-flight
+  // Dashboard will not redirect while this is true, allowing the session to load
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const { branding } = useBranding();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -54,6 +57,7 @@ export function CustomerPortal() {
     const sessionId = searchParams.get("sessionId");
 
     if (sessionId) {
+      setIsImpersonating(true);
       // Real impersonation session from URL param
       fetch(`/api/impersonation/sessions/${sessionId}`)
         .then((r) => {
@@ -75,7 +79,7 @@ export function CustomerPortal() {
           setSessionAttempted(true);
           setSearchParams({}, { replace: true });
         })
-        .finally(() => setInitComplete(true));
+        .finally(() => { setInitComplete(true); setIsImpersonating(false); });
       return;
     }
 
@@ -162,7 +166,7 @@ export function CustomerPortal() {
     const sessionId = session?.id ?? null;
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} sessionId={sessionId} clientName={clientName} onReschedule={handleReschedule} />;
+        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} sessionId={sessionId} clientName={clientName} onReschedule={handleReschedule} isImpersonating={isImpersonating} />;
       case "appointments":
         return <AppointmentsSection readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "pets":
