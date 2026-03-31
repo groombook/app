@@ -31,6 +31,13 @@ test.describe("ImpersonationBanner", () => {
     await page.route("**/api/impersonation/sessions/session-1/audit-log", (route) =>
       route.fulfill({ json: { logs: [] } })
     );
+    // Portal session endpoints needed when CustomerPortal fetches client profile after session is established
+    await page.route("POST **/api/portal/dev-session", (route) =>
+      route.fulfill({ json: { id: "session-1", client: { id: "client-1", name: "Carol Client" } } })
+    );
+    await page.route("GET **/api/portal/me", (route) =>
+      route.fulfill({ json: { id: "client-1", name: "Carol Client", email: "carol@test.com" } })
+    );
   });
 
   test("banner displays when session is active", async ({ page }) => {
