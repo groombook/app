@@ -260,7 +260,7 @@ export function CustomerPortal() {
           <div className="hidden md:flex items-center gap-3 px-6 py-5 border-b border-stone-100">
             {branding.logoBase64 && branding.logoMimeType ? (
               <img
-                src={`data:${branding.logoMimeType};base64,${branding.logoBase64}}`}
+                src={`data:${branding.logoMimeType};base64,${branding.logoBase64}`}
                 alt=""
                 className="w-10 h-10 rounded-xl object-contain"
               />
