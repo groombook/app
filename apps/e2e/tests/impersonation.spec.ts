@@ -32,8 +32,9 @@ test.describe("ImpersonationBanner", () => {
       route.fulfill({ json: { logs: [] } })
     );
     // Portal session endpoints needed when CustomerPortal fetches client profile after session is established
+    // FIX: nest session data under 'session' key so CustomerPortal.tsx can read data.session
     await page.route("POST **/api/portal/dev-session", (route) =>
-      route.fulfill({ json: { id: "session-1", client: { id: "client-1", name: "Carol Client" } } })
+      route.fulfill({ json: { session: { id: "session-1", client: { id: "client-1", name: "Carol Client" } } } })
     );
     await page.route("GET **/api/portal/me", (route) =>
       route.fulfill({ json: { id: "client-1", name: "Carol Client", email: "carol@test.com" } })
