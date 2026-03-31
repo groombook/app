@@ -1,5 +1,6 @@
 import { test as base, Page, Browser, BrowserContext } from "@playwright/test";
 import path from "path";
+import fs from "fs";
 
 const STAFF_STORAGE = path.join(process.cwd(), ".auth/staff.json");
 const CLIENT_STORAGE = path.join(process.cwd(), ".auth/client.json");
@@ -65,14 +66,14 @@ async function getStorageState(browser: Browser, userType: UserType): Promise<st
   const filePath = userType === "staff" ? STAFF_STORAGE : CLIENT_STORAGE;
   const dir = path.dirname(filePath);
 
-  if (!require("fs").existsSync(filePath)) {
+  if (!fs.existsSync(filePath)) {
     const state =
       userType === "staff"
         ? await authenticateStaff(browser)
         : await authenticateClient(browser);
 
-    require("fs").mkdirSync(dir, { recursive: true });
-    require("fs").writeFileSync(filePath, state);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, state);
   }
 
   return filePath;
