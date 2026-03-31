@@ -14,6 +14,7 @@ import { AccountSettings } from "./sections/AccountSettings.js";
 import { ImpersonationBanner } from "./ImpersonationBanner.js";
 import { AuditLogViewer } from "./AuditLogViewer.js";
 import { useBranding } from "../BrandingContext.js";
+import { getDevUser } from "../pages/DevLoginSelector.js";
 import type { ImpersonationSession } from "@groombook/types";
 
 type Section = "dashboard" | "appointments" | "pets" | "reports" | "billing" | "messages" | "settings";
@@ -40,35 +41,57 @@ export function CustomerPortal() {
   const { branding } = useBranding();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // On mount: load session from ?sessionId= URL param
+  // On mount: load session from ?sessionId= URL param OR from dev user in localStorage
   const initDone = useRef(false);
   useEffect(() => {
     if (initDone.current) return;
     initDone.current = true;
 
     const sessionId = searchParams.get("sessionId");
-    if (!sessionId) return;
 
-    fetch(`/api/impersonation/sessions/${sessionId}`)
-      .then((r) => {
-        if (!r.ok) return null;
-        return r.json() as Promise<ImpersonationSession>;
+    if (sessionId) {
+      // Real impersonation session from URL param
+      fetch(`/api/impersonation/sessions/${sessionId}`)
+        .then((r) => {
+          if (!r.ok) return null;
+          return r.json() as Promise<ImpersonationSession>;
+        })
+        .then((s) => {
+          if (s && s.status === "active") {
+            setSession(s);
+            fetch(`/api/portal/me`, { headers: { "X-Impersonation-Session-Id": s.id } })
+              .then(r => r.ok ? r.json() : null)
+              .then(data => { if (data?.name) setClientName(data.name); })
+              .catch(() => {});
+          }
+          setSearchParams({}, { replace: true });
+        })
+        .catch(() => {
+          setSearchParams({}, { replace: true });
+        });
+      return;
+    }
+
+    // Dev mode: check for dev user in localStorage and create a dev session
+    const devUser = getDevUser();
+    if (devUser && devUser.type === "client") {
+      fetch("/api/portal/dev-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: devUser.id }),
       })
-      .then((s) => {
-        if (s && s.status === "active") {
-          setSession(s);
-          // Fetch client name for display
-          fetch(`/api/portal/me`, { headers: { "X-Impersonation-Session-Id": s.id } })
-            .then(r => r.ok ? r.json() : null)
-            .then(data => { if (data?.name) setClientName(data.name); })
-            .catch(() => {});
-        }
-        // Clean sessionId from URL
-        setSearchParams({}, { replace: true });
-      })
-      .catch(() => {
-        setSearchParams({}, { replace: true });
-      });
+        .then((r) => {
+          if (!r.ok) return null;
+          return r.json() as Promise<ImpersonationSession>;
+        })
+        .then((s) => {
+          if (s && s.id) {
+            setSession(s);
+            setClientName(devUser.name);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const handleEnd = useCallback(async () => {
