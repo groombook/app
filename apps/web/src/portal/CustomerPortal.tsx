@@ -39,9 +39,6 @@ export function CustomerPortal() {
   const [sessionExtended, setSessionExtended] = useState(false);
   const [clientName, setClientName] = useState<string>("");
   const [initComplete, setInitComplete] = useState(false);
-  // Track whether we've attempted to fetch a session — used to prevent premature redirect
-  // when a session fetch is in-flight (E2E mocks resolve synchronously, batched with setInitComplete)
-  const [sessionAttempted, setSessionAttempted] = useState(false);
   // Track whether an impersonation session fetch from URL param is in-flight
   // Dashboard will not redirect while this is true, allowing the session to load
   const [isImpersonating, setIsImpersonating] = useState(false);
@@ -67,7 +64,6 @@ export function CustomerPortal() {
         .then((s) => {
           if (s && s.status === "active") {
             setSession(s);
-            setSessionAttempted(true);
             fetch(`/api/portal/me`, { headers: { "X-Impersonation-Session-Id": s.id } })
               .then(r => r.ok ? r.json() : null)
               .then(data => { if (data?.name) setClientName(data.name); })
@@ -76,7 +72,6 @@ export function CustomerPortal() {
           setSearchParams({}, { replace: true });
         })
         .catch(() => {
-          setSessionAttempted(true);
           setSearchParams({}, { replace: true });
         })
         .finally(() => { setInitComplete(true); setIsImpersonating(false); });
@@ -98,11 +93,9 @@ export function CustomerPortal() {
         .then((s) => {
           if (s && s.id) {
             setSession(s);
-            setSessionAttempted(true);
             setClientName(devUser.name);
           }
         })
-        .catch(() => { setSessionAttempted(true); })
         .finally(() => setInitComplete(true));
     } else {
       // No valid session: staff dev users and unauthenticated users fall through here
@@ -186,9 +179,6 @@ export function CustomerPortal() {
 
   // After init completes, redirect unauthenticated users to /login and staff to /admin.
   // The portal chrome must NEVER be visible to users without a valid client session.
-  // We check !session rather than sessionAttempted because a failed session fetch still
-  // means we must redirect — sessionAttempted being true only means we attempted to
-  // create a session, not that one exists.
   if (initComplete && !session) {
     const devUser = getDevUser();
     if (devUser && devUser.type === "staff") {
