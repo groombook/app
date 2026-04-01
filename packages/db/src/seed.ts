@@ -408,6 +408,10 @@ async function seed() {
     { id: uuid(), name: "Devon Williams", email: "devon@groombook.dev", role: "groomer" as const, isSuperUser: false },
   ];
 
+  // Truncate downstream tables before staff upsert — clears stale appointments
+  // and other FK references to old staff IDs so the id column can safely be updated
+  await db.execute(sql`TRUNCATE appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
+
   const allStaff = [...managerStaff, ...receptionistStaff, ...groomers, ...bathers];
   for (const s of allStaff) {
     await db.insert(schema.staff)
@@ -421,7 +425,7 @@ async function seed() {
       })
       .onConflictDoUpdate({
         target: schema.staff.email,
-        set: { name: s.name, role: s.role, isSuperUser: s.isSuperUser, active: true },
+        set: { id: s.id, name: s.name, role: s.role, isSuperUser: s.isSuperUser, active: true },
       });
   }
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
