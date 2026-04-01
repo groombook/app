@@ -430,6 +430,9 @@ async function seed() {
   }
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
 
+  // Truncate downstream tables before services dedup to avoid FK violation
+  await db.execute(sql`TRUNCATE appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
+
   // ── Services ──
   // Upsert services using name as unique key. With deterministic IDs in
   // servicesDef and TRUNCATE clearing downstream tables first, this is
