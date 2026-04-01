@@ -432,7 +432,7 @@ async function seed() {
 
   // Truncate downstream tables before services upsert — clears stale appointments
   // from prior seed runs so the FK constraint on service_id is never violated
-  await db.execute(sql`TRUNCATE appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
+  await db.execute(sql`TRUNCATE impersonation_sessions, impersonation_audit_logs, appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
 
   // ── Services ──
   // Upsert services using name as unique key. With deterministic IDs in
