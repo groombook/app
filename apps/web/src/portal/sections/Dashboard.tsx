@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import { Calendar, Clock, PawPrint, CreditCard, Star, ChevronRight, AlertTriangle } from "lucide-react";
 
 interface DashboardProps {
@@ -7,6 +8,8 @@ interface DashboardProps {
   onNavigate: (section: "appointments" | "pets" | "billing" | "reports") => void;
   readOnly: boolean;
   onReschedule: (appointmentId: string) => void;
+  /** True when a sessionId param was in the URL and the session is still loading */
+  isImpersonating?: boolean;
 }
 
 interface Appointment {
@@ -72,6 +75,7 @@ export function Dashboard({
   onNavigate,
   readOnly,
   onReschedule,
+  isImpersonating,
 }: DashboardProps) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [pets, setPets] = useState<Pet[]>([]);
@@ -182,14 +186,8 @@ export function Dashboard({
     );
   }
 
-  if (!sessionId) {
-    return (
-      <div className="space-y-6">
-        <div className="bg-stone-100 rounded-2xl p-5 text-center">
-          <p className="text-stone-600">Please sign in to view your dashboard.</p>
-        </div>
-      </div>
-    );
+  if (!sessionId && !isImpersonating) {
+    return <Navigate to="/login" replace />;
   }
 
   const upcomingAppointments = getUpcomingAppointments();
