@@ -430,7 +430,8 @@ async function seed() {
   }
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
 
-  // Truncate downstream tables before services dedup to avoid FK violation
+  // Truncate downstream tables before services upsert — clears stale appointments
+  // from prior seed runs so the FK constraint on service_id is never violated
   await db.execute(sql`TRUNCATE appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
 
   // ── Services ──

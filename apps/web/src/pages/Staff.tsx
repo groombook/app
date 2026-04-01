@@ -75,8 +75,19 @@ export function StaffPage() {
   }
 
   async function toggleActive(s: Staff) {
-    await fetch(`/api/staff/${s.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !s.active }) });
-    await load();
+    setTogglingId(s.id);
+    setToggleError(null);
+    try {
+      const res = await fetch(`/api/staff/${s.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !s.active }) });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        setToggleError(err.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      await load();
+    } finally {
+      setTogglingId(null);
+    }
   }
 
   async function toggleSuperUser(s: Staff) {
@@ -137,34 +148,83 @@ export function StaffPage() {
                 <td style={tdStyle}>{s.email}</td>
                 <td style={tdStyle}><span style={{ textTransform: "capitalize" }}>{s.role}</span></td>
                 <td style={tdStyle}>
-                  {s.isSuperUser ? (
-                    <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>
-                      Super User
-                    </span>
+                  {currentUser?.isSuperUser ? (
+                    <button
+                      onClick={() => toggleSuperUser(s)}
+                      disabled={togglingId === s.id || isLastSuperUser(s)}
+                      title={isLastSuperUser(s) ? "Cannot revoke the last super user" : s.isSuperUser ? "Revoke super user" : "Grant super user"}
+                      style={{
+                        position: "relative",
+                        width: 36,
+                        height: 20,
+                        borderRadius: 10,
+                        border: "1px solid",
+                        borderColor: s.isSuperUser ? "#f59e0b" : "#d1d5db",
+                        background: s.isSuperUser ? "#fef3c7" : "#fff",
+                        cursor: togglingId === s.id || isLastSuperUser(s) ? "not-allowed" : "pointer",
+                        padding: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        opacity: togglingId === s.id || isLastSuperUser(s) ? 0.6 : 1,
+                      }}
+                    >
+                      <span style={{
+                        position: "absolute",
+                        left: s.isSuperUser ? 17 : 2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: 7,
+                        background: s.isSuperUser ? "#f59e0b" : "#d1d5db",
+                        transition: "left 0.15s ease",
+                      }} />
+                      {togglingId === s.id && (
+                        <span style={{ position: "absolute", fontSize: 9, color: "#92400e", fontWeight: 700 }}>…</span>
+                      )}
+                    </button>
                   ) : (
-                    <span style={{ color: "#9ca3af", fontSize: 13 }}>—</span>
+                    s.isSuperUser ? (
+                      <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>Super User</span>
+                    ) : (
+                      <span style={{ color: "#9ca3af", fontSize: 13 }}>—</span>
+                    )
                   )}
                 </td>
                 <td style={tdStyle}>
-                  <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: s.active ? "#d1fae5" : "#f3f4f6", color: s.active ? "#065f46" : "#6b7280" }}>
-                    {s.active ? "Active" : "Inactive"}
-                  </span>
+                  <button
+                    onClick={() => toggleActive(s)}
+                    disabled={togglingId === s.id || isLastSuperUser(s)}
+                    title={isLastSuperUser(s) ? "Cannot deactivate the last super user" : s.active ? "Deactivate" : "Activate"}
+                    style={{
+                      position: "relative",
+                      width: 36,
+                      height: 20,
+                      borderRadius: 10,
+                      border: "1px solid",
+                      borderColor: s.active ? "#10b981" : "#d1d5db",
+                      background: s.active ? "#d1fae5" : "#fff",
+                      cursor: togglingId === s.id || isLastSuperUser(s) ? "not-allowed" : "pointer",
+                      padding: 0,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      opacity: togglingId === s.id || isLastSuperUser(s) ? 0.6 : 1,
+                    }}
+                  >
+                    <span style={{
+                      position: "absolute",
+                      left: s.active ? 17 : 2,
+                      width: 14,
+                      height: 14,
+                      borderRadius: 7,
+                      background: s.active ? "#10b981" : "#d1d5db",
+                      transition: "left 0.15s ease",
+                    }} />
+                    {togglingId === s.id && (
+                      <span style={{ position: "absolute", fontSize: 9, color: s.active ? "#065f46" : "#6b7280", fontWeight: 700 }}>…</span>
+                    )}
+                  </button>
                 </td>
                 <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
-                  {currentUser?.isSuperUser && (
-                    <>
-                      <button
-                        onClick={() => toggleSuperUser(s)}
-                        disabled={togglingId === s.id || isLastSuperUser(s)}
-                        title={isLastSuperUser(s) ? "Cannot revoke the last super user" : s.isSuperUser ? "Revoke super user" : "Grant super user"}
-                        style={{ ...btnStyle, marginRight: "0.4rem", ...(s.isSuperUser ? { color: "#b45309", borderColor: "#f59e0b" } : {}) }}
-                      >
-                        {togglingId === s.id ? "…" : s.isSuperUser ? "Revoke SU" : "Grant SU"}
-                      </button>
-                    </>
-                  )}
-                  <button onClick={() => openEdit(s)} style={{ ...btnStyle, marginRight: "0.4rem" }}>Edit</button>
-                  <button onClick={() => toggleActive(s)} style={btnStyle}>{s.active ? "Deactivate" : "Activate"}</button>
+                  <button onClick={() => openEdit(s)} style={btnStyle}>Edit</button>
                 </td>
               </tr>
             ))}
