@@ -43,6 +43,10 @@ export const test = base.extend({
         },
       })
     );
+    // Mock the setup status endpoint so the app does not redirect to /setup
+    await page.route("**/api/setup/status", (route) =>
+      route.fulfill({ json: { needsSetup: false } })
+    );
     // Seed localStorage as a fallback in case the mock is bypassed
     await page.addInitScript(() => {
       localStorage.setItem(
