@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Navigate } from "react-router-dom";
 import {
   Home, Calendar, PawPrint, FileText, CreditCard, MessageSquare,
   Settings, LogOut, Shield,
@@ -38,6 +38,10 @@ export function CustomerPortal() {
   const [session, setSession] = useState<ImpersonationSession | null>(null);
   const [sessionExtended, setSessionExtended] = useState(false);
   const [clientName, setClientName] = useState<string>("");
+  const [initComplete, setInitComplete] = useState(false);
+  // Track whether an impersonation session fetch from URL param is in-flight
+  // Dashboard will not redirect while this is true, allowing the session to load
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const { branding } = useBranding();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -50,6 +54,7 @@ export function CustomerPortal() {
     const sessionId = searchParams.get("sessionId");
 
     if (sessionId) {
+      setIsImpersonating(true);
       // Real impersonation session from URL param
       fetch(`/api/impersonation/sessions/${sessionId}`)
         .then((r) => {
@@ -68,7 +73,8 @@ export function CustomerPortal() {
         })
         .catch(() => {
           setSearchParams({}, { replace: true });
-        });
+        })
+        .finally(() => { setInitComplete(true); setIsImpersonating(false); });
       return;
     }
 
@@ -90,7 +96,10 @@ export function CustomerPortal() {
             setClientName(devUser.name);
           }
         })
-        .catch(() => {});
+        .finally(() => setInitComplete(true));
+    } else {
+      // No valid session: staff dev users and unauthenticated users fall through here
+      setInitComplete(true);
     }
   }, []);
 
@@ -150,7 +159,7 @@ export function CustomerPortal() {
     const sessionId = session?.id ?? null;
     switch (activeSection) {
       case "dashboard":
-        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} sessionId={sessionId} clientName={clientName} onReschedule={handleReschedule} />;
+        return <Dashboard onNavigate={handleNavClick} readOnly={!!isReadOnly} sessionId={sessionId} clientName={clientName} onReschedule={handleReschedule} isImpersonating={isImpersonating} />;
       case "appointments":
         return <AppointmentsSection readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "pets":
@@ -167,6 +176,24 @@ export function CustomerPortal() {
   };
 
   const avatarInitials = (clientName.split(" ")[0] || "G").charAt(0).toUpperCase();
+
+  // After init completes, redirect unauthenticated users to /login and staff to /admin.
+  // The portal chrome must NEVER be visible to users without a valid client session.
+  // For client dev users, we stay on the portal even if session is null — the dev-session
+  // response may not have id set immediately, or there may be timing issues with the
+  // session state. Dev users are verified via localStorage and the dev-session flow.
+  if (initComplete && !session) {
+    const devUser = getDevUser();
+    if (devUser && devUser.type === "staff") {
+      return <Navigate to="/admin" replace />;
+    }
+    if (devUser && devUser.type === "client") {
+      // Don't redirect — dev session creation may have failed or session.id may be null
+      // The portal should still render for client dev users
+    } else {
+      return <Navigate to="/login" replace />;
+    }
+  }
 
   return (
     <div
