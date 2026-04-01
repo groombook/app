@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { Calendar, Clock, PawPrint, CreditCard, Star, ChevronRight, AlertTriangle } from "lucide-react";
-import { getDevUser } from "../pages/DevLoginSelector.js";
+import { getDevUser } from "../pages/DevLoginSelector";
 
 interface DashboardProps {
   sessionId: string | null;
