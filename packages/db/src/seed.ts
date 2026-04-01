@@ -423,17 +423,14 @@ async function seed() {
   }
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
 
-  // Truncate downstream tables before services dedup to avoid FK violation
+  // Truncate downstream tables before services upsert — clears stale appointments
+  // from prior seed runs so the FK constraint on service_id is never violated
   await db.execute(sql`TRUNCATE appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
 
   // ── Services ──
-  // Deduplicate existing services (keep lowest id per name) before inserting.
-  await db.execute(sql`
-    DELETE FROM services WHERE id NOT IN (
-      SELECT (MIN(id::text))::uuid FROM services GROUP BY name
-    )
-  `);
-
+  // Upsert services using name as unique key. With deterministic IDs in
+  // servicesDef and TRUNCATE clearing downstream tables first, this is
+  // idempotent: first run inserts, subsequent runs update existing rows.
   const serviceIds: string[] = [];
   for (const s of servicesDef) {
     serviceIds.push(s.id);
@@ -447,8 +444,8 @@ async function seed() {
         active: true,
       })
       .onConflictDoUpdate({
-        target: schema.services.id,
-        set: { name: s.name, description: s.desc, basePriceCents: s.price, durationMinutes: s.dur, active: true },
+        target: schema.services.name,
+        set: { description: s.desc, basePriceCents: s.price, durationMinutes: s.dur, active: true },
       });
   }
   console.log(`✓ Created ${servicesDef.length} services`);

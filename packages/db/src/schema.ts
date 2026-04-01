@@ -141,7 +141,7 @@ export const pets = pgTable("pets", {
 
 export const services = pgTable("services", {
   id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
+  name: text("name").notNull().unique(),
   description: text("description"),
   basePriceCents: integer("base_price_cents").notNull(),
   durationMinutes: integer("duration_minutes").notNull(),
