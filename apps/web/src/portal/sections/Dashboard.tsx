@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import { Calendar, Clock, PawPrint, CreditCard, Star, ChevronRight, AlertTriangle } from "lucide-react";
+import { getDevUser } from "../../pages/DevLoginSelector";
 
 interface DashboardProps {
   sessionId: string | null;
@@ -7,6 +9,8 @@ interface DashboardProps {
   onNavigate: (section: "appointments" | "pets" | "billing" | "reports") => void;
   readOnly: boolean;
   onReschedule: (appointmentId: string) => void;
+  /** True when a sessionId param was in the URL and the session is still loading */
+  isImpersonating?: boolean;
 }
 
 interface Appointment {
@@ -72,6 +76,7 @@ export function Dashboard({
   onNavigate,
   readOnly,
   onReschedule,
+  isImpersonating,
 }: DashboardProps) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [pets, setPets] = useState<Pet[]>([]);
@@ -182,14 +187,12 @@ export function Dashboard({
     );
   }
 
-  if (!sessionId) {
-    return (
-      <div className="space-y-6">
-        <div className="bg-stone-100 rounded-2xl p-5 text-center">
-          <p className="text-stone-600">Please sign in to view your dashboard.</p>
-        </div>
-      </div>
-    );
+  // Don't redirect to /login if we have a dev user — dev sessions may not have
+  // sessionId set immediately after creation (session?.id may be null due to
+  // timing or API response issues). Dev users are stored in localStorage and
+  // verified via the dev-session flow, so they should see the portal.
+  if (!sessionId && !isImpersonating && !getDevUser()) {
+    return <Navigate to="/login" replace />;
   }
 
   const upcomingAppointments = getUpcomingAppointments();

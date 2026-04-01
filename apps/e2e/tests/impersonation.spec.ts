@@ -2,7 +2,6 @@ import { test, expect } from "./fixtures.js";
 
 /**
  * E2E tests for customer portal impersonation flow.
- * Tests ImpersonationBanner display, actions, and session management.
  */
 
 const MOCK_SESSION = {
@@ -19,6 +18,7 @@ const MOCK_SESSION = {
 
 test.describe("ImpersonationBanner", () => {
   test.beforeEach(async ({ page }) => {
+    // Only mock impersonation endpoints - portal/me is NOT called in impersonation flow
     await page.route("**/api/impersonation/sessions/session-1", (route) =>
       route.fulfill({ json: MOCK_SESSION })
     );
@@ -31,6 +31,8 @@ test.describe("ImpersonationBanner", () => {
     await page.route("**/api/impersonation/sessions/session-1/audit-log", (route) =>
       route.fulfill({ json: { logs: [] } })
     );
+    // NOTE: NOT mocking portal/me - this endpoint is only called in the CLIENT
+    // dev user flow (devUser.type === "client"), NOT in the impersonation flow
   });
 
   test("banner displays when session is active", async ({ page }) => {
