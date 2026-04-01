@@ -204,7 +204,7 @@ export function SetupWizard() {
           )}
           <button
             onClick={handleNext}
-            disabled={!canGoNext || loading}
+            disabled={(!canGoNext && !isLast) || loading}
             style={{
               padding: "0.55rem 1.25rem",
               borderRadius: 8,
