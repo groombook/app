@@ -314,7 +314,7 @@ jobs:
           if [ -z "$TAG" ]; then
             TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
           fi
-          SHORT_SHA="${SHA::7}"
+          export SHORT_SHA="${SHA::7}"
           echo "Updating dev overlay image tags to: $TAG"
           echo "Updating migration/seed Job names with SHA: $SHORT_SHA"
           cd /tmp/infra
