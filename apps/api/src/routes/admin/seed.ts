@@ -37,10 +37,10 @@ const DEMO_PET = {
 };
 
 const DEMO_SERVICES = [
-  { id: "a0000001-0000-0000-0000-000000000001", name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
-  { id: "a0000001-0000-0000-0000-000000000002", name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
-  { id: "a0000001-0000-0000-0000-000000000003", name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
-  { id: "a0000001-0000-0000-0000-000000000004", name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
+  { id: "b0000001-0000-0000-0000-000000000001", name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
+  { id: "b0000001-0000-0000-0000-000000000002", name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
+  { id: "b0000001-0000-0000-0000-000000000003", name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
+  { id: "b0000001-0000-0000-0000-000000000004", name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
 ];
 
 adminSeedRouter.post("/seed", async (c) => {
@@ -71,13 +71,16 @@ adminSeedRouter.post("/seed", async (c) => {
     results.push(`Created staff '${KNOWN_STAFF.name}' (id: ${created!.id}, oidcSub: ${KNOWN_STAFF.oidcSub})`);
   }
 
-  // ── Services: idempotent upsert ─────────────────────────────────────────────
+  // ── Services: idempotent upsert using name as unique key ────────────────────
+  // NOTE: UNIQUE constraint on services.name must exist (via migration 0020).
+  // Both this admin seed and the main DB seed use the same deterministic IDs
+  // and ON CONFLICT (name), ensuring consistency across both seed paths.
   for (const svc of DEMO_SERVICES) {
     await db.insert(services)
       .values({ ...svc, active: true })
       .onConflictDoUpdate({
-        target: services.id,
-        set: { name: svc.name, description: svc.description, basePriceCents: svc.basePriceCents, durationMinutes: svc.durationMinutes, active: true },
+        target: services.name,
+        set: { description: svc.description, basePriceCents: svc.basePriceCents, durationMinutes: svc.durationMinutes, active: true },
       });
   }
   results.push(`Upserted ${DEMO_SERVICES.length} services`);

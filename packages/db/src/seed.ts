@@ -234,7 +234,8 @@ const productsUsed = [
 ];
 
 // ── Service definitions ──────────────────────────────────────────────────────
-// Deterministic service IDs so seed is idempotent (ON CONFLICT targets id, not name).
+// Deterministic service IDs + UNIQUE(name) constraint make seed fully idempotent:
+// first run inserts, subsequent runs update existing rows via ON CONFLICT (name).
 const servicesDef = [
   { id: "b0000001-0000-0000-0000-000000000001", name: "Bath & Brush", desc: "Full bath, blow-dry, brush out, and ear cleaning", price: 4500, dur: 45 },
   { id: "b0000001-0000-0000-0000-000000000002", name: "Full Groom — Small", desc: "Complete grooming for dogs under 25 lbs", price: 6500, dur: 60 },
@@ -293,19 +294,21 @@ async function seedKnownUsers() {
     console.log("✓ Created staff 'Demo Manager' (oidcSub: demo-manager-001)");
   }
 
-  // ── Services: idempotent upsert using deterministic IDs ──
+  // ── Services: idempotent upsert using name as unique key ─────────────────────
+  // UNIQUE constraint on services.name (migration 0020) must exist first.
+  // Uses b0000001-... IDs to match main seed servicesDef for same-named services.
   const demoSvcs = [
-    { id: "a0000001-0000-0000-0000-000000000001", name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
-    { id: "a0000001-0000-0000-0000-000000000002", name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
-    { id: "a0000001-0000-0000-0000-000000000003", name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
-    { id: "a0000001-0000-0000-0000-000000000004", name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
+    { id: "b0000001-0000-0000-0000-000000000001", name: "Bath & Brush", description: "Full bath, blow-dry, brush out, and ear cleaning", basePriceCents: 4500, durationMinutes: 45 },
+    { id: "b0000001-0000-0000-0000-000000000002", name: "Full Groom — Small", description: "Complete grooming for dogs under 25 lbs", basePriceCents: 6500, durationMinutes: 60 },
+    { id: "b0000001-0000-0000-0000-000000000003", name: "Full Groom — Medium", description: "Complete grooming for dogs 25-50 lbs", basePriceCents: 8000, durationMinutes: 75 },
+    { id: "b0000001-0000-0000-0000-000000000004", name: "Nail Trim", description: "Nail clipping and filing", basePriceCents: 1500, durationMinutes: 15 },
   ];
   for (const svc of demoSvcs) {
     await db.insert(schema.services)
       .values({ ...svc, active: true })
       .onConflictDoUpdate({
-        target: schema.services.id,
-        set: { name: svc.name, description: svc.description, basePriceCents: svc.basePriceCents, durationMinutes: svc.durationMinutes, active: true },
+        target: schema.services.name,
+        set: { description: svc.description, basePriceCents: svc.basePriceCents, durationMinutes: svc.durationMinutes, active: true },
       });
   }
   console.log(`✓ Seeded ${demoSvcs.length} services`);
@@ -405,6 +408,10 @@ async function seed() {
     { id: uuid(), name: "Devon Williams", email: "devon@groombook.dev", role: "groomer" as const, isSuperUser: false },
   ];
 
+  // Truncate downstream tables before staff upsert — clears stale appointments
+  // and other FK references to old staff IDs so the id column can safely be updated
+  await db.execute(sql`TRUNCATE appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
+
   const allStaff = [...managerStaff, ...receptionistStaff, ...groomers, ...bathers];
   for (const s of allStaff) {
     await db.insert(schema.staff)
@@ -418,7 +425,7 @@ async function seed() {
       })
       .onConflictDoUpdate({
         target: schema.staff.email,
-        set: { name: s.name, role: s.role, isSuperUser: s.isSuperUser, active: true },
+        set: { id: s.id, name: s.name, role: s.role, isSuperUser: s.isSuperUser, active: true },
       });
   }
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
@@ -427,13 +434,9 @@ async function seed() {
   await db.execute(sql`TRUNCATE appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
 
   // ── Services ──
-  // Deduplicate existing services (keep lowest id per name) before inserting.
-  await db.execute(sql`
-    DELETE FROM services WHERE id NOT IN (
-      SELECT (MIN(id::text))::uuid FROM services GROUP BY name
-    )
-  `);
-
+  // Upsert services using name as unique key. With deterministic IDs in
+  // servicesDef and TRUNCATE clearing downstream tables first, this is
+  // idempotent: first run inserts, subsequent runs update existing rows.
   const serviceIds: string[] = [];
   for (const s of servicesDef) {
     serviceIds.push(s.id);
@@ -447,8 +450,8 @@ async function seed() {
         active: true,
       })
       .onConflictDoUpdate({
-        target: schema.services.id,
-        set: { name: s.name, description: s.desc, basePriceCents: s.price, durationMinutes: s.dur, active: true },
+        target: schema.services.name,
+        set: { description: s.desc, basePriceCents: s.price, durationMinutes: s.dur, active: true },
       });
   }
   console.log(`✓ Created ${servicesDef.length} services`);
