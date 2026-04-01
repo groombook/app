@@ -427,7 +427,7 @@ async function seed() {
   // Deduplicate existing services (keep lowest id per name) before inserting.
   await db.execute(sql`
     DELETE FROM services WHERE id NOT IN (
-      SELECT MIN(id) FROM services GROUP BY name
+      SELECT (MIN(id::text))::uuid FROM services GROUP BY name
     )
   `);
 
