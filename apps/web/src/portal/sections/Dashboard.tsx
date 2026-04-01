@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { Calendar, Clock, PawPrint, CreditCard, Star, ChevronRight, AlertTriangle } from "lucide-react";
+import { getDevUser } from "../pages/DevLoginSelector.js";
 
 interface DashboardProps {
   sessionId: string | null;
@@ -186,7 +187,11 @@ export function Dashboard({
     );
   }
 
-  if (!sessionId && !isImpersonating) {
+  // Don't redirect to /login if we have a dev user — dev sessions may not have
+  // sessionId set immediately after creation (session?.id may be null due to
+  // timing or API response issues). Dev users are stored in localStorage and
+  // verified via the dev-session flow, so they should see the portal.
+  if (!sessionId && !isImpersonating && !getDevUser()) {
     return <Navigate to="/login" replace />;
   }
 

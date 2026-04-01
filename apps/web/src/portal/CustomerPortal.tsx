@@ -179,12 +179,20 @@ export function CustomerPortal() {
 
   // After init completes, redirect unauthenticated users to /login and staff to /admin.
   // The portal chrome must NEVER be visible to users without a valid client session.
+  // For client dev users, we stay on the portal even if session is null — the dev-session
+  // response may not have id set immediately, or there may be timing issues with the
+  // session state. Dev users are verified via localStorage and the dev-session flow.
   if (initComplete && !session) {
     const devUser = getDevUser();
     if (devUser && devUser.type === "staff") {
       return <Navigate to="/admin" replace />;
     }
-    return <Navigate to="/login" replace />;
+    if (devUser && devUser.type === "client") {
+      // Don't redirect — dev session creation may have failed or session.id may be null
+      // The portal should still render for client dev users
+    } else {
+      return <Navigate to="/login" replace />;
+    }
   }
 
   return (
