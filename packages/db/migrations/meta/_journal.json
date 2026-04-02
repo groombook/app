@@ -162,6 +162,13 @@
       "when": 1775223267192,
       "tag": "0022_logo_key",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1775309667192,
+      "tag": "0023_auth_provider_config",
+      "breakpoints": true
     }
   ]
 }
