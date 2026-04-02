@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
-import { auth } from "./lib/auth.js";
+import { getAuth, initAuth } from "./lib/auth.js";
 import { clientsRouter } from "./routes/clients.js";
 import { petsRouter } from "./routes/pets.js";
 import { servicesRouter } from "./routes/services.js";
@@ -99,7 +99,7 @@ api.use("*", resolveStaffMiddleware);
 // Better-Auth handler — mounted as sub-app to handle all /api/auth/* routes
 // authMiddleware and resolveStaffMiddleware both skip /api/auth/ paths
 const authRouter = new Hono();
-authRouter.all("/*", (c) => auth.handler(c.req.raw));
+authRouter.all("/*", (c) => getAuth().handler(c.req.raw));
 api.route("/auth", authRouter);
 
 // ── Role guards ────────────────────────────────────────────────────────────────
@@ -168,6 +168,7 @@ api.route("/admin/seed", adminSeedRouter);
 api.route("/search", searchRouter);
 
 const port = Number(process.env.PORT ?? 3000);
+await initAuth();
 console.log(`API server listening on port ${port}`);
 serve({ fetch: app.fetch, port });
 
