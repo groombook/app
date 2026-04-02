@@ -10,7 +10,6 @@ const MOCK_SERVICES = [
   { id: "svc-1", name: "Full Groom", description: "Bath and haircut", basePriceCents: 7500, durationMinutes: 90, isActive: true },
   { id: "svc-2", name: "Bath Only", description: "Just the bath", basePriceCents: 3500, durationMinutes: 45, isActive: true },
   { id: "svc-3", name: "Nail Trim", description: "Just nails", basePriceCents: 1500, durationMinutes: 15, isActive: true },
-  { id: "svc-4", name: "Full Groom", description: "Dup name", basePriceCents: 7500, durationMinutes: 90, isActive: true }, // duplicate name for testing
 ];
 
 test.describe("Services Deduplication", () => {

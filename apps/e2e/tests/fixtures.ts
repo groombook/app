@@ -16,8 +16,8 @@ const MOCK_DEV_USERS = {
     { id: "staff-2", name: "Bob Manager", email: "bob@groombook.dev", role: "manager" },
   ],
   clients: [
-    { id: "client-1", name: "Carol Client", email: "carol@example.com", petCount: 2 },
-    { id: "client-2", name: "Dave Client", email: null, petCount: 1 },
+    { id: "00000000-0000-0000-0000-000000000002", name: "Carol Client", email: "carol@example.com", petCount: 2 },
+    { id: "00000000-0000-0000-0000-000000000003", name: "Dave Client", email: null, petCount: 1 },
   ],
 };
 
@@ -46,6 +46,20 @@ export const test = base.extend({
     // Mock the setup status endpoint so the app does not redirect to /setup
     await page.route("**/api/setup/status", (route) =>
       route.fulfill({ json: { needsSetup: false } })
+    );
+    // Mock the portal dev-session endpoint for client portal login
+    await page.route("**/api/portal/dev-session", (route) =>
+      route.fulfill({
+        status: 201,
+        json: {
+          id: "dev-session-1",
+          staffId: "00000000-0000-0000-0000-000000000001",
+          clientId: route.request().postDataJSON().clientId,
+          reason: "dev-mode-client-portal",
+          status: "active",
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        },
+      })
     );
     // Seed localStorage as a fallback in case the mock is bypassed
     await page.addInitScript(() => {

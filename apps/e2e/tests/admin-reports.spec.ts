@@ -60,10 +60,10 @@ test.describe("Admin Reports Data", () => {
     // Wait for reports to load
     await expect(page.locator("h1")).toContainText("Reports", { timeout: 10_000 });
 
-    // Should show KPI cards with data
-    await expect(page.locator("text=/Revenue/i")).toBeVisible();
-    await expect(page.locator("text=/Appointments/i")).toBeVisible();
-    await expect(page.locator("text=/New Clients/i")).toBeVisible();
+    // Should show KPI cards with data (use .first() to avoid strict mode violation)
+    await expect(page.locator("text=/Revenue/i").first()).toBeVisible();
+    await expect(page.locator("text=/Appointments/i").first()).toBeVisible();
+    await expect(page.locator("text=/New Clients/i").first()).toBeVisible();
   });
 
   test("reports show non-zero data when data exists", async ({ page }) => {
@@ -72,12 +72,12 @@ test.describe("Admin Reports Data", () => {
     // Wait for data to load
     await page.waitForTimeout(2_000);
 
-    // Revenue card should show non-zero value
-    const revenueCard = page.locator("text=/\\$1,250/"); // $1250 = 125000 cents
+    // Revenue card should show non-zero value (check dollar amount or Revenue heading)
+    const revenueCard = page.locator("text=/\\$1,250/").first();
     await expect(revenueCard.or(page.locator("text=/Revenue/"))).toBeVisible();
 
     // Appointments card should show non-zero
-    const appointmentsCard = page.locator("text=/25/"); // 25 total appointments
+    const appointmentsCard = page.locator("text=/25/").first();
     await expect(appointmentsCard.or(page.locator("text=/Appointments/"))).toBeVisible();
   });
 
@@ -114,7 +114,7 @@ test.describe("Admin Reports Data", () => {
     // Wait for reports to load
     await page.waitForTimeout(2_000);
 
-    // Should show section headers
-    await expect(page.locator("text=/Revenue by/i")).toBeVisible();
+    // Should show section headers (use .first() to avoid strict mode violation)
+    await expect(page.locator("text=/Revenue by/i").first()).toBeVisible();
   });
 });
