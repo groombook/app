@@ -26,6 +26,7 @@ export function ServicesPage() {
   const [form, setForm] = useState<ServiceForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   async function load() {
     const r = await fetch("/api/services?includeInactive=true");
@@ -102,12 +103,17 @@ export function ServicesPage() {
   }
 
   async function toggleActive(s: Service) {
-    await fetch(`/api/services/${s.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: !s.active }),
-    });
-    await load();
+    setTogglingId(s.id);
+    try {
+      await fetch(`/api/services/${s.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !s.active }),
+      });
+      await load();
+    } finally {
+      setTogglingId(null);
+    }
   }
 
   if (loading) return <p style={{ padding: "1rem" }}>Loading…</p>;
@@ -147,25 +153,42 @@ export function ServicesPage() {
                 <td style={tdStyle}>${(s.basePriceCents / 100).toFixed(2)}</td>
                 <td style={tdStyle}>{s.durationMinutes} min</td>
                 <td style={tdStyle}>
-                  <span
+                  <button
+                    onClick={() => toggleActive(s)}
+                    disabled={togglingId === s.id}
+                    title={s.active ? "Deactivate" : "Activate"}
                     style={{
-                      padding: "2px 8px",
-                      borderRadius: 12,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: s.active ? "#d1fae5" : "#f3f4f6",
-                      color: s.active ? "#065f46" : "#6b7280",
+                      position: "relative",
+                      width: 36,
+                      height: 20,
+                      borderRadius: 10,
+                      border: "1px solid",
+                      borderColor: s.active ? "#10b981" : "#d1d5db",
+                      background: s.active ? "#d1fae5" : "#fff",
+                      cursor: togglingId === s.id ? "not-allowed" : "pointer",
+                      padding: 0,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      opacity: togglingId === s.id ? 0.6 : 1,
                     }}
                   >
-                    {s.active ? "Active" : "Inactive"}
-                  </span>
+                    <span style={{
+                      position: "absolute",
+                      left: s.active ? 17 : 2,
+                      width: 14,
+                      height: 14,
+                      borderRadius: 7,
+                      background: s.active ? "#10b981" : "#d1d5db",
+                      transition: "left 0.15s ease",
+                    }} />
+                    {togglingId === s.id && (
+                      <span style={{ position: "absolute", fontSize: 9, color: s.active ? "#065f46" : "#6b7280", fontWeight: 700 }}>…</span>
+                    )}
+                  </button>
                 </td>
                 <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
                   <button onClick={() => openEdit(s)} style={{ ...btnStyle, marginRight: "0.4rem" }}>
                     Edit
-                  </button>
-                  <button onClick={() => toggleActive(s)} style={btnStyle}>
-                    {s.active ? "Deactivate" : "Activate"}
                   </button>
                 </td>
               </tr>
