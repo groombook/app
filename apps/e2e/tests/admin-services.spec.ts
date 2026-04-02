@@ -15,7 +15,11 @@ const MOCK_SERVICES = [
 test.describe("Services Deduplication", () => {
   test.beforeEach(async ({ page }) => {
     // Mock services endpoint FIRST before navigation
+    // Also mock /api/book/services used by the booking wizard
     await page.route("**/api/services**", (route) =>
+      route.fulfill({ json: MOCK_SERVICES })
+    );
+    await page.route("**/api/book/services**", (route) =>
       route.fulfill({ json: MOCK_SERVICES })
     );
 
