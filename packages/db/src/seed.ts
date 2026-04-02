@@ -357,6 +357,7 @@ async function seedKnownUsers() {
       breed: "Golden Retriever",
       weightKg: "30.00",
       dateOfBirth: new Date("2020-06-15T00:00:00Z"),
+      image: "/demo-pets/dog-golden-retriever.png",
     });
     console.log("✓ Created pet 'Demo Dog'");
   }
