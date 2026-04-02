@@ -262,6 +262,9 @@ export function App() {
     return <Navigate to="/setup" replace />;
   }
 
+  // Don't render portal chrome at /login — DevLoginSelector is shown instead
+  const showCustomerPortal = !location.pathname.startsWith("/admin") && location.pathname !== "/login";
+
   return (
     <BrandingProvider>
       {location.pathname.startsWith("/admin") ? (
@@ -271,12 +274,12 @@ export function App() {
           </Routes>
           {authDisabled && <DevSessionIndicator />}
         </>
-      ) : (
+      ) : showCustomerPortal ? (
         <>
           <CustomerPortal />
           {authDisabled && <DevSessionIndicator />}
         </>
-      )}
+      ) : null}
     </BrandingProvider>
   );
 }
