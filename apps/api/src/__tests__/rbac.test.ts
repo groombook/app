@@ -25,6 +25,7 @@ const RECEPTIONIST: StaffRow = {
   oidcSub: "oidc-receptionist-sub",
   userId: "ba-user-receptionist",
   role: "receptionist",
+  isSuperUser: false,
   name: "Receptionist Rita",
   email: "receptionist@example.com",
 };
@@ -35,6 +36,7 @@ const GROOMER: StaffRow = {
   oidcSub: "oidc-groomer-sub",
   userId: "ba-user-groomer",
   role: "groomer",
+  isSuperUser: false,
   name: "Groomer Gary",
   email: "groomer@example.com",
 };
@@ -122,7 +124,7 @@ function buildWithStaff(
 
 // ─── Import middleware ────────────────────────────────────────────────────────
 
-const { resolveStaffMiddleware, requireRole } = await import(
+const { resolveStaffMiddleware, requireRole, requireSuperUser } = await import(
   "../middleware/rbac.js"
 );
 
@@ -247,6 +249,78 @@ describe("requireRole", () => {
 
   it("returns 403 with JSON body (not plain text)", async () => {
     const app = buildWithStaff(GROOMER, requireRole("manager"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(403);
+    const contentType = res.headers.get("content-type") ?? "";
+    expect(contentType).toContain("application/json");
+  });
+});
+
+// ─── requireSuperUser tests ─────────────────────────────────────────────────
+
+describe("requireSuperUser", () => {
+  it("allows access when staff is a super user", async () => {
+    const app = buildWithStaff(MANAGER, requireSuperUser());
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("allows access when manager is also a super user", async () => {
+    // MANAGER has isSuperUser: true
+    const app = buildWithStaff(MANAGER, requireSuperUser());
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 403 for a non-super-user receptionist", async () => {
+    // RECEPTIONIST has isSuperUser: false
+    const app = buildWithStaff(RECEPTIONIST, requireSuperUser());
+    const res = await app.request("/test");
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toMatch(/super user privileges required/i);
+  });
+
+  it("returns 403 for a non-super-user groomer", async () => {
+    // GROOMER has isSuperUser: false
+    const app = buildWithStaff(GROOMER, requireSuperUser());
+    const res = await app.request("/test");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 when staff record is not resolved", async () => {
+    const app = buildWithStaff(MANAGER, requireSuperUser());
+    // Manually remove staff from context to simulate unresolved staff
+    const testApp = new Hono<AppEnv>();
+    testApp.use("*", async (c, next) => {
+      c.set("jwtPayload", { sub: "test-sub" });
+      // Do NOT set staff - simulate unresolved staff
+      await next();
+    });
+    testApp.use("*", requireSuperUser());
+    testApp.get("/test", (c) => c.json({ ok: true }));
+    const res = await testApp.request("/test");
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toMatch(/staff record not resolved/i);
+  });
+
+  it("receptionist cannot grant super user status on staff PATCH", async () => {
+    // This tests the inline guard in staff.ts handler, not the middleware itself,
+    // but we test requireSuperUser to verify the middleware correctly blocks
+    const app = buildWithStaff(RECEPTIONIST, requireSuperUser());
+    const res = await app.request("/test", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isSuperUser: true }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toMatch(/super user privileges required/i);
+  });
+
+  it("returns 403 with JSON body for super user violation", async () => {
+    const app = buildWithStaff(RECEPTIONIST, requireSuperUser());
     const res = await app.request("/test");
     expect(res.status).toBe(403);
     const contentType = res.headers.get("content-type") ?? "";

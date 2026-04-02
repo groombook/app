@@ -42,7 +42,7 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
       if (!manager) {
         return c.json({ error: "Forbidden: no staff records found" }, 403);
       }
-      c.set("staff", { ...manager, isSuperUser: true });
+      c.set("staff", { ...manager, isSuperUser: manager.isSuperUser ?? false });
       await next();
       return;
     }
@@ -52,7 +52,7 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
       .from(staff)
       .where(eq(staff.userId, devUserId));
     if (row) {
-      c.set("staff", { ...row, isSuperUser: true });
+      c.set("staff", { ...row, isSuperUser: row.isSuperUser ?? false });
       await next();
       return;
     }
@@ -68,7 +68,7 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
         403
       );
     }
-    c.set("staff", { ...fallbackRow, isSuperUser: true });
+    c.set("staff", { ...fallbackRow, isSuperUser: fallbackRow.isSuperUser ?? false });
     await next();
     return;
   }
