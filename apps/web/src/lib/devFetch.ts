@@ -9,10 +9,6 @@ const originalFetch = window.fetch;
  * Intentionally mutates window.fetch — this is dev-only (AUTH_DISABLED=true).
  */
 export function installDevFetchInterceptor() {
-  // Only install if a dev user is selected (localStorage check, not build-time flag).
-  // This ensures the interceptor runs in deployed dev builds, not just `vite dev`.
-  if (!getDevUser()) return;
-
   window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
     const user = getDevUser();
     if (!user) return originalFetch(input, init);
