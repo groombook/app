@@ -289,7 +289,6 @@ describe("requireSuperUser", () => {
   });
 
   it("returns 403 when staff record is not resolved", async () => {
-    const app = buildWithStaff(MANAGER, requireSuperUser());
     // Manually remove staff from context to simulate unresolved staff
     const testApp = new Hono<AppEnv>();
     testApp.use("*", async (c, next) => {
