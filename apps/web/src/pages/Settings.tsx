@@ -57,7 +57,7 @@ export function SettingsPage() {
       .catch(() => setLoaded(true));
   }, []);
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -72,15 +72,53 @@ export function SettingsPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Strip the data:...;base64, prefix
-      const base64 = result.split(",")[1] ?? null;
-      setForm((f) => ({ ...f, logoBase64: base64, logoMimeType: file.type as SettingsForm["logoMimeType"] }));
-      setMessage(null);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Step 1: Get presigned upload URL
+      const uploadRes = await fetch("/api/admin/settings/logo/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: file.type, fileSizeBytes: file.size }),
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed to get upload URL");
+      }
+      const { uploadUrl, key } = await uploadRes.json();
+
+      // Step 2: PUT the file directly to S3
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putRes.ok) {
+        throw new Error("Failed to upload logo to storage");
+      }
+
+      // Step 3: Confirm the upload
+      const confirmRes = await fetch("/api/admin/settings/logo/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      if (!confirmRes.ok) {
+        const err = await confirmRes.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed to confirm logo upload");
+      }
+
+      // Step 4: Fetch the presigned GET URL for display
+      const logoRes = await fetch("/api/admin/settings/logo");
+      if (logoRes.ok) {
+        const logoData = await logoRes.json();
+        setForm((f) => ({ ...f, logoKey: key, logoUrl: logoData.url, logoBase64: null, logoMimeType: null }));
+      } else {
+        setForm((f) => ({ ...f, logoKey: key, logoUrl: null, logoBase64: null, logoMimeType: null }));
+      }
+      setMessage({ type: "success", text: "Logo uploaded." });
+      refresh();
+    } catch (err: unknown) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Logo upload failed" });
+    }
   };
 
   const handleSave = async () => {
@@ -107,9 +145,7 @@ export function SettingsPage() {
 
   if (!loaded) return <p>Loading settings...</p>;
 
-  const logoSrc = form.logoBase64 && form.logoMimeType
-    ? `data:${form.logoMimeType};base64,${form.logoBase64}`
-    : null;
+  const logoSrc = form.logoUrl ?? (form.logoBase64 && form.logoMimeType ? `data:${form.logoMimeType};base64,${form.logoBase64}` : null);
 
   return (
     <div style={{ maxWidth: 600 }}>
@@ -182,7 +218,20 @@ export function SettingsPage() {
             />
             {logoSrc && (
               <button
-                onClick={() => setForm((f) => ({ ...f, logoBase64: null, logoMimeType: null }))}
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/admin/settings/logo", { method: "DELETE" });
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => null);
+                      throw new Error(err?.error ?? "Failed to delete logo");
+                    }
+                    setForm((f) => ({ ...f, logoKey: null, logoUrl: null, logoBase64: null, logoMimeType: null }));
+                    setMessage({ type: "success", text: "Logo removed." });
+                    refresh();
+                  } catch (err: unknown) {
+                    setMessage({ type: "error", text: err instanceof Error ? err.message : "Delete failed" });
+                  }
+                }}
                 style={{
                   marginLeft: 8,
                   padding: "0.4rem 0.75rem",
