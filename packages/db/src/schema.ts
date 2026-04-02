@@ -348,6 +348,7 @@ export const businessSettings = pgTable("business_settings", {
   businessName: text("business_name").notNull().default("GroomBook"),
   logoBase64: text("logo_base64"),
   logoMimeType: text("logo_mime_type"),
+  logoKey: text("logo_key"),
   primaryColor: text("primary_color").notNull().default("#4f8a6f"),
   accentColor: text("accent_color").notNull().default("#8b7355"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -5,8 +5,10 @@ interface SettingsForm {
   businessName: string;
   primaryColor: string;
   accentColor: string;
-  logoBase64: string | null;
-  logoMimeType: string | null;
+  logoKey: string | null;
+  logoUrl: string | null;
+  logoBase64: string | null; // legacy
+  logoMimeType: string | null; // legacy
 }
 
 export function SettingsPage() {
@@ -15,6 +17,8 @@ export function SettingsPage() {
     businessName: "",
     primaryColor: "#4f8a6f",
     accentColor: "#8b7355",
+    logoKey: null,
+    logoUrl: null,
     logoBase64: null,
     logoMimeType: null,
   });
@@ -26,11 +30,25 @@ export function SettingsPage() {
   useEffect(() => {
     fetch("/api/admin/settings")
       .then((r) => r.json())
-      .then((data) => {
+      .then(async (data) => {
+        let logoUrl: string | null = null;
+        if (data.logoKey) {
+          try {
+            const logoRes = await fetch("/api/admin/settings/logo");
+            if (logoRes.ok) {
+              const logoData = await logoRes.json();
+              logoUrl = logoData.url;
+            }
+          } catch {
+            // ignore
+          }
+        }
         setForm({
           businessName: data.businessName ?? "GroomBook",
           primaryColor: data.primaryColor ?? "#4f8a6f",
           accentColor: data.accentColor ?? "#8b7355",
+          logoKey: data.logoKey ?? null,
+          logoUrl,
           logoBase64: data.logoBase64 ?? null,
           logoMimeType: data.logoMimeType ?? null,
         });

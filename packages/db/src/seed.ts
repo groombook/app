@@ -339,27 +339,41 @@ async function seedKnownUsers() {
     console.log("✓ Created client 'Demo Client'");
   }
 
-  // ── Pet: Demo Dog ──
-  const [existingPet] = await db
-    .select()
-    .from(schema.pets)
-    .where(eq(schema.pets.id, DEMO_PET_ID))
-    .limit(1);
+  // ── Pets: Demo Dogs & Cats ──
+  const demoPets = [
+    { id: DEMO_PET_ID, name: "Demo Dog", species: "Dog", breed: "Golden Retriever", weight: "30.00", dob: "2020-06-15", image: "/demo-pets/dog-golden-after.png" },
+    { id: uuid(), name: "Fluffy", species: "Dog", breed: "Poodle", weight: "8.50", dob: "2019-03-22", image: "/demo-pets/dog-poodle-groomed.png" },
+    { id: uuid(), name: "Shadow", species: "Dog", breed: "Black Labrador", weight: "35.00", dob: "2018-11-10", image: "/demo-pets/dog-black-lab.png" },
+    { id: uuid(), name: "Bella", species: "Dog", breed: "Shih Tzu", weight: "4.50", dob: "2021-02-14", image: "/demo-pets/dog-shih-tzu.png" },
+    { id: uuid(), name: "Max", species: "Dog", breed: "Cocker Spaniel", weight: "15.00", dob: "2019-07-08", image: "/demo-pets/dog-cocker-spaniel.png" },
+    { id: uuid(), name: "Buddy", species: "Dog", breed: "Schnauzer", weight: "12.00", dob: "2020-05-20", image: "/demo-pets/dog-schnauzer.png" },
+    { id: uuid(), name: "Daisy", species: "Dog", breed: "Maltese", weight: "3.50", dob: "2021-09-03", image: "/demo-pets/dog-maltese.png" },
+    { id: uuid(), name: "Charlie", species: "Dog", breed: "Dachshund", weight: "6.00", dob: "2020-01-15", image: "/demo-pets/dog-dachshund.png" },
+    { id: uuid(), name: "Lucy", species: "Dog", breed: "Pomeranian", weight: "2.50", dob: "2022-04-10", image: "/demo-pets/dog-pomeranian.png" },
+  ];
 
-  if (existingPet) {
-    console.log(`✓ Pet '${existingPet.name}' already exists — skipping`);
-  } else {
-    await db.insert(schema.pets).values({
-      id: DEMO_PET_ID,
-      clientId,
-      name: "Demo Dog",
-      species: "Dog",
-      breed: "Golden Retriever",
-      weightKg: "30.00",
-      dateOfBirth: new Date("2020-06-15T00:00:00Z"),
-      image: "/demo-pets/dog-golden-retriever.png",
-    });
-    console.log("✓ Created pet 'Demo Dog'");
+  for (const pet of demoPets) {
+    const [existing] = await db
+      .select()
+      .from(schema.pets)
+      .where(eq(schema.pets.id, pet.id))
+      .limit(1);
+
+    if (existing) {
+      console.log(`✓ Pet '${existing.name}' already exists — skipping`);
+    } else {
+      await db.insert(schema.pets).values({
+        id: pet.id,
+        clientId,
+        name: pet.name,
+        species: pet.species,
+        breed: pet.breed,
+        weightKg: pet.weight,
+        dateOfBirth: new Date(`${pet.dob}T00:00:00Z`),
+        image: pet.image,
+      });
+      console.log(`✓ Created pet '${pet.name}'`);
+    }
   }
 
   console.log("\nKnown-users seed complete!");
