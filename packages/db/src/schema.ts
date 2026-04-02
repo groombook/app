@@ -405,3 +405,19 @@ export const waitlistEntries = pgTable(
     index("idx_waitlist_status").on(t.status),
   ]
 );
+
+// ─── Auth Provider Config ──────────────────────────────────────────────────
+
+export const authProviderConfig = pgTable("auth_provider_config", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  providerId: text("provider_id").notNull().unique(), // e.g. "authentik", "okta", "entra-id"
+  displayName: text("display_name").notNull(), // shown on login button
+  issuerUrl: text("issuer_url").notNull(), // OIDC issuer/discovery URL
+  internalBaseUrl: text("internal_base_url"), // for hairpin NAT / K8s internal routing
+  clientId: text("client_id").notNull(),
+  clientSecret: text("client_secret").notNull(), // AES-256-GCM encrypted using BETTER_AUTH_SECRET
+  scopes: text("scopes").notNull().default("openid profile email"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
