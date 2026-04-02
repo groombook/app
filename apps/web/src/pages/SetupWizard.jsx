@@ -1,27 +1,107 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBranding } from "../BrandingContext.js";
-
-const STEPS = [
-  { title: "Welcome", description: "Welcome to GroomBook! Let's get your business set up." },
-  { title: "Business Name", description: "What is the name of your business?" },
-  { title: "Super User", description: "You will be designated as a Super User with full administrative access." },
-  { title: "Add Another Admin", description: "Consider adding a second Super User as a backup. This is optional but recommended." },
-  { title: "All Set!", description: "Your GroomBook instance is ready to use." },
-];
 
 export function SetupWizard() {
   const navigate = useNavigate();
   const { refresh: refreshBranding } = useBranding();
+
+  // Fetch setup status to determine if auth provider step is needed
+  const [setupStatus, setSetupStatus] = useState(null); // null = loading
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  // Auth provider form state
+  const [authForm, setAuthForm] = useState({
+    providerId: "authentik",
+    displayName: "",
+    issuerUrl: "",
+    internalBaseUrl: "",
+    clientId: "",
+    clientSecret: "",
+    scopes: "openid profile email",
+  });
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState(null); // {ok: boolean, error?: string}
+
   const [step, setStep] = useState(0);
   const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  useEffect(() => {
+    fetch("/api/setup/status")
+      .then((r) => r.json())
+      .then((data) => {
+        setSetupStatus(data);
+        setLoadingStatus(false);
+      })
+      .catch(() => {
+        setLoadingStatus(false);
+      });
+  }, []);
+
+  // Build steps dynamically based on setup status
+  const STEPS = setupStatus?.showAuthProviderStep
+    ? [
+        { id: "welcome", title: "Welcome", description: "Welcome to GroomBook! Let's get your business set up." },
+        { id: "auth", title: "Auth Provider", description: "Configure your authentication provider to secure your GroomBook instance." },
+        { id: "business", title: "Business Name", description: "What is the name of your business?" },
+        { id: "superuser", title: "Super User", description: "You will be designated as a Super User with full administrative access." },
+        { id: "admin", title: "Add Another Admin", description: "Consider adding a second Super User as a backup. This is optional but recommended." },
+        { id: "done", title: "All Set!", description: "Your GroomBook instance is ready to use." },
+      ]
+    : [
+        { id: "welcome", title: "Welcome", description: "Welcome to GroomBook! Let's get your business set up." },
+        { id: "business", title: "Business Name", description: "What is the name of your business?" },
+        { id: "superuser", title: "Super User", description: "You will be designated as a Super User with full administrative access." },
+        { id: "admin", title: "Add Another Admin", description: "Consider adding a second Super User as a backup. This is optional but recommended." },
+        { id: "done", title: "All Set!", description: "Your GroomBook instance is ready to use." },
+      ];
+
   const current = STEPS[step];
   const isLast = step === STEPS.length - 1;
+  const isFirst = step === 0;
   const canGoBack = step > 0 && step < STEPS.length - 1;
-  const canGoNext = step < STEPS.length - 1 && (step !== 1 || businessName.trim().length > 0);
+
+  // Determine if we can proceed - depends on which step we're on
+  const canGoNext = (() => {
+    if (step === STEPS.length - 1) return true; // done step
+    if (current?.id === "business") return businessName.trim().length > 0;
+    if (current?.id === "auth") {
+      return (
+        authForm.displayName.trim().length > 0 &&
+        authForm.issuerUrl.trim().length > 0 &&
+        authForm.clientId.trim().length > 0 &&
+        authForm.clientSecret.trim().length > 0
+      );
+    }
+    return true;
+  })();
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin/auth-provider/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerId: authForm.providerId,
+          displayName: authForm.displayName,
+          issuerUrl: authForm.issuerUrl,
+          internalBaseUrl: authForm.internalBaseUrl || null,
+          clientId: authForm.clientId,
+          scopes: authForm.scopes,
+        }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (e) {
+      setTestResult({ ok: false, error: "Network error. Please try again." });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
 
   const handleNext = async () => {
     if (step === STEPS.length - 1) {
@@ -29,8 +109,41 @@ export function SetupWizard() {
       navigate("/admin");
       return;
     }
-    if (step === 1 && businessName.trim()) {
-      // Step 2 (index 1) -> Step 3 (index 2): submit setup
+
+    // Submit auth provider config
+    if (current?.id === "auth") {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/setup/auth-provider", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            providerId: authForm.providerId,
+            displayName: authForm.displayName,
+            issuerUrl: authForm.issuerUrl,
+            internalBaseUrl: authForm.internalBaseUrl || null,
+            clientId: authForm.clientId,
+            clientSecret: authForm.clientSecret,
+            scopes: authForm.scopes,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setError(data.error || "Failed to save auth provider configuration. Please try again.");
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        setError("Network error. Please try again.");
+        setLoading(false);
+        return;
+      }
+      setLoading(false);
+    }
+
+    // Submit business name and complete setup
+    if (current?.id === "business" && businessName.trim()) {
       setLoading(true);
       setError(null);
       try {
@@ -54,11 +167,38 @@ export function SetupWizard() {
       }
       setLoading(false);
     }
+
     setStep((s) => s + 1);
   };
 
   const handleBack = () => {
     if (step > 0) setStep((s) => s - 1);
+  };
+
+  if (loadingStatus) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f0f2f5",
+        fontFamily: "system-ui, sans-serif",
+      }}>
+        <p style={{ color: "#6b7280" }}>Loading...</p>
+      </div>
+    );
+  }
+
+  const inputStyle = {
+    width: "100%",
+    padding: "0.6rem 0.85rem",
+    borderRadius: 8,
+    border: "1px solid #d1d5db",
+    fontSize: 15,
+    outline: "none",
+    boxSizing: "border-box",
+    marginBottom: error ? "0.5rem" : 0,
   };
 
   return (
@@ -102,16 +242,16 @@ export function SetupWizard() {
 
         {/* Title */}
         <h2 style={{ margin: "0 0 0.75rem", fontSize: 22, fontWeight: 700, color: "#1a202c" }}>
-          {current.title}
+          {current?.title}
         </h2>
 
         {/* Description */}
         <p style={{ margin: "0 0 1.5rem", fontSize: 15, color: "#4b5563", lineHeight: 1.6 }}>
-          {current.description}
+          {current?.description}
         </p>
 
-        {/* Step 2: Business name input */}
-        {step === 1 && (
+        {/* Step: Business name input */}
+        {current?.id === "business" && (
           <input
             type="text"
             placeholder="e.g. Happy Paws Grooming"
@@ -119,21 +259,152 @@ export function SetupWizard() {
             onChange={(e) => setBusinessName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && canGoNext && handleNext()}
             autoFocus
-            style={{
-              width: "100%",
-              padding: "0.6rem 0.85rem",
-              borderRadius: 8,
-              border: "1px solid #d1d5db",
-              fontSize: 15,
-              outline: "none",
-              boxSizing: "border-box",
-              marginBottom: error ? "0.5rem" : 0,
-            }}
+            style={inputStyle}
           />
         )}
 
-        {/* Step 3: Info about super user */}
-        {step === 2 && (
+        {/* Step: Auth provider config form */}
+        {current?.id === "auth" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+            {/* Provider ID */}
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Provider ID
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. authentik"
+                value={authForm.providerId}
+                onChange={(e) => setAuthForm((f) => ({ ...f, providerId: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 14 }}
+              />
+            </div>
+
+            {/* Display Name */}
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Display Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Company SSO"
+                value={authForm.displayName}
+                onChange={(e) => setAuthForm((f) => ({ ...f, displayName: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 14 }}
+              />
+            </div>
+
+            {/* Issuer URL */}
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Issuer URL
+              </label>
+              <input
+                type="url"
+                placeholder="https://auth.example.com"
+                value={authForm.issuerUrl}
+                onChange={(e) => setAuthForm((f) => ({ ...f, issuerUrl: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 14 }}
+              />
+            </div>
+
+            {/* Internal Base URL (optional) */}
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Internal Base URL <span style={{ fontWeight: 400, color: "#6b7280" }}>(optional, for hairpin NAT)</span>
+              </label>
+              <input
+                type="url"
+                placeholder="https://auth.internal.example.com"
+                value={authForm.internalBaseUrl}
+                onChange={(e) => setAuthForm((f) => ({ ...f, internalBaseUrl: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 14 }}
+              />
+            </div>
+
+            {/* Client ID */}
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Client ID
+              </label>
+              <input
+                type="text"
+                placeholder="Your OAuth client ID"
+                value={authForm.clientId}
+                onChange={(e) => setAuthForm((f) => ({ ...f, clientId: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 14 }}
+              />
+            </div>
+
+            {/* Client Secret */}
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Client Secret
+              </label>
+              <input
+                type="password"
+                placeholder="Your OAuth client secret"
+                value={authForm.clientSecret}
+                onChange={(e) => setAuthForm((f) => ({ ...f, clientSecret: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 14 }}
+              />
+            </div>
+
+            {/* Scopes */}
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Scopes
+              </label>
+              <input
+                type="text"
+                placeholder="openid profile email"
+                value={authForm.scopes}
+                onChange={(e) => setAuthForm((f) => ({ ...f, scopes: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 14 }}
+              />
+            </div>
+
+            {/* Test Connection button */}
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={testingConnection || !authForm.issuerUrl || !authForm.clientId}
+              style={{
+                padding: "0.45rem 0.85rem",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                background: "#fff",
+                color: "#374151",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: testingConnection || !authForm.issuerUrl || !authForm.clientId ? "not-allowed" : "pointer",
+                opacity: testingConnection || !authForm.issuerUrl || !authForm.clientId ? 0.6 : 1,
+                alignSelf: "flex-start",
+              }}
+            >
+              {testingConnection ? "Testing..." : "Test Connection"}
+            </button>
+
+            {/* Test result */}
+            {testResult && (
+              <div style={{
+                padding: "0.5rem 0.75rem",
+                borderRadius: 6,
+                fontSize: 13,
+                background: testResult.ok ? "#ecfdf5" : "#fef2f2",
+                color: testResult.ok ? "#065f46" : "#991b1b",
+                border: `1px solid ${testResult.ok ? "#a7f3d0" : "#fecaca"}`,
+              }}>
+                {testResult.ok
+                  ? "Connection successful!"
+                  : `Connection failed: ${testResult.error}`}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step: Super user info */}
+        {current?.id === "superuser" && (
           <div style={{
             background: "#f0fdf4",
             border: "1px solid #bbf7d0",
@@ -147,8 +418,8 @@ export function SetupWizard() {
           </div>
         )}
 
-        {/* Step 4: Info about second admin */}
-        {step === 3 && (
+        {/* Step: Second admin info */}
+        {current?.id === "admin" && (
           <div style={{
             background: "#fffbeb",
             border: "1px solid #fde68a",
@@ -180,8 +451,8 @@ export function SetupWizard() {
         <div style={{
           display: "flex",
           gap: "0.75rem",
-          marginTop: step === 3 ? "1.5rem" : "1.25rem",
-          justifyContent: step === 0 ? "flex-end" : "space-between",
+          marginTop: current?.id === "auth" ? "1.25rem" : current?.id === "admin" ? "1.5rem" : "1.25rem",
+          justifyContent: isFirst ? "flex-end" : "space-between",
         }}>
           {canGoBack && (
             <button
@@ -218,7 +489,13 @@ export function SetupWizard() {
               marginLeft: canGoBack ? 0 : "auto",
             }}
           >
-            {loading ? "Setting up..." : isLast ? "Go to Dashboard" : step === 1 ? "Continue" : "Next"}
+            {loading
+              ? "Setting up..."
+              : isLast
+                ? "Go to Dashboard"
+                : current?.id === "business" || current?.id === "auth"
+                  ? "Continue"
+                  : "Next"}
           </button>
         </div>
       </div>
