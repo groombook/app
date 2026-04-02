@@ -97,6 +97,7 @@ export function buildPet(overrides: Partial<PetRow> & { clientId: string }): Pet
     customFields: {},
     photoKey: null,
     photoUploadedAt: null,
+    image: null,
     createdAt: new Date("2025-01-01T00:00:00Z"),
     updatedAt: new Date("2025-01-01T00:00:00Z"),
   };
