@@ -4,6 +4,7 @@ export interface Branding {
   businessName: string;
   primaryColor: string;
   accentColor: string;
+  logoUrl: string | null;
   logoBase64: string | null;
   logoMimeType: string | null;
 }
@@ -12,6 +13,7 @@ const DEFAULT_BRANDING: Branding = {
   businessName: "GroomBook",
   primaryColor: "#4f8a6f",
   accentColor: "#8b7355",
+  logoUrl: null,
   logoBase64: null,
   logoMimeType: null,
 };

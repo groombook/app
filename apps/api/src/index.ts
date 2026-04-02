@@ -18,6 +18,7 @@ import { groomingLogsRouter } from "./routes/groomingLogs.js";
 import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { searchRouter } from "./routes/search.js";
+import { getPresignedGetUrl } from "./lib/s3.js";
 import { calendarRouter } from "./routes/calendar.js";
 import { setupRouter } from "./routes/setup.js";
 import { getDb, businessSettings, eq, staff } from "@groombook/db";
@@ -55,11 +56,22 @@ app.route("/api/dev", devRouter);
 app.get("/api/branding", async (c) => {
   const db = getDb();
   const [row] = await db.select().from(businessSettings).limit(1);
-  const settings = row ?? { businessName: "GroomBook", primaryColor: "#4f8a6f", accentColor: "#8b7355", logoBase64: null, logoMimeType: null };
+  const settings = row ?? { businessName: "GroomBook", primaryColor: "#4f8a6f", accentColor: "#8b7355", logoBase64: null, logoMimeType: null, logoKey: null };
+
+  let logoUrl: string | null = null;
+  if (settings.logoKey) {
+    try {
+      logoUrl = await getPresignedGetUrl(settings.logoKey);
+    } catch {
+      // If S3 URL generation fails, fall back to legacy base64
+    }
+  }
+
   return c.json({
     businessName: settings.businessName,
     primaryColor: settings.primaryColor,
     accentColor: settings.accentColor,
+    logoUrl,
     logoBase64: settings.logoBase64,
     logoMimeType: settings.logoMimeType,
   });
