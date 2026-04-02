@@ -216,7 +216,7 @@ setupRouter.post("/auth-provider/test", zValidator("json", authProviderBootstrap
       });
     }
     return c.json({ ok: true });
-  } catch (e) {
+  } catch {
     return c.json({
       ok: false,
       error: "Could not reach the OIDC provider. Check your Issuer URL and network connectivity.",
