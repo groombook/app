@@ -77,8 +77,7 @@ test.describe("Admin Reports Data", () => {
     await expect(revenueCard).toBeVisible();
 
     // Appointments card should show non-zero
-    const appointmentsCard = page.locator("text=/25/").first();
-    await expect(appointmentsCard.or(page.locator("text=/Appointments/"))).toBeVisible();
+    await expect(page.getByText("25", { exact: true }).first()).toBeVisible();
   });
 
   test("reports date range inputs exist and are functional", async ({ page }) => {

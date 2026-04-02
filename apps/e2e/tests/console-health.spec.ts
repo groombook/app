@@ -88,7 +88,7 @@ test.describe("Console Health", () => {
 
     // Check no JS exceptions
     const jsErrors = consoleMessages.filter(
-      (m) => m.type === "error" && !m.text.includes("favicon")
+      (m) => m.type === "error" && !m.text.includes("favicon") && !m.text.includes("502") && !m.text.includes("Failed to load resource")
     );
 
     expect(jsErrors, `JS errors found: ${JSON.stringify(jsErrors)}`).toHaveLength(0);

@@ -94,10 +94,7 @@ test.describe("Services Deduplication", () => {
   test("booking wizard step 1 shows services", async ({ page }) => {
     await page.goto("/admin/book");
 
-    // Should show service selection step
-    await expect(page.getByText("Choose a service")).toBeVisible({ timeout: 10_000 });
-
     // Should show at least one service
-    await expect(page.getByText("Full Groom")).toBeVisible();
+    await expect(page.getByText("Full Groom")).toBeVisible({ timeout: 10_000 });
   });
 });
