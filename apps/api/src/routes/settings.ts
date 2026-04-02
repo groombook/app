@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
 import { eq, getDb, businessSettings } from "@groombook/db";
+import { requireSuperUser } from "../middleware/rbac.js";
 
 export const settingsRouter = new Hono();
 
@@ -33,6 +34,7 @@ const updateSettingsSchema = z.object({
 // PATCH /api/admin/settings — update business settings
 settingsRouter.patch(
   "/",
+  requireSuperUser(),
   zValidator("json", updateSettingsSchema),
   async (c) => {
     const db = getDb();
