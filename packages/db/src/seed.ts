@@ -408,9 +408,11 @@ async function seed() {
     { id: uuid(), name: "Devon Williams", email: "devon@groombook.dev", role: "groomer" as const, isSuperUser: false },
   ];
 
-  // Truncate downstream tables before staff upsert — clears stale appointments
-  // and other FK references to old staff IDs so the id column can safely be updated
-  await db.execute(sql`TRUNCATE appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
+  // Truncate downstream tables before staff upsert — clears stale impersonation
+  // sessions from prior seed runs so the FK constraint on staff_id is never
+  // violated when ON CONFLICT DO UPDATE touches staff rows that still have
+  // impersonation_sessions references.
+  await db.execute(sql`TRUNCATE impersonation_sessions, impersonation_audit_logs, appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
 
   const allStaff = [...managerStaff, ...receptionistStaff, ...groomers, ...bathers];
   for (const s of allStaff) {
@@ -429,10 +431,6 @@ async function seed() {
       });
   }
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
-
-  // Truncate downstream tables before services upsert — clears stale appointments
-  // from prior seed runs so the FK constraint on service_id is never violated
-  await db.execute(sql`TRUNCATE impersonation_sessions, impersonation_audit_logs, appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
 
   // ── Services ──
   // Upsert services using name as unique key. With deterministic IDs in
