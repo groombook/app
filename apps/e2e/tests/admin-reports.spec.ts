@@ -73,8 +73,8 @@ test.describe("Admin Reports Data", () => {
     await page.waitForTimeout(2_000);
 
     // Revenue card should show non-zero value (check dollar amount or Revenue heading)
-    const revenueCard = page.locator("text=/\\$1,250/").first();
-    await expect(revenueCard.or(page.locator("text=/Revenue/"))).toBeVisible();
+    const revenueCard = page.locator("text=/\\$1,250|Revenue/i").first();
+    await expect(revenueCard).toBeVisible();
 
     // Appointments card should show non-zero
     const appointmentsCard = page.locator("text=/25/").first();

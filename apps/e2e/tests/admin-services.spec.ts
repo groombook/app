@@ -14,15 +14,15 @@ const MOCK_SERVICES = [
 
 test.describe("Services Deduplication", () => {
   test.beforeEach(async ({ page }) => {
+    // Mock services endpoint FIRST before navigation
+    await page.route("**/api/services**", (route) =>
+      route.fulfill({ json: MOCK_SERVICES })
+    );
+
     // Login as staff
     await page.goto("/login");
     await page.getByText("Alice Groomer").click();
     await expect(page).toHaveURL("/admin");
-
-    // Mock services endpoint
-    await page.route("**/api/services**", (route) =>
-      route.fulfill({ json: MOCK_SERVICES })
-    );
   });
 
   test("admin services page shows no duplicate service names", async ({ page }) => {

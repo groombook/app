@@ -16,8 +16,8 @@ const MOCK_DEV_USERS = {
     { id: "staff-2", name: "Bob Manager", email: "bob@groombook.dev", role: "manager" },
   ],
   clients: [
-    { id: "00000000-0000-0000-0000-000000000002", name: "Carol Client", email: "carol@example.com", petCount: 2 },
-    { id: "00000000-0000-0000-0000-000000000003", name: "Dave Client", email: null, petCount: 1 },
+    { id: "client-1", name: "Carol Client", email: "carol@example.com", petCount: 2 },
+    { id: "client-2", name: "Dave Client", email: null, petCount: 1 },
   ],
 };
 
