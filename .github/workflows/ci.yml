@@ -395,11 +395,11 @@ jobs:
 
           git push -u origin "chore/update-image-tags-${TAG}"
 
-          # Create PR with auto-merge
+          # Create PR and merge immediately (no required checks on groombook/infra)
           PR_URL=$(gh pr create \
             --repo groombook/infra \
             --base main \
             --head "chore/update-image-tags-${TAG}" \
             --title "chore: deploy ${TAG} to dev" \
             --body "[GRO-178](/GRO/issues/GRO-178) — automated image tag update from main merge")
-          gh pr merge "$PR_URL" --auto --merge
+          gh pr merge "$PR_URL" --merge
