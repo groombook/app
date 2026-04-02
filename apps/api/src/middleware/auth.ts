@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import { auth } from "../lib/auth.js";
+import { getAuth } from "../lib/auth.js";
 
 export interface AuthUser {
   id: string;
@@ -37,7 +37,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     return;
   }
 
-  const session = await auth.api.getSession({
+  const session = await getAuth().api.getSession({
     headers: c.req.raw.headers,
   });
 
