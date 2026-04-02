@@ -132,6 +132,10 @@ settingsRouter.post(
       .where(eq(businessSettings.id, settingsId))
       .returning();
 
+    if (!updated) {
+      return c.json({ error: "Settings not found" }, 404);
+    }
+
     return c.json({ ok: true, logoKey: updated.logoKey });
   }
 );
