@@ -179,3 +179,47 @@ setupRouter.post("/auth-provider", zValidator("json", authProviderBootstrapSchem
     updatedAt: row.updatedAt,
   }, 201);
 });
+
+/**
+ * POST /api/setup/auth-provider/test
+ * Unauthenticated endpoint to validate an OIDC provider configuration during OOBE.
+ * Fetches the OIDC discovery document to confirm the issuer is reachable.
+ * Only available when needsSetup is true (no super user = fresh install).
+ */
+setupRouter.post("/auth-provider/test", zValidator("json", authProviderBootstrapSchema), async (c) => {
+  const db = getDb();
+
+  // Guard: only allow during fresh install (no super user yet)
+  const [superUser] = await db
+    .select({ id: staff.id })
+    .from(staff)
+    .where(eq(staff.isSuperUser, true))
+    .limit(1);
+
+  if (superUser) {
+    return c.json({ ok: false, error: "Setup has already been completed." }, 403);
+  }
+
+  const body = c.req.valid("json");
+
+  // Determine the discovery URL
+  const discoveryUrl = body.internalBaseUrl
+    ? `${body.internalBaseUrl}/application/o/.well-known/openid-configuration`
+    : `${body.issuerUrl}/.well-known/openid-configuration`;
+
+  try {
+    const res = await fetch(discoveryUrl, { method: "GET" });
+    if (!res.ok) {
+      return c.json({
+        ok: false,
+        error: `OIDC discovery failed (HTTP ${res.status}). Check your Issuer URL and Internal Base URL.`,
+      });
+    }
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({
+      ok: false,
+      error: "Could not reach the OIDC provider. Check your Issuer URL and network connectivity.",
+    });
+  }
+});

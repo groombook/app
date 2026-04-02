@@ -82,7 +82,7 @@ export function SetupWizard() {
     setTestingConnection(true);
     setTestResult(null);
     try {
-      const res = await fetch("/api/admin/auth-provider/test", {
+      const res = await fetch("/api/setup/auth-provider/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
