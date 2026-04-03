@@ -210,11 +210,11 @@ setupRouter.post("/auth-provider/test", async (c) => {
 
   // Determine the discovery URL
   const discoveryUrl = body.internalBaseUrl
-    ? `${body.internalBaseUrl}/application/o/.well-known/openid-configuration`
+    ? `${body.internalBaseUrl.replace(/\/$/, "")}/application/o/.well-known/openid-configuration`
     : `${body.issuerUrl}/.well-known/openid-configuration`;
 
   try {
-    const res = await fetch(discoveryUrl, { method: "GET" });
+    const res = await fetch(discoveryUrl, { method: "GET", signal: AbortSignal.timeout(10_000) });
     if (!res.ok) {
       return c.json({
         ok: false,

@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
 import { eq, getDb, authProviderConfig, encryptSecret } from "@groombook/db";
 import { requireSuperUser } from "../middleware/rbac.js";
+import { reinitAuth } from "../lib/auth.js";
 
 export const authProviderRouter = new Hono();
 
@@ -87,6 +88,8 @@ authProviderRouter.put(
 
     if (!row) return c.json({ error: "Failed to create auth provider config" }, 500);
 
+    await reinitAuth();
+
     return c.json({
       id: row.id,
       providerId: row.providerId,
@@ -142,6 +145,7 @@ authProviderRouter.delete(
   async (c) => {
     const db = getDb();
     await db.delete(authProviderConfig);
+    await reinitAuth();
     return c.json({ ok: true });
   }
 );
