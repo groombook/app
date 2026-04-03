@@ -1,0 +1,88 @@
+name: Promote to UAT
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy to UAT (e.g. 2026.04.03-abc1234)"
+        required: true
+        type: string
+
+jobs:
+  promote-to-uat:
+    name: Promote to groombook-uat
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Generate infra repo token
+        id: infra-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ vars.GH_APP_ID }}
+          private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - name: Clone groombook/infra
+        run: |
+          git clone https://x-access-token:${{ steps.infra-token.outputs.token }}@github.com/groombook/infra.git /tmp/infra
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update UAT overlay image tags
+        env:
+          TAG: ${{ inputs.image_tag }}
+        run: |
+          echo "Updating UAT overlay image tags to: $TAG"
+          cd /tmp/infra
+          UAT_KUST="apps/groombook/overlays/uat/kustomization.yaml"
+
+          if [ ! -f "$UAT_KUST" ]; then
+            echo "ERROR: UAT overlay not found at $UAT_KUST. Ensure GRO-427 has been completed."
+            exit 1
+          fi
+
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/api")).newTag = env(TAG)' "$UAT_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/web")).newTag = env(TAG)' "$UAT_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/migrate")).newTag = env(TAG)' "$UAT_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/seed")).newTag = env(TAG)' "$UAT_KUST"
+
+          git -C /tmp/infra diff --stat
+
+      - name: Create PR on groombook/infra
+        env:
+          TAG: ${{ inputs.image_tag }}
+          GH_TOKEN: ${{ steps.infra-token.outputs.token }}
+        run: |
+          cd /tmp/infra
+          git config user.name "groombook-engineer[bot]"
+          git config user.email "3141748+groombook-engineer[bot]@users.noreply.github.com"
+          git checkout -b "chore/update-uat-image-tags-${TAG}"
+          git add apps/groombook/overlays/uat/
+          git commit -m "chore: promote ${TAG} to UAT"
+
+          git push -u origin "chore/update-uat-image-tags-${TAG}"
+
+          # Create PR and merge immediately (no required checks on groombook/infra)
+          PR_URL=$(gh pr create \
+            --repo groombook/infra \
+            --base main \
+            --head "chore/update-uat-image-tags-${TAG}" \
+            --title "chore: promote ${TAG} to UAT" \
+            --body "[GRO-429](/GRO/issues/GRO-429) — UAT promotion triggered by CTO")
+          gh pr merge "$PR_URL" --merge
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '## UAT Promotion Failed\n\nThe `promote-to-uat` workflow failed. Check the workflow run logs for details.\n\nCommon issues:\n- UAT overlay not found (ensure GRO-427 is complete)\n- Infra repo access token expired'
+            });
