@@ -80,7 +80,7 @@ vi.mock("@groombook/db", () => {
           insert: () => ({
             values: (vals: Record<string, unknown>) => ({
               returning: () => [{ ...vals, id: "new-id-1", createdAt: new Date(), updatedAt: new Date() }] as T[],
-            )),
+            }),
           }),
         };
         return fn(tx);
