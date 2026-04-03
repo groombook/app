@@ -17,6 +17,7 @@ import { appointmentGroupsRouter } from "./routes/appointmentGroups.js";
 import { groomingLogsRouter } from "./routes/groomingLogs.js";
 import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
+import { authProviderRouter } from "./routes/authProvider.js";
 import { searchRouter } from "./routes/search.js";
 import { getPresignedGetUrl } from "./lib/s3.js";
 import { calendarRouter } from "./routes/calendar.js";
@@ -164,6 +165,7 @@ api.route("/appointment-groups", appointmentGroupsRouter);
 api.route("/grooming-logs", groomingLogsRouter);
 api.route("/impersonation", impersonationRouter);
 api.route("/admin/settings", settingsRouter);
+api.route("/admin/auth-provider", authProviderRouter);
 api.route("/admin/seed", adminSeedRouter);
 api.route("/search", searchRouter);
 
