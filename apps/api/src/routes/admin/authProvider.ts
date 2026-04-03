@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { eq, getDb, authProviderConfig, encryptSecret, decryptSecret } from "@groombook/db";
+import { eq, getDb, authProviderConfig, encryptSecret } from "@groombook/db";
 import { requireSuperUser } from "../../middleware/rbac.js";
 
 export const authProviderRouter = new Hono();
