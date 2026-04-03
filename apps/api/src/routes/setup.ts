@@ -110,6 +110,12 @@ const authProviderBootstrapSchema = z.object({
   scopes: z.string().default("openid profile email"),
 });
 
+// Minimal schema for test endpoint — OIDC discovery only needs issuer/internal URLs
+const authProviderTestSchema = z.object({
+  issuerUrl: z.string().url(),
+  internalBaseUrl: z.string().url().nullable().optional(),
+});
+
 /**
  * POST /api/setup/auth-provider
  * Unauthenticated endpoint for first-time auth provider setup during OOBE.
@@ -186,7 +192,7 @@ setupRouter.post("/auth-provider", zValidator("json", authProviderBootstrapSchem
  * Fetches the OIDC discovery document to confirm the issuer is reachable.
  * Only available when needsSetup is true (no super user = fresh install).
  */
-setupRouter.post("/auth-provider/test", zValidator("json", authProviderBootstrapSchema), async (c) => {
+setupRouter.post("/auth-provider/test", zValidator("json", authProviderTestSchema), async (c) => {
   const db = getDb();
 
   // Guard: only allow during fresh install (no super user yet)
