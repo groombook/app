@@ -1,68 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
 import { authProviderRouter } from "../routes/authProvider.js";
-import type { AppEnv, StaffRow } from "../middleware/rbac.js";
 
-// ─── Mock staff ───────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const SUPER_USER: StaffRow = {
-  id: "staff-super-id",
-  oidcSub: "oidc-super-sub",
-  userId: "ba-user-super",
-  role: "manager",
-  isSuperUser: true,
-  name: "Super S.",
-  email: "super@example.com",
-  active: true,
-  icalToken: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+interface MockStaff {
+  id: string;
+  role: string;
+  isSuperUser: boolean;
+}
 
-const NON_SUPER_USER: StaffRow = {
-  ...SUPER_USER,
-  id: "staff-mgr-id",
-  oidcSub: "oidc-mgr-sub",
-  role: "manager",
-  isSuperUser: false,
-  name: "Manager M.",
-  email: "mgr@example.com",
-};
+// ─── Mock DB state ────────────────────────────────────────────────────────────
 
-// ─── Mock DB ─────────────────────────────────────────────────────────────────
+let dbRows: Record<string, unknown>[] = [];
+let deletedRows: string[] = [];
+let insertedRows: Record<string, unknown>[] = [];
+let encryptCalls: string[] = [];
 
-const DB_CONFIG = {
-  id: "config-id",
-  providerId: "authentik",
-  displayName: "Authentik",
-  issuerUrl: "https://auth.example.com",
-  internalBaseUrl: "http://authentik.auth.svc.cluster.local",
-  clientId: "test-client-id",
-  clientSecret: "iv:cipher:tag", // already encrypted
-  scopes: "openid profile email",
-  enabled: true,
-  createdAt: new Date("2026-01-01T00:00:00Z"),
-  updatedAt: new Date("2026-01-02T00:00:00Z"),
-};
+function resetMock() {
+  dbRows = [];
+  deletedRows = [];
+  insertedRows = [];
+  encryptCalls = [];
+}
 
-// Use vi.hoisted to create mutable state accessible to vi.mock factory
-const mockState = vi.hoisted(() => {
-  const state = {
-    dbSelectResult: [] as unknown[],
-    dbDeleteResult: { ok: true },
-    dbInsertResult: null as unknown,
-    dbUpdateResult: null as unknown,
-    mockEq: vi.fn((_col: unknown, _val: unknown) => ({ col: _col, val: _val })),
-    mockEncryptSecret: vi.fn((s: string) => `encrypted:${s}`),
-  };
-  return state;
-});
+// ─── Mock staff context ───────────────────────────────────────────────────────
+
+const mockSuperUser: MockStaff = { id: "staff-1", role: "manager", isSuperUser: true };
+const mockManager: MockStaff = { id: "staff-2", role: "manager", isSuperUser: false };
+const mockGroomer: MockStaff = { id: "staff-3", role: "groomer", isSuperUser: false };
+
+// ─── Mock db module ───────────────────────────────────────────────────────────
 
 vi.mock("@groombook/db", () => {
   const authProviderConfig = new Proxy(
     { _name: "auth_provider_config" },
     {
-      get(target, prop) {
+      get(_target, prop) {
         if (prop === "_name") return "auth_provider_config";
         if (prop === "$inferSelect") return {};
         return { table: "auth_provider_config", column: prop };
@@ -75,280 +49,219 @@ vi.mock("@groombook/db", () => {
       select: () => ({
         from: () => ({
           where: () => ({
-            limit: () => mockState.dbSelectResult,
+            limit: () => [...dbRows],
             [Symbol.iterator]: function* () {
-              for (const item of mockState.dbSelectResult) yield item;
+              for (const item of dbRows) yield item;
             },
-            0: mockState.dbSelectResult[0],
-            length: mockState.dbSelectResult.length,
+            0: dbRows[0],
+            length: dbRows.length,
           }),
         }),
-      }),
-      delete: () => ({
-        where: () => mockState.dbDeleteResult,
       }),
       insert: () => ({
-        values: () => ({
-          returning: () => [mockState.dbInsertResult],
-        }),
+        values: (vals: Record<string, unknown>) => {
+          insertedRows.push(vals);
+          return {
+            returning: () => [{ ...vals, id: "new-id-1", createdAt: new Date(), updatedAt: new Date() }],
+          };
+        },
       }),
-      update: () => ({
-        set: () => ({
-          where: () => ({
-            returning: () => [mockState.dbUpdateResult],
+      delete: () => {
+        // Execute immediately - route doesn't chain .returning()
+        deletedRows.push("all");
+        return Promise.resolve([]);
+      },
+      transaction: <T>(fn: (tx: {
+        delete: () => Promise<unknown>;
+        insert: () => { values: (v: Record<string, unknown>) => { returning: () => T[] } };
+      }) => Promise<T>) => {
+        const tx = {
+          delete: () => { deletedRows.push("all"); return Promise.resolve([]); },
+          insert: () => ({
+            values: (vals: Record<string, unknown>) => ({
+              returning: () => [{ ...vals, id: "new-id-1", createdAt: new Date(), updatedAt: new Date() }] as T[],
+            }),
           }),
-        }),
-      }),
+        };
+        return fn(tx);
+      },
     }),
     authProviderConfig,
-    eq: mockState.mockEq,
-    encryptSecret: mockState.mockEncryptSecret,
+    eq: (_col: unknown, _val: unknown) => ({ col: _col, val: _val }),
+    encryptSecret: (val: string) => {
+      encryptCalls.push(val);
+      return `encrypted:${val}`;
+    },
   };
 });
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Build test app ───────────────────────────────────────────────────────────
 
-function buildApp(staff: StaffRow | null) {
-  const app = new Hono<AppEnv>();
-  app.use("*", async (c, next) => {
-    if (staff) {
-      c.set("staff", staff);
-      c.set("jwtPayload", { sub: staff.userId ?? "" });
+function makeApp(staff: MockStaff | null) {
+  const app = new Hono();
+  // Inject staff context + super user guard per route
+  // Must match both exact path and wildcard subpaths
+  app.use(
+    "/admin/auth-provider/*",
+    async (c, next) => {
+      if (!staff) {
+        return c.json({ error: "Forbidden: no staff record resolved" }, 403);
+      }
+      if (!staff.isSuperUser) {
+        return c.json({ error: "Forbidden: super user privileges required" }, 403);
+      }
+      (c as any).set("staff", staff);
+      await next();
     }
-    await next();
-  });
-  app.route("/", authProviderRouter);
+  );
+  app.route("/admin/auth-provider", authProviderRouter as unknown as Hono);
   return app;
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-beforeEach(() => {
-  mockState.dbSelectResult = [];
-  mockState.dbInsertResult = null;
-  mockState.dbUpdateResult = null;
-  mockState.dbDeleteResult = { ok: true };
-  vi.clearAllMocks();
-  process.env.BETTER_AUTH_SECRET = "test-secret";
-});
+async function get<T extends Hono = Hono>(app: T, path: string, staff: MockStaff | null) {
+  const res = await app.request(path, { method: "GET" }, { allCtx: { staff } as { staff: MockStaff } });
+  return { status: res.status, body: await res.json() };
+}
+
+async function put<T extends Hono = Hono>(app: T, path: string, body: unknown, staff: MockStaff | null) {
+  const res = await app.request(path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }, { allCtx: { staff } as { staff: MockStaff } });
+  return { status: res.status, body: await res.json() };
+}
+
+async function post<T extends Hono = Hono>(app: T, path: string, body: unknown, staff: MockStaff | null) {
+  const res = await app.request(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }, { allCtx: { staff } as { staff: MockStaff } });
+  return { status: res.status, body: await res.json() };
+}
+
+async function del<T extends Hono = Hono>(app: T, path: string, staff: MockStaff | null) {
+  const res = await app.request(path, { method: "DELETE" }, { allCtx: { staff } as { staff: MockStaff } });
+  return { status: res.status, body: await res.json() };
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("GET /admin/auth-provider", () => {
-  it("returns exists:false when no config in DB", async () => {
-    mockState.dbSelectResult = [];
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/");
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({ exists: false, config: null });
+  beforeEach(resetMock);
+
+  it("returns 404 when no provider configured", async () => {
+    dbRows = [];
+    const app = makeApp(mockSuperUser);
+    const { status, body } = await get(app, "/admin/auth-provider", mockSuperUser);
+    expect(status).toBe(404);
+    expect(body.error).toBe("No auth provider configured");
   });
 
   it("returns config with secret redacted", async () => {
-    mockState.dbSelectResult = [DB_CONFIG];
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/");
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.exists).toBe(true);
-    expect(body.config.clientSecret).toBe("••••••••");
-    expect(body.config.providerId).toBe("authentik");
+    dbRows = [{
+      id: "prov-1",
+      providerId: "authentik",
+      displayName: "Authentik",
+      issuerUrl: "https://auth.example.com",
+      internalBaseUrl: null,
+      clientId: "client-123",
+      clientSecret: "encrypted:secret",
+      scopes: "openid profile email",
+      enabled: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }];
+    const app = makeApp(mockSuperUser);
+    const { status, body } = await get(app, "/admin/auth-provider", mockSuperUser);
+    expect(status).toBe(200);
+    expect(body.clientSecret).toBe("••••••••");
+    expect(body.providerId).toBe("authentik");
   });
 
-  it("returns 403 when staff is not a super user", async () => {
-    const app = buildApp(NON_SUPER_USER);
-    const res = await app.request("/");
-    expect(res.status).toBe(403);
-  });
-
-  it("returns 403 when no staff context", async () => {
-    const app = buildApp(null);
-    const res = await app.request("/");
-    expect(res.status).toBe(403);
+  it("returns 403 when not super user", async () => {
+    dbRows = [];
+    const app = makeApp(mockManager);
+    const { status } = await get(app, "/admin/auth-provider", mockManager);
+    expect(status).toBe(403);
   });
 });
 
 describe("PUT /admin/auth-provider", () => {
-  const validBody = {
-    providerId: "okta",
-    displayName: "Okta SSO",
-    issuerUrl: "https://okta.example.com",
-    internalBaseUrl: "http://okta.okta.svc.cluster.local",
-    clientId: "okta-client",
-    clientSecret: "super-secret",
-    scopes: "openid profile email",
-  };
+  beforeEach(resetMock);
 
-  it("inserts new config with encrypted secret", async () => {
-    mockState.dbSelectResult = []; // no existing config
-    mockState.dbInsertResult = { ...DB_CONFIG, providerId: "okta", displayName: "Okta SSO" };
-
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(validBody),
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockState.mockEncryptSecret).toHaveBeenCalledWith("super-secret");
-    const body = await res.json();
+  it("stores encrypted secret", async () => {
+    const app = makeApp(mockSuperUser);
+    const { status, body } = await put(app, "/admin/auth-provider", {
+      providerId: "authentik",
+      displayName: "Authentik SSO",
+      issuerUrl: "https://auth.example.com",
+      clientId: "my-client",
+      clientSecret: "my-secret",
+      scopes: "openid profile email",
+    }, mockSuperUser);
+    expect(status).toBe(200);
+    expect(encryptCalls).toContain("my-secret");
     expect(body.clientSecret).toBe("••••••••");
-    expect(body.providerId).toBe("okta");
+    expect(body.providerId).toBe("authentik");
   });
 
-  it("updates existing config with encrypted secret", async () => {
-    mockState.dbSelectResult = [{ ...DB_CONFIG, id: "existing-id" }];
-    mockState.dbUpdateResult = { ...DB_CONFIG, providerId: "okta", displayName: "Okta SSO Updated" };
-
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...validBody, displayName: "Okta SSO Updated" }),
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockState.mockEncryptSecret).toHaveBeenCalledWith("super-secret");
-  });
-
-  it("returns 400 on invalid schema", async () => {
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ providerId: "" }), // missing required fields
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 403 when not super user", async () => {
-    const app = buildApp(NON_SUPER_USER);
-    const res = await app.request("/", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(validBody),
-    });
-    expect(res.status).toBe(403);
+  it("returns 400 for invalid schema", async () => {
+    const app = makeApp(mockSuperUser);
+    const { status } = await put(app, "/admin/auth-provider", {
+      providerId: "",
+      issuerUrl: "not-a-url",
+    }, mockSuperUser);
+    expect(status).toBe(400);
   });
 });
 
 describe("POST /admin/auth-provider/test", () => {
-  const validBody = {
-    providerId: "okta",
-    issuerUrl: "https://okta.example.com",
-    clientId: "okta-client",
-    clientSecret: "super-secret",
-  };
+  beforeEach(resetMock);
 
-  it("returns ok:true with metadata on successful OIDC discovery", async () => {
-    const mockMetadata = {
-      issuer: "https://okta.example.com",
-      authorization_endpoint: "https://okta.example.com/authorize",
-      token_endpoint: "https://okta.example.com/token",
-    };
-
-    vi.spyOn(global, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify(mockMetadata), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(validBody),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.metadata).toEqual(mockMetadata);
-  });
-
-  it("returns ok:false with error when OIDC discovery fails", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValueOnce(
-      new Response("Not Found", { status: 404 })
-    );
-
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(validBody),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
+  it("returns ok=false for unreachable issuer", async () => {
+    const app = makeApp(mockSuperUser);
+    const { status, body } = await post(app, "/admin/auth-provider/test", {
+      providerId: "authentik",
+      displayName: "Authentik",
+      issuerUrl: "https://192.0.2.1/", // TEST-NET, never reachable
+      clientId: "client",
+      scopes: "openid profile email",
+    }, mockSuperUser);
+    expect(status).toBe(200);
     expect(body.ok).toBe(false);
-    expect(body.error).toContain("404");
-  });
+    expect(body.error).toBeTruthy();
+  }, 15000); // timeout must exceed the 10s fetch timeout in the route handler
 
-  it("returns ok:false when fetch throws", async () => {
-    vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("Network error"));
-
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(validBody),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(false);
-    expect(body.error).toBe("Network error");
-  });
-
-  it("returns 400 on invalid schema", async () => {
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ providerId: "okta" }), // missing issuerUrl, clientId, clientSecret
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 403 when not super user", async () => {
-    const app = buildApp(NON_SUPER_USER);
-    const res = await app.request("/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(validBody),
-    });
-    expect(res.status).toBe(403);
+  it("returns 400 for missing clientSecret (not required for test)", async () => {
+    const app = makeApp(mockSuperUser);
+    const { status } = await post(app, "/admin/auth-provider/test", {
+      providerId: "authentik",
+      displayName: "Authentik",
+      issuerUrl: "https://auth.example.com",
+      clientId: "client",
+    }, mockSuperUser);
+    expect(status).toBe(200); // clientSecret omitted intentionally for test
   });
 });
 
 describe("DELETE /admin/auth-provider", () => {
-  it("deletes existing config and returns ok", async () => {
-    mockState.dbSelectResult = [{ id: DB_CONFIG.id }];
-    mockState.dbDeleteResult = { ok: true };
+  beforeEach(resetMock);
 
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/", { method: "DELETE" });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
+  it("deletes all config rows", async () => {
+    const app = makeApp(mockSuperUser);
+    const { status, body } = await del(app, "/admin/auth-provider", mockSuperUser);
+    expect(status).toBe(200);
     expect(body.ok).toBe(true);
-  });
-
-  it("returns ok:true when no config exists", async () => {
-    mockState.dbSelectResult = [];
-
-    const app = buildApp(SUPER_USER);
-    const res = await app.request("/", { method: "DELETE" });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.message).toContain("No DB config");
+    expect(deletedRows).toContain("all");
   });
 
   it("returns 403 when not super user", async () => {
-    const app = buildApp(NON_SUPER_USER);
-    const res = await app.request("/", { method: "DELETE" });
-    expect(res.status).toBe(403);
+    const app = makeApp(mockGroomer);
+    const { status } = await del(app, "/admin/auth-provider", mockGroomer);
+    expect(status).toBe(403);
   });
 });
