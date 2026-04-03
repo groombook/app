@@ -110,7 +110,7 @@ api.route("/auth", authRouter);
 api.on(["GET"], "/staff/*", requireRole("manager", "receptionist", "groomer"));
 // Staff write routes: manager OR super-user (combined guard — avoids AND stacking)
 api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireRoleOrSuperUser("manager"));
-api.use("/admin/*", requireRole("manager"));
+api.use("/admin/*", requireRoleOrSuperUser("manager"));
 api.use("/admin/settings/*", requireSuperUser());
 api.use("/reports/*", requireRole("manager"));
 api.use("/invoices/*", requireRole("manager"));

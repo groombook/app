@@ -124,7 +124,7 @@ function buildWithStaff(
 
 // ─── Import middleware ────────────────────────────────────────────────────────
 
-const { resolveStaffMiddleware, requireRole, requireSuperUser } = await import(
+const { resolveStaffMiddleware, requireRole, requireSuperUser, requireRoleOrSuperUser } = await import(
   "../middleware/rbac.js"
 );
 
@@ -324,5 +324,68 @@ describe("requireSuperUser", () => {
     expect(res.status).toBe(403);
     const contentType = res.headers.get("content-type") ?? "";
     expect(contentType).toContain("application/json");
+  });
+});
+
+// ─── requireRoleOrSuperUser tests ─────────────────────────────────────────────
+
+describe("requireRoleOrSuperUser", () => {
+  it("allows a manager to access manager-only routes", async () => {
+    const app = buildWithStaff(MANAGER, requireRoleOrSuperUser("manager"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("allows a super user with receptionist role to access manager-only routes (GRO-412 bug fix)", async () => {
+    // GRO-412: a receptionist granted super user via Staff UI should access admin routes
+    const superReceptionist: StaffRow = {
+      ...RECEPTIONIST,
+      isSuperUser: true,
+    };
+    const app = buildWithStaff(superReceptionist, requireRoleOrSuperUser("manager"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("allows a super user with groomer role to access manager-only routes", async () => {
+    const superGroomer: StaffRow = {
+      ...GROOMER,
+      isSuperUser: true,
+    };
+    const app = buildWithStaff(superGroomer, requireRoleOrSuperUser("manager"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("blocks a non-super-user receptionist from manager-only routes", async () => {
+    const app = buildWithStaff(RECEPTIONIST, requireRoleOrSuperUser("manager"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toMatch(/super user privileges required/i);
+  });
+
+  it("blocks a non-super-user groomer from manager-only routes", async () => {
+    const app = buildWithStaff(GROOMER, requireRoleOrSuperUser("manager"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toMatch(/super user privileges required/i);
+  });
+
+  it("allows a manager with multiple allowed roles", async () => {
+    const app = buildWithStaff(MANAGER, requireRoleOrSuperUser("manager", "receptionist"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
+  });
+
+  it("allows a super user with disallowed role to access route with multiple allowed roles", async () => {
+    const superGroomer: StaffRow = {
+      ...GROOMER,
+      isSuperUser: true,
+    };
+    const app = buildWithStaff(superGroomer, requireRoleOrSuperUser("manager", "receptionist"));
+    const res = await app.request("/test");
+    expect(res.status).toBe(200);
   });
 });
