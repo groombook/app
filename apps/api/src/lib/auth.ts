@@ -28,6 +28,20 @@ export function getAuthPromise() {
 }
 
 /**
+ * Re-initializes the Better-Auth instance after auth config changes.
+ *
+ * Clears both authInstance and authInitPromise, then calls initAuth() to
+ * re-read config from DB and build a fresh Better-Auth instance.
+ * Sessions are DB-backed and survive the re-init.
+ */
+export async function reinitAuth(): Promise<void> {
+  authInstance = null;
+  authInitPromise = null;
+  await initAuth();
+  console.log("[auth] Re-initialized auth instance after config change");
+}
+
+/**
  * Initializes the Better-Auth instance.
  *
  * Config resolution chain:
