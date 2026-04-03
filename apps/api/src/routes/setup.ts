@@ -149,7 +149,7 @@ setupRouter.post("/auth-provider", async (c) => {
     return c.json({ error: "Auth provider is already configured." }, 409);
   }
 
-  const body = authProviderBootstrapSchema.parse(c.req.valid("json"));
+  const body = authProviderBootstrapSchema.parse(await c.req.json());
 
   // Encrypt clientSecret before storing
   const encryptedSecret = encryptSecret(body.clientSecret);
@@ -206,7 +206,7 @@ setupRouter.post("/auth-provider/test", async (c) => {
     return c.json({ ok: false, error: "Setup has already been completed." }, 403);
   }
 
-  const body = authProviderTestSchema.parse(c.req.valid("json"));
+  const body = authProviderTestSchema.parse(await c.req.json());
 
   // Determine the discovery URL
   const discoveryUrl = body.internalBaseUrl
