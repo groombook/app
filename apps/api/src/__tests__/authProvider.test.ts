@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
 import { authProviderRouter } from "../routes/authProvider.js";
 
+// ─── Mock auth module ─────────────────────────────────────────────────────────
+
+vi.mock("../lib/auth.js", () => ({
+  reinitAuth: vi.fn().mockResolvedValue(undefined),
+}));
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MockStaff {
