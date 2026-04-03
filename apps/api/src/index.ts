@@ -27,7 +27,6 @@ import { authMiddleware } from "./middleware/auth.js";
 import { resolveStaffMiddleware, requireRole, requireRoleOrSuperUser, requireSuperUser } from "./middleware/rbac.js";
 import { devRouter } from "./routes/dev.js";
 import { adminSeedRouter } from "./routes/admin/seed.js";
-import { authProviderRouter } from "./routes/admin/authProvider.js";
 import { startReminderScheduler } from "./services/reminders.js";
 
 const app = new Hono();
@@ -168,7 +167,6 @@ api.route("/impersonation", impersonationRouter);
 api.route("/admin/settings", settingsRouter);
 api.route("/admin/auth-provider", authProviderRouter);
 api.route("/admin/seed", adminSeedRouter);
-api.route("/admin/auth-provider", authProviderRouter);
 api.route("/search", searchRouter);
 
 const port = Number(process.env.PORT ?? 3000);
