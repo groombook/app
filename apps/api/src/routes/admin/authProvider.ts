@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
 import { eq, getDb, authProviderConfig, encryptSecret } from "@groombook/db";
 import { requireSuperUser } from "../../middleware/rbac.js";
+import { reinitAuth } from "../../lib/auth.js";
 
 export const authProviderRouter = new Hono();
 
@@ -104,6 +105,8 @@ authProviderRouter.put(
         .returning();
     }
 
+    await reinitAuth();
+
     // Return config with secret redacted
     return c.json({
       id: saved!.id,
@@ -185,6 +188,8 @@ authProviderRouter.delete("/", requireSuperUser(), async (c) => {
   }
 
   await db.delete(authProviderConfig).where(eq(authProviderConfig.id, existing.id));
+
+  await reinitAuth();
 
   return c.json({ ok: true, message: "Auth provider config removed; auth will fall back to env vars" });
 });
