@@ -235,9 +235,8 @@ export function SettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          providerId: authForm.providerId,
           issuerUrl: authForm.issuerUrl,
-          clientId: authForm.clientId,
+          ...(authForm.internalBaseUrl ? { internalBaseUrl: authForm.internalBaseUrl } : {}),
         }),
       });
       const data = await res.json();

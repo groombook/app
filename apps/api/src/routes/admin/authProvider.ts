@@ -124,10 +124,8 @@ authProviderRouter.put(
 // ─── POST /api/admin/auth-provider/test ─────────────────────────────────────
 
 const testAuthProviderSchema = z.object({
-  providerId: z.string().min(1).max(100),
   issuerUrl: z.string().url(),
-  clientId: z.string().min(1),
-  clientSecret: z.string().min(1),
+  internalBaseUrl: z.string().url().nullable().optional(),
 });
 
 authProviderRouter.post(
@@ -135,10 +133,12 @@ authProviderRouter.post(
   requireSuperUser(),
   zValidator("json", testAuthProviderSchema),
   async (c) => {
-    const { issuerUrl } = c.req.valid("json");
+    const { issuerUrl, internalBaseUrl } = c.req.valid("json");
 
     // Fetch OIDC discovery document
-    const discoveryUrl = `${issuerUrl.replace(/\/$/, "")}/.well-known/openid-configuration`;
+    const discoveryUrl = internalBaseUrl
+      ? `${internalBaseUrl.replace(/\/$/, "")}/application/o/.well-known/openid-configuration`
+      : `${issuerUrl.replace(/\/$/, "")}/.well-known/openid-configuration`;
 
     let metadata: Record<string, unknown> | null = null;
     let errorMessage: string | null = null;
