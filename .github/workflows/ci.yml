@@ -377,6 +377,120 @@ jobs:
 
           git -C /tmp/infra diff --stat
 
+      - name: Bootstrap UAT overlay if not exists
+        env:
+          TAG: ${{ needs.docker.outputs.tag }}
+        run: |
+          if [ -z "$TAG" ]; then
+            TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
+          fi
+          cd /tmp/infra
+          UAT_DIR="apps/groombook/overlays/uat"
+          if [ ! -d "$UAT_DIR" ]; then
+            echo "UAT overlay does not exist, bootstrapping..."
+            mkdir -p "$UAT_DIR"
+
+            # Create UAT kustomization.yaml
+            cat > "$UAT_DIR/kustomization.yaml" << 'KUSTOMEOF'
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: groombook-uat
+images:
+  - name: ghcr.io/groombook/api
+    newTag: "SET_VIA_CI"
+  - name: ghcr.io/groombook/web
+    newTag: "SET_VIA_CI"
+  - name: ghcr.io/groombook/migrate
+    newTag: "SET_VIA_CI"
+  - name: ghcr.io/groombook/seed
+    newTag: "SET_VIA_CI"
+resources:
+  - ../../base
+  - auth-sealed-secret.yaml
+patches:
+  # UAT: enable authentication (same as prod)
+  - path: api-patch.yaml
+    target:
+      kind: Deployment
+      name: api
+  # UAT: seed only known demo users
+  - path: seed-job-patch.yaml
+    target:
+      kind: Job
+      labelSelector: "app.kubernetes.io/name=seed"
+  # UAT: use uat hostname for HTTPRoute
+  - target:
+      kind: HTTPRoute
+      name: groombook
+    patch: |
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - groombook.uat.farh.net
+  # UAT: point migrate job at UAT postgres credentials
+  - target:
+      kind: Job
+      labelSelector: "app.kubernetes.io/name=migrate"
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef/name
+        value: groombook-postgres-credentials-uat
+  # UAT: point seed job at UAT postgres credentials
+  - target:
+      kind: Job
+      labelSelector: "app.kubernetes.io/name=seed"
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef/name
+        value: groombook-postgres-credentials-uat
+KUSTOMEOF
+
+            # Copy api-patch from prod (enable auth, point to UAT hostname)
+            cat > "$UAT_DIR/api-patch.yaml" << 'APIPATCHEOF'
+- op: replace
+  path: /spec/template/spec/containers/0/env/3/value
+  value: "https://groombook.uat.farh.net"
+- op: replace
+  path: /spec/template/spec/containers/0/env/4/valueFrom/secretKeyRef/name
+  value: groombook-postgres-credentials-uat
+APIPATCHEOF
+
+            # Copy seed-job-patch from prod (seed demo users only)
+            cat > "$UAT_DIR/seed-job-patch.yaml" << 'SEEDPATCHEOF'
+- op: replace
+  path: /spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef/name
+  value: groombook-postgres-credentials-uat
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: SEED_DEMO_ONLY
+    value: "true"
+SEEDPATCHEOF
+
+            echo "Bootstrap complete for UAT overlay"
+          else
+            echo "UAT overlay already exists, skipping bootstrap"
+          fi
+
+      - name: Update UAT overlay image tags
+        env:
+          TAG: ${{ needs.docker.outputs.tag }}
+        run: |
+          if [ -z "$TAG" ]; then
+            TAG="$(date -u +%Y.%m.%d)-${GITHUB_SHA::7}"
+          fi
+          cd /tmp/infra
+          UAT_KUST="apps/groombook/overlays/uat/kustomization.yaml"
+          if [ -f "$UAT_KUST" ]; then
+            echo "Updating UAT overlay image tags to: $TAG"
+            yq -i '(.images[] | select(.name == "ghcr.io/groombook/api")).newTag = env(TAG)' "$UAT_KUST"
+            yq -i '(.images[] | select(.name == "ghcr.io/groombook/web")).newTag = env(TAG)' "$UAT_KUST"
+            yq -i '(.images[] | select(.name == "ghcr.io/groombook/migrate")).newTag = env(TAG)' "$UAT_KUST"
+            yq -i '(.images[] | select(.name == "ghcr.io/groombook/seed")).newTag = env(TAG)' "$UAT_KUST"
+          else
+            echo "UAT overlay not found, skipping UAT update"
+          fi
+
       - name: Create PR on groombook/infra
         env:
           TAG: ${{ needs.docker.outputs.tag }}
@@ -390,8 +504,8 @@ jobs:
           git config user.name "groombook-engineer[bot]"
           git config user.email "3141748+groombook-engineer[bot]@users.noreply.github.com"
           git checkout -b "chore/update-image-tags-${TAG}"
-          git add apps/groombook/overlays/dev/ apps/groombook/base/migrate-job.yaml apps/groombook/base/seed-job.yaml
-          git commit -m "chore: update image tags and migration/seed Job names to ${TAG}"
+          git add apps/groombook/overlays/dev/ apps/groombook/overlays/uat/ apps/groombook/base/migrate-job.yaml apps/groombook/base/seed-job.yaml
+          git commit -m "chore: update image tags to ${TAG} for dev and uat"
 
           git push -u origin "chore/update-image-tags-${TAG}"
 
@@ -400,6 +514,6 @@ jobs:
             --repo groombook/infra \
             --base main \
             --head "chore/update-image-tags-${TAG}" \
-            --title "chore: deploy ${TAG} to dev" \
-            --body "[GRO-178](/GRO/issues/GRO-178) — automated image tag update from main merge")
+            --title "chore: deploy ${TAG} to dev and uat" \
+            --body "[GRO-426](/GRO/issues/GRO-426) — automated image tag update from main merge")
           gh pr merge "$PR_URL" --merge
