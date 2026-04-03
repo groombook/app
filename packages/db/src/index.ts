@@ -3,6 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema.js";
 
 export * from "./schema.js";
+export { encryptSecret, decryptSecret } from "./crypto.js";
 export { and, asc, desc, eq, exists, gte, gt, ilike, inArray, lt, lte, ne, or, sql } from "drizzle-orm";
 export { encryptSecret, decryptSecret } from "./crypto.js";
 

@@ -69,22 +69,34 @@ authProviderRouter.put(
     const db = getDb();
     const body = c.req.valid("json");
 
-    const encryptedSecret = encryptSecret(body.clientSecret);
+let encryptedSecret: string;
+    try {
+      encryptedSecret = encryptSecret(body.clientSecret);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return c.json({ error: `Failed to encrypt client secret: ${message}` }, 500);
+    }
 
     // Upsert: delete existing rows then insert atomically
-    const [row] = await db.transaction(async (tx) => {
-      await tx.delete(authProviderConfig);
-      return tx.insert(authProviderConfig).values({
-        providerId: body.providerId,
-        displayName: body.displayName,
-        issuerUrl: body.issuerUrl,
-        internalBaseUrl: body.internalBaseUrl ?? null,
-        clientId: body.clientId,
-        clientSecret: encryptedSecret,
-        scopes: body.scopes,
-        enabled: true,
-      }).returning();
-    });
+    let row: typeof authProviderConfig.$inferSelect | undefined;
+    try {
+      [row] = await db.transaction(async (tx) => {
+        await tx.delete(authProviderConfig);
+        return tx.insert(authProviderConfig).values({
+          providerId: body.providerId,
+          displayName: body.displayName,
+          issuerUrl: body.issuerUrl,
+          internalBaseUrl: body.internalBaseUrl ?? null,
+          clientId: body.clientId,
+          clientSecret: encryptedSecret,
+          scopes: body.scopes,
+          enabled: true,
+        }).returning();
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return c.json({ error: `Failed to persist auth provider config: ${message}` }, 500);
+    }
 
     if (!row) return c.json({ error: "Failed to create auth provider config" }, 500);
 

@@ -167,6 +167,7 @@ api.route("/impersonation", impersonationRouter);
 api.route("/admin/settings", settingsRouter);
 api.route("/admin/auth-provider", authProviderRouter);
 api.route("/admin/seed", adminSeedRouter);
+api.route("/admin/auth-provider", authProviderRouter);
 api.route("/search", searchRouter);
 
 const port = Number(process.env.PORT ?? 3000);
