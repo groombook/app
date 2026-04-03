@@ -123,7 +123,7 @@ const authProviderTestSchema = z.object({
  * Rate-limited by the API gateway; additionally restricted to first-time setup only.
  * After setup completes, this endpoint permanently returns 403.
  */
-setupRouter.post("/auth-provider", zValidator("json", authProviderBootstrapSchema), async (c) => {
+setupRouter.post("/auth-provider", async (c) => {
   const db = getDb();
 
   // Guard: only allow during fresh install (no super user yet)
@@ -149,7 +149,7 @@ setupRouter.post("/auth-provider", zValidator("json", authProviderBootstrapSchem
     return c.json({ error: "Auth provider is already configured." }, 409);
   }
 
-  const body = c.req.valid("json");
+  const body = authProviderBootstrapSchema.parse(c.req.valid("json"));
 
   // Encrypt clientSecret before storing
   const encryptedSecret = encryptSecret(body.clientSecret);
@@ -192,7 +192,7 @@ setupRouter.post("/auth-provider", zValidator("json", authProviderBootstrapSchem
  * Fetches the OIDC discovery document to confirm the issuer is reachable.
  * Only available when needsSetup is true (no super user = fresh install).
  */
-setupRouter.post("/auth-provider/test", zValidator("json", authProviderTestSchema), async (c) => {
+setupRouter.post("/auth-provider/test", async (c) => {
   const db = getDb();
 
   // Guard: only allow during fresh install (no super user yet)
@@ -206,7 +206,7 @@ setupRouter.post("/auth-provider/test", zValidator("json", authProviderTestSchem
     return c.json({ ok: false, error: "Setup has already been completed." }, 403);
   }
 
-  const body = c.req.valid("json");
+  const body = authProviderTestSchema.parse(c.req.valid("json"));
 
   // Determine the discovery URL
   const discoveryUrl = body.internalBaseUrl
