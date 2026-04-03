@@ -110,6 +110,12 @@ const authProviderBootstrapSchema = z.object({
   scopes: z.string().default("openid profile email"),
 });
 
+// Minimal schema for test endpoint — OIDC discovery only needs issuer/internal URLs
+const authProviderTestSchema = z.object({
+  issuerUrl: z.string().url(),
+  internalBaseUrl: z.string().url().nullable().optional(),
+});
+
 /**
  * POST /api/setup/auth-provider
  * Unauthenticated endpoint for first-time auth provider setup during OOBE.
@@ -117,7 +123,7 @@ const authProviderBootstrapSchema = z.object({
  * Rate-limited by the API gateway; additionally restricted to first-time setup only.
  * After setup completes, this endpoint permanently returns 403.
  */
-setupRouter.post("/auth-provider", zValidator("json", authProviderBootstrapSchema), async (c) => {
+setupRouter.post("/auth-provider", async (c) => {
   const db = getDb();
 
   // Guard: only allow during fresh install (no super user yet)
@@ -143,7 +149,7 @@ setupRouter.post("/auth-provider", zValidator("json", authProviderBootstrapSchem
     return c.json({ error: "Auth provider is already configured." }, 409);
   }
 
-  const body = c.req.valid("json");
+  const body = authProviderBootstrapSchema.parse(await c.req.json());
 
   // Encrypt clientSecret before storing
   const encryptedSecret = encryptSecret(body.clientSecret);
@@ -186,7 +192,7 @@ setupRouter.post("/auth-provider", zValidator("json", authProviderBootstrapSchem
  * Fetches the OIDC discovery document to confirm the issuer is reachable.
  * Only available when needsSetup is true (no super user = fresh install).
  */
-setupRouter.post("/auth-provider/test", zValidator("json", authProviderBootstrapSchema), async (c) => {
+setupRouter.post("/auth-provider/test", async (c) => {
   const db = getDb();
 
   // Guard: only allow during fresh install (no super user yet)
@@ -200,7 +206,7 @@ setupRouter.post("/auth-provider/test", zValidator("json", authProviderBootstrap
     return c.json({ ok: false, error: "Setup has already been completed." }, 403);
   }
 
-  const body = c.req.valid("json");
+  const body = authProviderTestSchema.parse(await c.req.json());
 
   // Determine the discovery URL
   const discoveryUrl = body.internalBaseUrl
