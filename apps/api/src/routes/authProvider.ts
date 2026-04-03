@@ -88,7 +88,12 @@ authProviderRouter.put(
 
     if (!row) return c.json({ error: "Failed to create auth provider config" }, 500);
 
-    await reinitAuth();
+    try {
+      await reinitAuth();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return c.json({ error: `Failed to reinitialize auth: ${message}` }, 500);
+    }
 
     return c.json({
       id: row.id,
@@ -145,7 +150,12 @@ authProviderRouter.delete(
   async (c) => {
     const db = getDb();
     await db.delete(authProviderConfig);
-    await reinitAuth();
+    try {
+      await reinitAuth();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return c.json({ error: `Failed to reinitialize auth: ${message}` }, 500);
+    }
     return c.json({ ok: true });
   }
 );
