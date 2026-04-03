@@ -235,7 +235,7 @@ export function SettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          issuerUrl: authForm.issuerUrl,
+issuerUrl: authForm.issuerUrl,
           ...(authForm.internalBaseUrl ? { internalBaseUrl: authForm.internalBaseUrl } : {}),
         }),
       });
