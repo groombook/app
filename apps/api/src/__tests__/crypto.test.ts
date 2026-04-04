@@ -61,8 +61,10 @@ describe("encryptSecret / decryptSecret", () => {
   });
 
   it("throws when decrypting invalid format (wrong number of parts)", () => {
-    // 2 parts is invalid for both legacy (3) and new (4) format
-    const invalid = "not-enough-parts";
+    const encrypted = encryptSecret("test");
+    // Replace the last two parts with a single part to create a 2-part string
+    // This can't be parsed as either legacy (3 parts) or new (4 parts) format
+    const invalid = encrypted.replace(/:[^:]+$/, "").replace(/:[^:]+$/, "");
 
     expect(() => decryptSecret(invalid)).toThrow(
       "Invalid encrypted value format: expected salt:iv:ciphertext:authTag or iv:ciphertext:authTag"
