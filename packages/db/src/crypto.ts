@@ -6,14 +6,8 @@ const AUTH_TAG_LENGTH = 16; // 128-bit auth tag
 const SALT_LENGTH = 16;
 
 /**
- * Legacy fixed salt used for backward-compatible decryption of pre-salt format values.
- * Do not use for new encryptions.
- */
-const LEGACY_PACKAGE_SALT = scryptSync("groombook-auth-provider-config", "", SALT_LENGTH);
-
-/**
  * Derives a 32-byte key from BETTER_AUTH_SECRET using scrypt.
- * Uses the provided salt (random per encryption for new values).
+ * A unique random salt is generated per encryptSecret() call and prepended to the output.
  */
 function deriveKey(secret: string, salt: Buffer): Buffer {
   return scryptSync(secret, salt, 32);
@@ -54,7 +48,6 @@ export function encryptSecret(plaintext: string): string {
 /**
  * Decrypts a ciphertext string produced by encryptSecret.
  * Supports both new format (salt:iv:ciphertext:authTag) and legacy format (iv:ciphertext:authTag).
- * All values are base64-encoded.
  */
 export function decryptSecret(encrypted: string): string {
   const secret = process.env.BETTER_AUTH_SECRET;
@@ -63,9 +56,6 @@ export function decryptSecret(encrypted: string): string {
   }
 
   const parts = encrypted.split(":");
-  if (parts.length !== 3 && parts.length !== 4) {
-    throw new Error("Invalid encrypted value format: expected salt:iv:ciphertext:authTag or iv:ciphertext:authTag");
-  }
 
   let salt: Buffer;
   let iv: Buffer;
@@ -78,12 +68,16 @@ export function decryptSecret(encrypted: string): string {
     iv = Buffer.from(parts[1]!, "base64");
     ciphertext = Buffer.from(parts[2]!, "base64");
     authTag = Buffer.from(parts[3]!, "base64");
-  } else {
+  } else if (parts.length === 3) {
     // Legacy format: iv:ciphertext:authTag — use fixed package salt
-    salt = LEGACY_PACKAGE_SALT;
+    salt = scryptSync("groombook-auth-provider-config", "", SALT_LENGTH);
     iv = Buffer.from(parts[0]!, "base64");
     ciphertext = Buffer.from(parts[1]!, "base64");
     authTag = Buffer.from(parts[2]!, "base64");
+  } else {
+    throw new Error(
+      "Invalid encrypted value format: expected salt:iv:ciphertext:authTag or iv:ciphertext:authTag"
+    );
   }
 
   const key = deriveKey(secret, salt);
