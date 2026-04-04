@@ -1,0 +1,112 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: groombook-uat
+images:
+  - name: ghcr.io/groombook/api
+    newTag: "2026.04.03-90be1be"
+  - name: ghcr.io/groombook/web
+    newTag: "2026.04.03-90be1be"
+  - name: ghcr.io/groombook/migrate
+    newTag: "2026.04.03-90be1be"
+  - name: ghcr.io/groombook/seed
+    newTag: "2026.04.03-90be1be"
+resources:
+  - ../../base
+  - postgres-sealed-secret.yaml
+  - auth-sealed-secret.yaml
+patches:
+  # UAT: delete the base postgres-credentials SealedSecret (scoped to groombook namespace, not groombook-uat)
+  # The base component ../components/postgres-credentials creates a namespace-scoped (not namespace-wide)
+  # SealedSecret that the namespace transformer cannot fix. Remove it to avoid noise.
+  - target:
+      kind: SealedSecret
+      name: groombook-postgres-credentials
+    patch: |
+      - op: remove
+        path: /metadata
+  # UAT: inject auth env vars from groombook-auth-uat sealed secret into API
+  - target:
+      kind: Deployment
+      name: api
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: NODE_ENV
+            value: production
+          - name: AUTH_DISABLED
+            value: "false"
+          - name: BETTER_AUTH_URL
+            valueFrom:
+              secretKeyRef:
+                name: groombook-auth-uat
+                key: BETTER_AUTH_URL
+          - name: BETTER_AUTH_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: groombook-auth-uat
+                key: BETTER_AUTH_SECRET
+          - name: OIDC_ISSUER
+            valueFrom:
+              secretKeyRef:
+                name: groombook-auth-uat
+                key: OIDC_ISSUER
+          - name: OIDC_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: groombook-auth-uat
+                key: OIDC_CLIENT_ID
+          - name: OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: groombook-auth-uat
+                key: OIDC_CLIENT_SECRET
+          - name: OIDC_AUDIENCE
+            valueFrom:
+              secretKeyRef:
+                name: groombook-auth-uat
+                key: OIDC_AUDIENCE
+          - name: OIDC_INTERNAL_BASE
+            valueFrom:
+              secretKeyRef:
+                name: groombook-auth-uat
+                key: OIDC_INTERNAL_BASE
+  # UAT: single Postgres instance instead of 3
+  - target:
+      kind: Cluster
+      name: groombook-postgres
+    patch: |
+      - op: replace
+        path: /spec/instances
+        value: 1
+      - op: replace
+        path: /spec/storage/size
+        value: 5Gi
+      - op: replace
+        path: /spec/bootstrap/initdb/secret/name
+        value: groombook-postgres-credentials-uat
+  # UAT: use uat hostname for HTTPRoute
+  - target:
+      kind: HTTPRoute
+      name: groombook
+    patch: |
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - groombook.uat.farh.net
+  # UAT: point migrate job at UAT postgres credentials
+  - target:
+      kind: Job
+      labelSelector: "app.kubernetes.io/name=migrate"
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef/name
+        value: groombook-postgres-credentials-uat
+  # UAT: point seed job at UAT postgres credentials
+  - target:
+      kind: Job
+      labelSelector: "app.kubernetes.io/name=seed"
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/valueFrom/secretKeyRef/name
+        value: groombook-postgres-credentials-uat
