@@ -19,6 +19,12 @@ const putAuthProviderSchema = z.object({
   scopes: z.string().default("openid profile email"),
 });
 
+/** Minimal schema for the test endpoint — only issuer/internal URLs are needed for OIDC discovery. */
+const authProviderTestSchema = z.object({
+  issuerUrl: z.string().url(),
+  internalBaseUrl: z.string().url().nullable().optional(),
+});
+
 /**
  * GET /api/admin/auth-provider
  * Returns the current provider config with clientSecret redacted.
@@ -131,7 +137,7 @@ let encryptedSecret: string;
 authProviderRouter.post(
   "/test",
   requireSuperUser(),
-  zValidator("json", putAuthProviderSchema.omit({ clientSecret: true })),
+  zValidator("json", authProviderTestSchema),
   async (c) => {
     const body = c.req.valid("json");
 
