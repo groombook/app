@@ -1,6 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import { isNull } from "drizzle-orm";
-import { and, eq, getDb, staff } from "@groombook/db";
+import { and, eq, getDb, isNull, staff } from "@groombook/db";
 
 export type StaffRole = "groomer" | "receptionist" | "manager";
 export type StaffRow = typeof staff.$inferSelect;
