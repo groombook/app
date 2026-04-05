@@ -95,6 +95,16 @@ jobs:
             --body "[GRO-429](/GRO/issues/GRO-429) — UAT promotion triggered by CTO")
           gh pr merge "$PR_URL" --merge
 
+      - name: Delete existing completed Jobs before Flux reconciles
+        env:
+          TAG: ${{ inputs.image_tag }}
+        run: |
+          SHORT_SHA="${TAG##*-}"
+          echo "Deleting completed Jobs with name suffix: $SHORT_SHA"
+          kubectl delete job "migrate-schema-${SHORT_SHA}" -n groombook-uat --ignore-not-found
+          kubectl delete job "seed-test-data-${SHORT_SHA}" -n groombook-uat --ignore-not-found
+          echo "Jobs deleted, Flux will reconcile with fresh objects"
+
       - name: Notify on failure
         if: failure()
         uses: actions/github-script@v7
