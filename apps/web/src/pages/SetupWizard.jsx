@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBranding } from "../BrandingContext.js";
 
-export function SetupWizard() {
+export function SetupWizard({ onSetupComplete }) {
   const navigate = useNavigate();
   const { refresh: refreshBranding } = useBranding();
 
@@ -160,6 +160,8 @@ export function SetupWizard() {
         }
         // Refresh branding so the nav bar shows the new business name
         refreshBranding();
+        // Clear needsSetup state in App so the redirect to /admin sticks
+        if (onSetupComplete) onSetupComplete();
       } catch (e) {
         setError("Network error. Please try again.");
         setLoading(false);
