@@ -262,6 +262,12 @@ export function App() {
     return <Navigate to="/setup" replace />;
   }
 
+  // Redirect authenticated users to /admin (but preserve impersonation flow via ?sessionId=)
+  const searchParams = new URLSearchParams(location.search);
+  if (!authDisabled && session && !location.pathname.startsWith("/admin") && !searchParams.has("sessionId")) {
+    return <Navigate to="/admin" replace />;
+  }
+
   // Don't render portal chrome at /login — DevLoginSelector is shown instead
   const showCustomerPortal = !location.pathname.startsWith("/admin") && location.pathname !== "/login";
 
