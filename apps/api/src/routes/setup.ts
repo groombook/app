@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { eq, getDb, staff, businessSettings, authProviderConfig, encryptSecret } from "@groombook/db";
+import { and, eq, getDb, isNull, staff, businessSettings, authProviderConfig, encryptSecret } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const setupRouter = new Hono<AppEnv>();
@@ -44,20 +44,16 @@ const setupSchema = z.object({
   businessName: z.string().min(1).max(200),
 });
 
-// POST /api/setup — authenticated, marks current staff as super user and sets business name
+// POST /api/setup — authenticated (Better-Auth JWT), creates staff record if needed and sets business name
+// This endpoint is exempt from resolveStaffMiddleware so that OOBE users (with no staff record yet) can complete setup
 setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
   const db = getDb();
   const body = c.req.valid("json");
-  const currentStaff = c.get("staff");
+  const jwt = c.get("jwtPayload");
+  const currentStaff = c.get("staff"); // may be undefined during OOBE
 
   // Use a transaction with row-level locking to prevent race conditions
   const result = await db.transaction(async (tx) => {
-    // Lock the business_settings row for update to prevent concurrent setup
-    const [existingSettings] = await tx
-      .select({ id: businessSettings.id })
-      .from(businessSettings)
-      .limit(1);
-
     // Lock super user rows to prevent concurrent claims
     // FOR UPDATE serializes concurrent claims: second transaction blocks until first commits
     const [existingSuperUser] = await tx
@@ -71,6 +67,12 @@ setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
       return { error: "Setup has already been completed. A super user already exists.", code: 409 };
     }
 
+    // Lock the business_settings row for update to prevent concurrent setup
+    const [existingSettings] = await tx
+      .select({ id: businessSettings.id })
+      .from(businessSettings)
+      .limit(1);
+
     // Update or create business settings with the business name
     if (existingSettings) {
       await tx
@@ -81,18 +83,66 @@ setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
       await tx.insert(businessSettings).values({ businessName: body.businessName });
     }
 
-    // Mark the current staff as super user
+    // Find or create staff record for the authenticated user
+    let resolvedStaff = currentStaff;
+
+    if (!resolvedStaff) {
+      // Try to find by userId
+      const [byUserId] = await tx
+        .select()
+        .from(staff)
+        .where(eq(staff.userId, jwt.sub));
+      if (byUserId) {
+        resolvedStaff = byUserId;
+      }
+    }
+
+    if (!resolvedStaff && jwt.email) {
+      // Try auto-link by email: staff record exists with matching email but no userId
+      const [byEmail] = await tx
+        .select()
+        .from(staff)
+        .where(and(eq(staff.email, jwt.email), isNull(staff.userId)));
+      if (byEmail) {
+        await tx
+          .update(staff)
+          .set({ userId: jwt.sub })
+          .where(eq(staff.id, byEmail.id));
+        resolvedStaff = { ...byEmail, userId: jwt.sub };
+      }
+    }
+
+    if (!resolvedStaff) {
+      // Brand new user during OOBE — create staff record
+      if (!jwt.email) {
+        return { error: "Cannot complete setup: authenticated user has no email claim", code: 400 };
+      }
+      const [newStaff] = await tx
+        .insert(staff)
+        .values({
+          name: jwt.name || jwt.email,
+          email: jwt.email,
+          userId: jwt.sub,
+          role: "manager",
+          isSuperUser: false, // will be set below
+        })
+        .returning();
+      resolvedStaff = newStaff;
+    }
+
+    // Mark as super user
     const [updatedStaff] = await tx
       .update(staff)
       .set({ isSuperUser: true, updatedAt: new Date() })
-      .where(eq(staff.id, currentStaff.id))
+      .where(eq(staff.id, resolvedStaff.id))
       .returning();
 
     return { staff: updatedStaff };
   });
 
   if ("error" in result) {
-    return c.json({ error: result.error }, 409);
+    const status = (result as { code?: number }).code || 409;
+    return c.json({ error: result.error }, status as any);
   }
 
   return c.json({ ok: true, staff: result.staff }, 201);
