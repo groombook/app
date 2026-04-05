@@ -231,7 +231,7 @@ export function App() {
   if (location.pathname === "/setup") {
     return (
       <BrandingProvider>
-        <SetupWizard />
+        <SetupWizard onSetupComplete={() => setNeedsSetup(false)} />
       </BrandingProvider>
     );
   }
