@@ -32,7 +32,7 @@ jobs:
           sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
 
-      - name: Update UAT overlay image tags
+      - name: Update UAT overlay image tags and base Job names
         env:
           TAG: ${{ inputs.image_tag }}
         run: |
@@ -45,10 +45,28 @@ jobs:
             exit 1
           fi
 
+          SHORT_SHA="${TAG##*-}"
+          export SHORT_SHA
+          export TAG
+
           yq -i '(.images[] | select(.name == "ghcr.io/groombook/api")).newTag = env(TAG)' "$UAT_KUST"
           yq -i '(.images[] | select(.name == "ghcr.io/groombook/web")).newTag = env(TAG)' "$UAT_KUST"
           yq -i '(.images[] | select(.name == "ghcr.io/groombook/migrate")).newTag = env(TAG)' "$UAT_KUST"
           yq -i '(.images[] | select(.name == "ghcr.io/groombook/seed")).newTag = env(TAG)' "$UAT_KUST"
+
+          # Update migrate Job name to include short SHA (immutable template fix)
+          MIGRATE_JOB="apps/groombook/base/migrate-job.yaml"
+          if [ -f "$MIGRATE_JOB" ]; then
+            yq -i '.metadata.name = "migrate-schema-" + env(SHORT_SHA)' "$MIGRATE_JOB"
+            yq -i '.metadata.annotations."groombook.app/deploy-version" = env(TAG)' "$MIGRATE_JOB"
+          fi
+
+          # Update seed Job name to include short SHA (immutable template fix)
+          SEED_JOB="apps/groombook/base/seed-job.yaml"
+          if [ -f "$SEED_JOB" ]; then
+            yq -i '.metadata.name = "seed-test-data-" + env(SHORT_SHA)' "$SEED_JOB"
+            yq -i '.metadata.annotations."groombook.app/deploy-version" = env(TAG)' "$SEED_JOB"
+          fi
 
           git -C /tmp/infra diff --stat
 
@@ -61,7 +79,7 @@ jobs:
           git config user.name "groombook-engineer[bot]"
           git config user.email "3141748+groombook-engineer[bot]@users.noreply.github.com"
           git checkout -b "chore/update-uat-image-tags-${TAG}"
-          git add apps/groombook/overlays/uat/
+          git add apps/groombook/overlays/uat/ apps/groombook/base/migrate-job.yaml apps/groombook/base/seed-job.yaml
           git commit -m "chore: promote ${TAG} to UAT"
 
           git push -u origin "chore/update-uat-image-tags-${TAG}"
