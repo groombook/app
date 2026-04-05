@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { and, eq, getDb, isNull, staff, businessSettings, authProviderConfig, encryptSecret } from "@groombook/db";
+import { and, eq, getDb, sql, staff, businessSettings, authProviderConfig, encryptSecret } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const setupRouter = new Hono<AppEnv>();
@@ -102,7 +102,7 @@ setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
       const [byEmail] = await tx
         .select()
         .from(staff)
-        .where(and(eq(staff.email, jwt.email), isNull(staff.userId)));
+        .where(and(eq(staff.email, jwt.email), sql`${staff.userId} IS NULL`));
       if (byEmail) {
         await tx
           .update(staff)
@@ -127,7 +127,7 @@ setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
           isSuperUser: false, // will be set below
         })
         .returning();
-      resolvedStaff = newStaff;
+      resolvedStaff = newStaff!;
     }
 
     // Mark as super user

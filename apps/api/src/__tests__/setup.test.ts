@@ -88,7 +88,7 @@ vi.mock("@groombook/db", () => {
           const rows = getRowsForTable(table);
           const base = {
             where: (cond?: unknown) => {
-              const filtered = cond ? rows.filter((r) => evaluateCond(cond, r)) : rows;
+              const filtered = cond ? rows.filter((r) => evaluateCond(cond, r as Record<string, unknown>)) : rows;
               return {
                 limit: () => filtered,
                 for: () => ({
@@ -126,9 +126,9 @@ vi.mock("@groombook/db", () => {
           } else if (vals.email) {
             // staff insert
             insertedStaff.push(vals);
-            dbStaffRows.push(row as MockStaff);
+            dbStaffRows.push(row as unknown as MockStaff);
           } else if (vals.businessName) {
-            dbBusinessSettingsRows.push(row as { id: string; businessName: string });
+            dbBusinessSettingsRows.push(row as unknown as { id: string; businessName: string });
           }
           return { returning: () => [row] };
         },
@@ -159,7 +159,7 @@ vi.mock("@groombook/db", () => {
                   : table === businessSettings
                     ? dbBusinessSettingsRows
                     : [];
-            const filtered = cond ? rows.filter((r) => evaluateCond(cond, r)) : rows;
+            const filtered = cond ? rows.filter((r) => evaluateCond(cond, r as Record<string, unknown>)) : rows;
             return {
               limit: () => filtered,
               for: () => ({
@@ -214,9 +214,9 @@ vi.mock("@groombook/db", () => {
             dbAuthConfigRows.push({ id: row.id as string, enabled: vals.enabled as boolean });
           } else if (vals.email) {
             insertedStaff.push(vals);
-            dbStaffRows.push(row as MockStaff);
+            dbStaffRows.push(row as unknown as MockStaff);
           } else if (vals.businessName) {
-            dbBusinessSettingsRows.push(row as { id: string; businessName: string });
+            dbBusinessSettingsRows.push(row as unknown as { id: string; businessName: string });
           }
           return { returning: () => [row] };
         },
@@ -229,6 +229,11 @@ vi.mock("@groombook/db", () => {
     eq: (col: unknown, val: unknown) => ({ __type: "eq", col, val }),
     and: (...conds: unknown[]) => ({ __type: "and", conds }),
     isNull: (col: unknown) => ({ __type: "isNull", col }),
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => {
+      // Mock sql template tag — raw SQL can't be evaluated in mock, always passes
+      void strings; void values;
+      return { __type: "sql" };
+    },
     encryptSecret: (val: string) => {
       encryptCalls.push(val);
       return `encrypted:${val}`;
@@ -252,6 +257,10 @@ function evaluateCond(cond: unknown, row: Record<string, unknown>): boolean {
     const colObj = c.col as Record<string, unknown>;
     const colName = colObj.column as string;
     return row[colName] === null || row[colName] === undefined;
+  }
+  if (c.__type === "sql") {
+    // Raw SQL can't be evaluated in mock — pass through
+    return true;
   }
   return true;
 }
@@ -597,9 +606,9 @@ describe("POST /setup — OOBE regression (GRO-485)", () => {
     expect(status).toBe(201);
     expect(body.ok).toBe(true);
     expect(body.staff).toBeDefined();
-    expect(body.staff.isSuperUser).toBe(true);
-    expect(body.staff.email).toBe("alice@example.com");
-    expect(body.staff.role).toBe("manager");
+    expect((body.staff as MockStaff).isSuperUser).toBe(true);
+    expect((body.staff as any).email).toBe("alice@example.com");
+    expect((body.staff as MockStaff).role).toBe("manager");
     // New staff record was created
     expect(insertedStaff.length).toBe(1);
     expect(insertedStaff[0]!.email).toBe("alice@example.com");
@@ -619,13 +628,13 @@ describe("POST /setup — OOBE regression (GRO-485)", () => {
 
     expect(status).toBe(201);
     expect(body.ok).toBe(true);
-    expect(body.staff.isSuperUser).toBe(true);
+    expect((body.staff as MockStaff).isSuperUser).toBe(true);
     // No new staff was created (insertedStaff should be empty since staff was pre-existing)
   });
 
   it("auto-links staff by email if record exists with matching email but no userId", async () => {
     // Staff record exists with matching email but no userId (legacy record)
-    dbStaffRows = [{ id: "staff-legacy", role: "manager", isSuperUser: false, email: "alice@example.com", userId: null }];
+    dbStaffRows = [{ id: "staff-legacy", role: "manager", isSuperUser: false, email: "alice@example.com", userId: null } as unknown as MockStaff];
     dbBusinessSettingsRows = [];
 
     const jwtPayload = { sub: "user-123", email: "alice@example.com", name: "Alice" };
@@ -636,7 +645,7 @@ describe("POST /setup — OOBE regression (GRO-485)", () => {
 
     expect(status).toBe(201);
     expect(body.ok).toBe(true);
-    expect(body.staff.isSuperUser).toBe(true);
+    expect((body.staff as MockStaff).isSuperUser).toBe(true);
   });
 
   it("returns 400 if JWT has no email claim and no staff record exists", async () => {
