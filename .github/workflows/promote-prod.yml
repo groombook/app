@@ -83,3 +83,25 @@ jobs:
             --head "release/promote-prod-${TAG}" \
             --title "release: promote ${TAG} to production" \
             --body "Promote image tag ${TAG} to production after UAT sign-off. cc @cpfarhood"
+
+      - name: Delete existing completed Jobs before Flux reconciles
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          SHORT_SHA="${TAG##*-}"
+          echo "Deleting completed Jobs with name suffix: $SHORT_SHA"
+          kubectl delete job "migrate-schema-${SHORT_SHA}" -n groombook --ignore-not-found
+          kubectl delete job "seed-test-data-${SHORT_SHA}" -n groombook --ignore-not-found
+          echo "Jobs deleted, Flux will reconcile with fresh objects"
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '## Production Promotion Failed\n\nThe `promote-prod` workflow failed. Check the workflow run logs for details.'
+            });
