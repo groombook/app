@@ -24,11 +24,11 @@ describe("encryptSecret / decryptSecret", () => {
     expect(decrypted).toBe(plaintext);
   });
 
-  it("produces output in iv:ciphertext:authTag format", () => {
+  it("produces output in salt:iv:ciphertext:authTag format", () => {
     const encrypted = encryptSecret("test");
     const parts = encrypted.split(":");
 
-    expect(parts).toHaveLength(3);
+    expect(parts).toHaveLength(4);
     // Each part should be valid base64
     parts.forEach((part) => {
       expect(() => Buffer.from(part, "base64")).not.toThrow();
@@ -62,11 +62,12 @@ describe("encryptSecret / decryptSecret", () => {
 
   it("throws when decrypting invalid format (wrong number of parts)", () => {
     const encrypted = encryptSecret("test");
-    // Replace the last ":authTag" part by matching colon + non-colon chars at the end
-    const invalid = encrypted.replace(/:[^:]+$/, "");
+    // Replace the last two parts with a single part to create a 2-part string
+    // This can't be parsed as either legacy (3 parts) or new (4 parts) format
+    const invalid = encrypted.replace(/:[^:]+$/, "").replace(/:[^:]+$/, "");
 
     expect(() => decryptSecret(invalid)).toThrow(
-      "Invalid encrypted value format: expected iv:ciphertext:authTag"
+      "Invalid encrypted value format: expected salt:iv:ciphertext:authTag or iv:ciphertext:authTag"
     );
   });
 

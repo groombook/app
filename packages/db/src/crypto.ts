@@ -7,18 +7,15 @@ const SALT_LENGTH = 16;
 
 /**
  * Derives a 32-byte key from BETTER_AUTH_SECRET using scrypt.
- * BETTER_AUTH_SECRET is used as the password, with a fixed salt derived from the package name.
+ * A unique random salt is generated per encryptSecret() call and prepended to the output.
  */
-function deriveKey(secret: string): Buffer {
-  // Use a fixed salt derived from the package name for key derivation
-  // This gives us stable key derivation without storing an extra salt
-  const packageSalt = scryptSync("groombook-auth-provider-config", "", SALT_LENGTH);
-  return scryptSync(secret, packageSalt, 32);
+function deriveKey(secret: string, salt: Buffer): Buffer {
+  return scryptSync(secret, salt, 32);
 }
 
 /**
  * Encrypts a plaintext string using AES-256-GCM.
- * Returns a base64-encoded string in the format: iv:ciphertext:authTag
+ * Returns a base64-encoded string in the format: salt:iv:ciphertext:authTag
  */
 export function encryptSecret(plaintext: string): string {
   const secret = process.env.BETTER_AUTH_SECRET;
@@ -26,7 +23,8 @@ export function encryptSecret(plaintext: string): string {
     throw new Error("BETTER_AUTH_SECRET environment variable is required");
   }
 
-  const key = deriveKey(secret);
+  const salt = randomBytes(SALT_LENGTH);
+  const key = deriveKey(secret, salt);
   const iv = randomBytes(IV_LENGTH);
 
   const cipher = createCipheriv(ALGORITHM, key, iv, {
@@ -38,8 +36,9 @@ export function encryptSecret(plaintext: string): string {
 
   const authTag = cipher.getAuthTag();
 
-  // Format: base64(iv):base64(ciphertext):base64(authTag)
+  // Format: base64(salt):base64(iv):base64(ciphertext):base64(authTag)
   return [
+    salt.toString("base64"),
     iv.toString("base64"),
     ciphertext.toString("base64"),
     authTag.toString("base64"),
@@ -48,7 +47,7 @@ export function encryptSecret(plaintext: string): string {
 
 /**
  * Decrypts a ciphertext string produced by encryptSecret.
- * Expects the format: iv:ciphertext:authTag (all base64-encoded)
+ * Supports both new format (salt:iv:ciphertext:authTag) and legacy format (iv:ciphertext:authTag).
  */
 export function decryptSecret(encrypted: string): string {
   const secret = process.env.BETTER_AUTH_SECRET;
@@ -57,18 +56,31 @@ export function decryptSecret(encrypted: string): string {
   }
 
   const parts = encrypted.split(":");
-  if (parts.length !== 3) {
-    throw new Error("Invalid encrypted value format: expected iv:ciphertext:authTag");
+
+  let salt: Buffer;
+  let iv: Buffer;
+  let ciphertext: Buffer;
+  let authTag: Buffer;
+
+  if (parts.length === 4) {
+    // New format: salt:iv:ciphertext:authTag
+    salt = Buffer.from(parts[0]!, "base64");
+    iv = Buffer.from(parts[1]!, "base64");
+    ciphertext = Buffer.from(parts[2]!, "base64");
+    authTag = Buffer.from(parts[3]!, "base64");
+  } else if (parts.length === 3) {
+    // Legacy format: iv:ciphertext:authTag — use fixed package salt
+    salt = scryptSync("groombook-auth-provider-config", "", SALT_LENGTH);
+    iv = Buffer.from(parts[0]!, "base64");
+    ciphertext = Buffer.from(parts[1]!, "base64");
+    authTag = Buffer.from(parts[2]!, "base64");
+  } else {
+    throw new Error(
+      "Invalid encrypted value format: expected salt:iv:ciphertext:authTag or iv:ciphertext:authTag"
+    );
   }
 
-  const ivBase64 = parts[0]!;
-  const ciphertextBase64 = parts[1]!;
-  const authTagBase64 = parts[2]!;
-  const iv = Buffer.from(ivBase64, "base64");
-  const ciphertext = Buffer.from(ciphertextBase64, "base64");
-  const authTag = Buffer.from(authTagBase64, "base64");
-
-  const key = deriveKey(secret);
+  const key = deriveKey(secret, salt);
 
   const decipher = createDecipheriv(ALGORITHM, key, iv, {
     authTagLength: AUTH_TAG_LENGTH,
