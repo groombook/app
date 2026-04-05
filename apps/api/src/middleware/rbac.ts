@@ -23,7 +23,8 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
   next
 ) => {
   // Better-Auth's own routes handle their own auth — skip staff resolution
-  if (c.req.path.startsWith("/api/auth/")) {
+  // OOBE setup routes also handle their own auth — staff record is created during setup
+  if (c.req.path.startsWith("/api/auth/") || c.req.path.startsWith("/api/setup")) {
     await next();
     return;
   }

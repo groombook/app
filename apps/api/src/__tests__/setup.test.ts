@@ -13,8 +13,10 @@ interface MockStaff {
 // ─── Mock DB state ────────────────────────────────────────────────────────────
 
 let dbStaffRows: MockStaff[] = [];
+let dbBusinessSettingsRows: { id: string; businessName: string }[] = [];
 let dbAuthConfigRows: { id: string; enabled: boolean }[] = [];
 let insertedAuthConfig: Record<string, unknown>[] = [];
+let insertedStaff: Record<string, unknown>[] = [];
 let encryptCalls: string[] = [];
 
 // Track env vars set per test
@@ -22,8 +24,10 @@ const originalEnv = { ...process.env };
 
 function resetMock() {
   dbStaffRows = [];
+  dbBusinessSettingsRows = [];
   dbAuthConfigRows = [];
   insertedAuthConfig = [];
+  insertedStaff = [];
   encryptCalls = [];
 }
 
@@ -58,39 +62,178 @@ vi.mock("@groombook/db", () => {
     }
   );
 
-  return {
-    getDb: () => ({
+  const businessSettings = new Proxy(
+    { _name: "business_settings" },
+    {
+      get(_target, prop) {
+        if (prop === "_name") return "business_settings";
+        if (prop === "$inferSelect") return {};
+        return { table: "business_settings", column: prop };
+      },
+    }
+  );
+
+  // Build a shared tx mock that operates on current-state snapshots
+  function makeTxMock() {
+    function getRowsForTable(table: unknown) {
+      if (table === authProviderConfig) return dbAuthConfigRows;
+      if (table === staff) return dbStaffRows;
+      if (table === businessSettings) return dbBusinessSettingsRows;
+      return [];
+    }
+
+    return {
       select: () => ({
-        from: (table: unknown) => ({
-          where: () => ({
-            limit: () => {
-              if (table === authProviderConfig) return dbAuthConfigRows;
-              if (table === staff) return dbStaffRows;
-              return [];
+        from: (table: unknown) => {
+          const rows = getRowsForTable(table);
+          const base = {
+            where: (cond?: unknown) => {
+              const filtered = cond ? rows.filter((r) => evaluateCond(cond, r as Record<string, unknown>)) : rows;
+              return {
+                limit: () => filtered,
+                for: () => ({
+                  limit: () => filtered,
+                  [Symbol.iterator]: function* () {
+                    for (const item of filtered) yield item;
+                  },
+                  0: filtered[0],
+                  length: filtered.length,
+                }),
+                [Symbol.iterator]: function* () {
+                  for (const item of filtered) yield item;
+                },
+                0: filtered[0],
+                length: filtered.length,
+              };
             },
             [Symbol.iterator]: function* () {
-              const rows = table === authProviderConfig ? dbAuthConfigRows : dbStaffRows;
               for (const item of rows) yield item;
             },
-            0: (table === authProviderConfig ? dbAuthConfigRows : dbStaffRows)[0],
-            length: (table === authProviderConfig ? dbAuthConfigRows : dbStaffRows).length,
-          }),
-        }),
+            0: rows[0],
+            length: rows.length,
+          };
+          // Some calls use .limit() directly on from() result (no where())
+          (base as any).limit = () => rows;
+          return base;
+        },
       }),
       insert: () => ({
         values: (vals: Record<string, unknown>) => {
-          const row = { ...vals, id: "new-id-1", createdAt: new Date(), updatedAt: new Date() };
-          insertedAuthConfig.push(vals);
+          const row = { ...vals, id: "new-id-" + Math.random(), createdAt: new Date(), updatedAt: new Date() };
           if (vals.providerId) {
+            insertedAuthConfig.push(vals);
             dbAuthConfigRows.push({ id: row.id as string, enabled: vals.enabled as boolean });
+          } else if (vals.email) {
+            // staff insert
+            insertedStaff.push(vals);
+            dbStaffRows.push(row as unknown as MockStaff);
+          } else if (vals.businessName) {
+            dbBusinessSettingsRows.push(row as unknown as { id: string; businessName: string });
           }
           return { returning: () => [row] };
         },
       }),
+      update: () => ({
+        set: (vals: Record<string, unknown>) => ({
+          where: () => ({
+            returning: () => {
+              const updated = { ...dbStaffRows[0], ...vals, updatedAt: new Date() };
+              return [updated];
+            },
+          }),
+        }),
+      }),
+    };
+  }
+
+  return {
+    getDb: () => ({
+      select: () => ({
+        from: (table: unknown) => ({
+          where: (cond?: unknown) => {
+            const rows =
+              table === authProviderConfig
+                ? dbAuthConfigRows
+                : table === staff
+                  ? dbStaffRows
+                  : table === businessSettings
+                    ? dbBusinessSettingsRows
+                    : [];
+            const filtered = cond ? rows.filter((r) => evaluateCond(cond, r as Record<string, unknown>)) : rows;
+            return {
+              limit: () => filtered,
+              for: () => ({
+                limit: () => filtered,
+                [Symbol.iterator]: function* () {
+                  for (const item of filtered) yield item;
+                },
+                0: filtered[0],
+                length: filtered.length,
+              }),
+              [Symbol.iterator]: function* () {
+                for (const item of filtered) yield item;
+              },
+              0: filtered[0],
+              length: filtered.length,
+            };
+          },
+          [Symbol.iterator]: function* () {
+            const rows =
+              table === authProviderConfig
+                ? dbAuthConfigRows
+                : table === staff
+                  ? dbStaffRows
+                  : table === businessSettings
+                    ? dbBusinessSettingsRows
+                    : [];
+            for (const item of rows) yield item;
+          },
+          0:
+            table === authProviderConfig
+              ? dbAuthConfigRows[0]
+              : table === staff
+                ? dbStaffRows[0]
+                : table === businessSettings
+                  ? dbBusinessSettingsRows[0]
+                  : undefined,
+          length:
+            table === authProviderConfig
+              ? dbAuthConfigRows.length
+              : table === staff
+                ? dbStaffRows.length
+                : table === businessSettings
+                  ? dbBusinessSettingsRows.length
+                  : 0,
+        }),
+      }),
+      insert: () => ({
+        values: (vals: Record<string, unknown>) => {
+          const row = { ...vals, id: "new-id-" + Math.random(), createdAt: new Date(), updatedAt: new Date() };
+          if (vals.providerId) {
+            insertedAuthConfig.push(vals);
+            dbAuthConfigRows.push({ id: row.id as string, enabled: vals.enabled as boolean });
+          } else if (vals.email) {
+            insertedStaff.push(vals);
+            dbStaffRows.push(row as unknown as MockStaff);
+          } else if (vals.businessName) {
+            dbBusinessSettingsRows.push(row as unknown as { id: string; businessName: string });
+          }
+          return { returning: () => [row] };
+        },
+      }),
+      transaction: (cb: (tx: unknown) => Promise<unknown>) => cb(makeTxMock()),
     }),
     authProviderConfig,
     staff,
-    eq: (_col: unknown, _val: unknown) => ({ col: _col, val: _val }),
+    businessSettings,
+    eq: (col: unknown, val: unknown) => ({ __type: "eq", col, val }),
+    and: (...conds: unknown[]) => ({ __type: "and", conds }),
+    isNull: (col: unknown) => ({ __type: "isNull", col }),
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => {
+      // Mock sql template tag — raw SQL can't be evaluated in mock, always passes
+      void strings; void values;
+      return { __type: "sql" };
+    },
     encryptSecret: (val: string) => {
       encryptCalls.push(val);
       return `encrypted:${val}`;
@@ -98,13 +241,46 @@ vi.mock("@groombook/db", () => {
   };
 });
 
+// Helper to evaluate mock conditions against a row
+function evaluateCond(cond: unknown, row: Record<string, unknown>): boolean {
+  if (!cond || typeof cond !== "object") return true;
+  const c = cond as Record<string, unknown>;
+  if (c.__type === "eq") {
+    const colObj = c.col as Record<string, unknown>;
+    const colName = colObj.column as string;
+    return row[colName] === c.val;
+  }
+  if (c.__type === "and") {
+    return (c.conds as unknown[]).every((sub) => evaluateCond(sub, row));
+  }
+  if (c.__type === "isNull") {
+    const colObj = c.col as Record<string, unknown>;
+    const colName = colObj.column as string;
+    return row[colName] === null || row[colName] === undefined;
+  }
+  if (c.__type === "sql") {
+    // Raw SQL can't be evaluated in mock — pass through
+    return true;
+  }
+  return true;
+}
+
 // ─── Build test app ───────────────────────────────────────────────────────────
 
-function makeApp(staff?: MockStaff | null) {
+interface JwtPayload {
+  sub: string;
+  email?: string;
+  name?: string;
+}
+
+function makeApp(staff?: MockStaff | null, jwtPayload?: JwtPayload | null) {
   const app = new Hono();
 
-  // Inject optional staff context for authenticated routes
+  // Inject optional staff and jwtPayload context for authenticated routes
   app.use("/setup/*", async (c, next) => {
+    if (jwtPayload) {
+      (c as any).set("jwtPayload", jwtPayload);
+    }
     if (staff) {
       (c as any).set("staff", staff);
     }
@@ -142,6 +318,22 @@ async function postAuthProvider(app: Hono, body: unknown) {
 
 async function postAuthProviderTest(app: Hono, body: unknown) {
   const res = await app.request("/setup/auth-provider/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let parsed: ResponseBody;
+  try {
+    parsed = JSON.parse(text) as ResponseBody;
+  } catch {
+    parsed = { error: text };
+  }
+  return { status: res.status, body: parsed };
+}
+
+async function postSetup(app: Hono, body: unknown) {
+  const res = await app.request("/setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -387,5 +579,100 @@ describe("POST /setup/auth-provider/test — OOBE test connection", () => {
     expect(body.error).toMatch(/discovery failed/i);
 
     vi.restoreAllMocks();
+  });
+});
+
+describe("POST /setup — OOBE regression (GRO-485)", () => {
+  beforeEach(() => {
+    resetMock();
+    process.env = { ...originalEnv };
+    clearAuthEnv();
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("creates staff record during OOBE when no staff record exists for authenticated user", async () => {
+    // No staff rows — this is a fresh OOBE user
+    dbStaffRows = [];
+    dbBusinessSettingsRows = [];
+
+    const jwtPayload = { sub: "user-123", email: "alice@example.com", name: "Alice" };
+    const app = makeApp(null, jwtPayload);
+
+    const { status, body } = await postSetup(app, { businessName: "Alice's Pet Grooming" });
+
+    expect(status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect(body.staff).toBeDefined();
+    expect((body.staff as MockStaff).isSuperUser).toBe(true);
+    expect((body.staff as any).email).toBe("alice@example.com");
+    expect((body.staff as MockStaff).role).toBe("manager");
+    // New staff record was created
+    expect(insertedStaff.length).toBe(1);
+    expect(insertedStaff[0]!.email).toBe("alice@example.com");
+    expect(insertedStaff[0]!.userId).toBe("user-123");
+  });
+
+  it("still works for user who already has a staff record", async () => {
+    // Staff record exists for this user
+    dbStaffRows = [{ id: "staff-existing", role: "groomer", isSuperUser: false }];
+    dbBusinessSettingsRows = [];
+
+    const jwtPayload = { sub: "user-123", email: "alice@example.com", name: "Alice" };
+    // Inject the existing staff record into context
+    const app = makeApp({ id: "staff-existing", role: "groomer", isSuperUser: false }, jwtPayload);
+
+    const { status, body } = await postSetup(app, { businessName: "Alice's Pet Grooming" });
+
+    expect(status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect((body.staff as MockStaff).isSuperUser).toBe(true);
+    // No new staff was created (insertedStaff should be empty since staff was pre-existing)
+  });
+
+  it("auto-links staff by email if record exists with matching email but no userId", async () => {
+    // Staff record exists with matching email but no userId (legacy record)
+    dbStaffRows = [{ id: "staff-legacy", role: "manager", isSuperUser: false, email: "alice@example.com", userId: null } as unknown as MockStaff];
+    dbBusinessSettingsRows = [];
+
+    const jwtPayload = { sub: "user-123", email: "alice@example.com", name: "Alice" };
+    // No staff injected into context — the handler must find it by email
+    const app = makeApp(null, jwtPayload);
+
+    const { status, body } = await postSetup(app, { businessName: "Alice's Pet Grooming" });
+
+    expect(status).toBe(201);
+    expect(body.ok).toBe(true);
+    expect((body.staff as MockStaff).isSuperUser).toBe(true);
+  });
+
+  it("returns 400 if JWT has no email claim and no staff record exists", async () => {
+    dbStaffRows = [];
+    dbBusinessSettingsRows = [];
+
+    // JWT with no email
+    const jwtPayload = { sub: "user-123" };
+    const app = makeApp(null, jwtPayload);
+
+    const { status, body } = await postSetup(app, { businessName: "Alice's Pet Grooming" });
+
+    expect(status).toBe(400);
+    expect(body.error).toMatch(/no email claim/i);
+  });
+
+  it("returns 409 if a super user already exists", async () => {
+    // Super user already exists
+    dbStaffRows = [{ id: "staff-super", role: "manager", isSuperUser: true }];
+    dbBusinessSettingsRows = [];
+
+    const jwtPayload = { sub: "user-456", email: "bob@example.com", name: "Bob" };
+    const app = makeApp(null, jwtPayload);
+
+    const { status, body } = await postSetup(app, { businessName: "Bob's Grooming" });
+
+    expect(status).toBe(409);
+    expect(body.error).toMatch(/already been completed/i);
   });
 });
