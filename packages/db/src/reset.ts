@@ -16,8 +16,8 @@ async function reset() {
     process.exit(1);
   }
 
-  if (process.env.NODE_ENV === "production") {
-    console.error("[FATAL] db:reset must not be run in production.");
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_RESET !== "true") {
+    console.error("[FATAL] db:reset must not be run in production without ALLOW_RESET=true.");
     process.exit(1);
   }
 
