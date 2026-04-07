@@ -52,6 +52,8 @@ interface CreateFromApptProps {
   appointments: Appointment[];
   clients: Client[];
   services: Service[];
+  loading: boolean;
+  onOpen: () => void;
   onCreated: () => void;
   onClose: () => void;
 }
@@ -60,10 +62,13 @@ function CreateFromAppointmentForm({
   appointments,
   clients,
   services,
+  loading,
+  onOpen,
   onCreated,
   onClose,
 }: CreateFromApptProps) {
   const [selectedApptId, setSelectedApptId] = useState("");
+  useEffect(() => { onOpen(); }, [onOpen]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,6 +103,8 @@ function CreateFromAppointmentForm({
       setSaving(false);
     }
   }
+
+  if (loading) return <Modal onClose={onClose}><p style={{ padding: "1rem" }}>Loading…</p></Modal>;
 
   return (
     <Modal onClose={onClose}>
@@ -148,16 +155,21 @@ function InvoiceDetailModal({
   invoice,
   allStaff,
   allAppointments,
+  loading,
+  onOpen,
   onClose,
   onUpdated,
 }: {
   invoice: Invoice;
   allStaff: Staff[];
   allAppointments: Appointment[];
+  loading: boolean;
+  onOpen: () => void;
   onClose: () => void;
   onUpdated: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  useEffect(() => { onOpen(); }, [onOpen]);
   const [error, setError] = useState<string | null>(null);
   const [tipStr, setTipStr] = useState((invoice.tipCents / 100).toFixed(2));
   const [paymentMethod, setPaymentMethod] = useState<string>(invoice.paymentMethod ?? "cash");
@@ -258,6 +270,8 @@ function InvoiceDetailModal({
       setSaving(false);
     }
   }
+
+  if (loading) return <Modal onClose={onClose}><p style={{ padding: "1rem" }}>Loading…</p></Modal>;
 
   const tipCentsCalc = Math.round(parseFloat(tipStr) * 100) || 0;
   const newTotal = invoice.subtotalCents + invoice.taxCents + tipCentsCalc;
@@ -460,64 +474,77 @@ function SummaryRow({ label, value, bold }: { label: string; value: string; bold
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+}
+
 export function InvoicesPage() {
   const [invoiceList, setInvoiceList] = useState<InvoiceWithClient[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [allStaff, setAllStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [createData, setCreateData] = useState<{ clients: Client[]; appointments: Appointment[]; services: Service[] } | null>(null);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [detailData, setDetailData] = useState<{ staff: Staff[]; appointments: Appointment[] } | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  async function loadAll() {
-    const [invRes, clientRes, apptRes, svcRes, staffRes] = await Promise.all([
-      fetch("/api/invoices" + (statusFilter ? `?status=${statusFilter}` : "")),
-      fetch("/api/clients"),
-      fetch("/api/appointments"),
-      fetch("/api/services?includeInactive=true"),
-      fetch("/api/staff"),
-    ]);
+  const LIMIT = 50;
 
-    if (!invRes.ok || !clientRes.ok || !apptRes.ok || !svcRes.ok || !staffRes.ok) {
-      throw new Error("Failed to load data");
-    }
-
-    const [invData, clientData, apptData, svcData, staffData] = await Promise.all([
-      invRes.json() as Promise<Invoice[]>,
-      clientRes.json() as Promise<Client[]>,
-      apptRes.json() as Promise<Appointment[]>,
-      svcRes.json() as Promise<Service[]>,
-      staffRes.json() as Promise<Staff[]>,
-    ]);
-
-    const clientMap = new Map(clientData.map((c) => [c.id, c.name]));
-    const enriched: InvoiceWithClient[] = invData.map((inv) => ({
-      ...inv,
-      clientName: clientMap.get(inv.clientId),
-    }));
-
-    setInvoiceList(enriched);
-    setClients(clientData);
-    setAppointments(apptData);
-    setServices(svcData);
-    setAllStaff(staffData);
+  async function loadInvoices(newOffset: number) {
+    const params = new URLSearchParams({ limit: String(LIMIT), offset: String(newOffset) });
+    if (statusFilter) params.set("status", statusFilter);
+    const res = await fetch(`/api/invoices?${params}`);
+    if (!res.ok) throw new Error("Failed to load invoices");
+    const page = (await res.json()) as PaginatedResponse<Invoice>;
+    setInvoiceList(page.data);
+    setTotal(page.total);
+    setOffset(newOffset);
   }
 
   useEffect(() => {
     setLoading(true);
-    loadAll()
+    loadInvoices(0)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Unknown error"))
       .finally(() => setLoading(false));
   }, [statusFilter]);
+
+  function loadCreateData() {
+    if (createData) return Promise.resolve();
+    setCreateLoading(true);
+    return Promise.all([
+      fetch("/api/clients"),
+      fetch("/api/appointments"),
+      fetch("/api/services?includeInactive=true"),
+    ])
+      .then(([c, a, s]) => Promise.all([c.json(), a.json(), s.json()]))
+      .then(([clients, appointments, services]) => {
+        setCreateData({ clients, appointments, services });
+      })
+      .finally(() => setCreateLoading(false));
+  }
+
+  function loadDetailData() {
+    if (detailData) return Promise.resolve();
+    setDetailLoading(true);
+    return Promise.all([fetch("/api/staff"), fetch("/api/appointments")])
+      .then(([s, a]) => Promise.all([s.json(), a.json()]))
+      .then(([staff, appointments]) => {
+        setDetailData({ staff, appointments });
+      })
+      .finally(() => setDetailLoading(false));
+  }
 
   async function openInvoiceDetail(inv: InvoiceWithClient) {
     const res = await fetch(`/api/invoices/${inv.id}`);
     if (!res.ok) return;
     const data = (await res.json()) as Invoice;
     setSelectedInvoice(data);
+    loadDetailData();
   }
 
   if (loading) return <p style={{ padding: "1rem" }}>Loading…</p>;
@@ -551,6 +578,7 @@ export function InvoicesPage() {
           No invoices yet. Create one from a completed appointment.
         </p>
       ) : (
+        <>
         <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", overflow: "hidden", boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
@@ -584,16 +612,41 @@ export function InvoicesPage() {
           </tbody>
         </table>
         </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "0.75rem" }}>
+          <span style={{ fontSize: 13, color: "#6b7280" }}>
+            {offset + 1}–{Math.min(offset + LIMIT, total)} of {total} invoices
+          </span>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              onClick={() => { setLoading(true); loadInvoices(Math.max(0, offset - LIMIT)).finally(() => setLoading(false)); }}
+              disabled={offset === 0 || loading}
+              style={btnStyle}
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => { setLoading(true); loadInvoices(offset + LIMIT).finally(() => setLoading(false)); }}
+              disabled={offset + LIMIT >= total || loading}
+              style={btnStyle}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        </>
       )}
 
       {showCreate && (
         <CreateFromAppointmentForm
-          appointments={appointments}
-          clients={clients}
-          services={services}
+          appointments={createData?.appointments ?? []}
+          clients={createData?.clients ?? []}
+          services={createData?.services ?? []}
+          loading={createLoading}
+          onOpen={() => loadCreateData()}
           onCreated={() => {
             setShowCreate(false);
-            loadAll().catch(() => {});
+            setCreateData(null);
+            loadInvoices(0).catch(() => {});
           }}
           onClose={() => setShowCreate(false)}
         />
@@ -602,12 +655,18 @@ export function InvoicesPage() {
       {selectedInvoice && (
         <InvoiceDetailModal
           invoice={selectedInvoice}
-          allStaff={allStaff}
-          allAppointments={appointments}
-          onClose={() => setSelectedInvoice(null)}
+          allStaff={detailData?.staff ?? []}
+          allAppointments={detailData?.appointments ?? []}
+          loading={detailLoading}
+          onOpen={() => loadDetailData()}
+          onClose={() => {
+            setSelectedInvoice(null);
+            setDetailData(null);
+          }}
           onUpdated={() => {
             setSelectedInvoice(null);
-            loadAll().catch(() => {});
+            setDetailData(null);
+            loadInvoices(offset).catch(() => {});
           }}
         />
       )}
