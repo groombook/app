@@ -234,51 +234,67 @@ export const appointments = pgTable("appointments", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const invoices = pgTable("invoices", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  appointmentId: uuid("appointment_id").references(() => appointments.id, {
-    onDelete: "restrict",
-  }),
-  clientId: uuid("client_id")
-    .notNull()
-    .references(() => clients.id, { onDelete: "restrict" }),
-  subtotalCents: integer("subtotal_cents").notNull(),
-  taxCents: integer("tax_cents").notNull().default(0),
-  tipCents: integer("tip_cents").notNull().default(0),
-  totalCents: integer("total_cents").notNull(),
-  status: invoiceStatusEnum("status").notNull().default("draft"),
-  paymentMethod: paymentMethodEnum("payment_method"),
-  paidAt: timestamp("paid_at"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appointmentId: uuid("appointment_id").references(() => appointments.id, {
+      onDelete: "restrict",
+    }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "restrict" }),
+    subtotalCents: integer("subtotal_cents").notNull(),
+    taxCents: integer("tax_cents").notNull().default(0),
+    tipCents: integer("tip_cents").notNull().default(0),
+    totalCents: integer("total_cents").notNull(),
+    status: invoiceStatusEnum("status").notNull().default("draft"),
+    paymentMethod: paymentMethodEnum("payment_method"),
+    paidAt: timestamp("paid_at"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_invoices_client_id").on(t.clientId),
+    index("idx_invoices_status").on(t.status),
+    index("idx_invoices_created_at").on(t.createdAt),
+  ]
+);
 
-export const invoiceLineItems = pgTable("invoice_line_items", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  invoiceId: uuid("invoice_id")
-    .notNull()
-    .references(() => invoices.id, { onDelete: "cascade" }),
-  description: text("description").notNull(),
-  quantity: integer("quantity").notNull().default(1),
-  unitPriceCents: integer("unit_price_cents").notNull(),
-  totalCents: integer("total_cents").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const invoiceLineItems = pgTable(
+  "invoice_line_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    description: text("description").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    totalCents: integer("total_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("idx_invoice_line_items_invoice_id").on(t.invoiceId)]
+);
 
 // Per-staff tip allocation calculated when an invoice is paid.
 // staff_name is snapshotted at calculation time so reports remain accurate if staff is deleted.
-export const invoiceTipSplits = pgTable("invoice_tip_splits", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  invoiceId: uuid("invoice_id")
-    .notNull()
-    .references(() => invoices.id, { onDelete: "cascade" }),
-  staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
-  staffName: text("staff_name").notNull(),
-  sharePct: numeric("share_pct", { precision: 5, scale: 2 }).notNull(),
-  shareCents: integer("share_cents").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const invoiceTipSplits = pgTable(
+  "invoice_tip_splits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id").references(() => staff.id, { onDelete: "set null" }),
+    staffName: text("staff_name").notNull(),
+    sharePct: numeric("share_pct", { precision: 5, scale: 2 }).notNull(),
+    shareCents: integer("share_cents").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("idx_invoice_tip_splits_invoice_id").on(t.invoiceId)]
+);
 
 // Tracks which reminder emails have been sent per appointment (prevents duplicates).
 // reminder_type values: "confirmation", "24h", "2h"
