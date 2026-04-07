@@ -169,6 +169,13 @@
       "when": 1775309667192,
       "tag": "0023_auth_provider_config",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1775396067192,
+      "tag": "0024_invoice_indexes",
+      "breakpoints": true
     }
   ]
 }

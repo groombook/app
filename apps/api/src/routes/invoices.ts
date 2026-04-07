@@ -10,6 +10,8 @@ import {
   invoiceTipSplits,
   appointments,
   services,
+  clients,
+  sql,
 } from "@groombook/db";
 
 export const invoicesRouter = new Hono();
@@ -46,18 +48,46 @@ invoicesRouter.get("/", async (c) => {
   const clientId = c.req.query("clientId");
   const appointmentId = c.req.query("appointmentId");
   const status = c.req.query("status");
+  const limit = Math.min(parseInt(c.req.query("limit") || "50", 10), 200);
+  const offset = parseInt(c.req.query("offset") || "0", 10);
 
   const conditions = [];
   if (clientId) conditions.push(eq(invoices.clientId, clientId));
   if (appointmentId) conditions.push(eq(invoices.appointmentId, appointmentId));
   if (status) conditions.push(eq(invoices.status, status as "draft" | "pending" | "paid" | "void"));
 
-  const rows =
-    conditions.length > 0
-      ? await db.select().from(invoices).where(and(...conditions)).orderBy(invoices.createdAt)
-      : await db.select().from(invoices).orderBy(invoices.createdAt);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  return c.json(rows);
+  const [totalResult] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(invoices)
+    .where(whereClause);
+
+  const rows = await db
+    .select({
+      id: invoices.id,
+      appointmentId: invoices.appointmentId,
+      clientId: invoices.clientId,
+      clientName: clients.name,
+      subtotalCents: invoices.subtotalCents,
+      taxCents: invoices.taxCents,
+      tipCents: invoices.tipCents,
+      totalCents: invoices.totalCents,
+      status: invoices.status,
+      paymentMethod: invoices.paymentMethod,
+      paidAt: invoices.paidAt,
+      notes: invoices.notes,
+      createdAt: invoices.createdAt,
+      updatedAt: invoices.updatedAt,
+    })
+    .from(invoices)
+    .leftJoin(clients, eq(invoices.clientId, clients.id))
+    .where(whereClause)
+    .orderBy(invoices.createdAt)
+    .limit(limit)
+    .offset(offset);
+
+  return c.json({ data: rows, total: totalResult?.count ?? 0 });
 });
 
 // Get single invoice with line items and tip splits
