@@ -43,3 +43,7 @@ CMD ["pnpm", "db:migrate"]
 # Seed stage — populates the database with test data
 FROM builder AS seed
 CMD ["pnpm", "db:seed"]
+
+# Reset stage — drops all tables, re-runs migrations, and re-seeds
+FROM builder AS reset
+CMD ["pnpm", "db:reset"]

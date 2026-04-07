@@ -188,6 +188,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push Reset image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: reset
+          push: true
+          tags: |
+            ghcr.io/groombook/reset:${{ steps.version.outputs.tag }}
+            ${{ github.ref == 'refs/heads/main' && 'ghcr.io/groombook/reset:latest' || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build and push Web image
         uses: docker/build-push-action@v6
         with:
@@ -356,6 +369,7 @@ jobs:
           yq -i '(.images[] | select(.name == "ghcr.io/groombook/web")).newTag = env(TAG)' "$DEV_KUST"
           yq -i '(.images[] | select(.name == "ghcr.io/groombook/migrate")).newTag = env(TAG)' "$DEV_KUST"
           yq -i '(.images[] | select(.name == "ghcr.io/groombook/seed")).newTag = env(TAG)' "$DEV_KUST"
+          yq -i '(.images[] | select(.name == "ghcr.io/groombook/reset")).newTag = env(TAG)' "$DEV_KUST"
 
           # Update migrate Job name to include short SHA (immutable template fix)
           MIGRATE_JOB="apps/groombook/base/migrate-job.yaml"
