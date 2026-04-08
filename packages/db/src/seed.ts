@@ -403,7 +403,7 @@ async function seed() {
   // ── Staff ──
   // Deterministic staff IDs so they can be referenced in scripts/tests
   const managerStaff = [
-    { id: uuid(), name: "Jordan Lee", email: "jordan@groombook.dev", role: "manager" as const, isSuperUser: true },
+    { id: uuid(), name: "Jordan Lee", email: "jordan@groombook.dev", role: "manager" as const, isSuperUser: false },
   ];
 
   const receptionistStaff = [
