@@ -294,6 +294,32 @@ async function seedKnownUsers() {
     console.log("✓ Created staff 'Demo Manager' (oidcSub: demo-manager-001)");
   }
 
+  // ── Staff: SEED_ADMIN_EMAIL admin ──
+  const adminEmail = process.env.SEED_ADMIN_EMAIL;
+  if (adminEmail) {
+    const adminName = process.env.SEED_ADMIN_NAME ?? "Admin";
+    const ADMIN_STAFF_ID = "00000000-0000-0000-0000-000000000002";
+    const [existingAdmin] = await db
+      .select()
+      .from(schema.staff)
+      .where(eq(schema.staff.email, adminEmail))
+      .limit(1);
+
+    if (existingAdmin) {
+      console.log(`✓ Staff admin '${existingAdmin.name}' already exists — skipping`);
+    } else {
+      await db.insert(schema.staff).values({
+        id: ADMIN_STAFF_ID,
+        name: adminName,
+        email: adminEmail,
+        role: "manager",
+        isSuperUser: true,
+        active: true,
+      });
+      console.log(`✓ Created staff admin '${adminName}' (${adminEmail})`);
+    }
+  }
+
   // ── Services: idempotent upsert using name as unique key ─────────────────────
   // UNIQUE constraint on services.name (migration 0020) must exist first.
   // Uses b0000001-... IDs to match main seed servicesDef for same-named services.
@@ -446,6 +472,27 @@ async function seed() {
       });
   }
   console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
+
+  // ── SEED_ADMIN_EMAIL admin ──
+  const adminEmail = process.env.SEED_ADMIN_EMAIL;
+  if (adminEmail) {
+    const adminName = process.env.SEED_ADMIN_NAME ?? "Admin";
+    const ADMIN_STAFF_ID = "00000000-0000-0000-0000-000000000002";
+    await db.insert(schema.staff)
+      .values({
+        id: ADMIN_STAFF_ID,
+        name: adminName,
+        email: adminEmail,
+        role: "manager",
+        isSuperUser: true,
+        active: true,
+      })
+      .onConflictDoUpdate({
+        target: schema.staff.email,
+        set: { id: ADMIN_STAFF_ID, name: adminName, role: "manager", isSuperUser: true, active: true },
+      });
+    console.log(`✓ Upserted admin staff '${adminName}' (${adminEmail})`);
+  }
 
   // ── Services ──
   // Upsert services using name as unique key. With deterministic IDs in
