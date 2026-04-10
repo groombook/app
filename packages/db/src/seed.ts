@@ -1,19 +1,20 @@
 /**
  * Seed script — generates deterministic, PII-free test data for Groom Book.
  *
- * Creates:
- *  - 1 manager + 1 receptionist + 3 groomers + 3 bathers (8 staff total)
- *  - 10 services
- *  - 500 clients, each with 1-3 dogs
- *  - ~2 500 appointments spread across the past 12 months
- *  - Invoices for completed appointments with line items and tip splits
- *  - Grooming visit logs for completed appointments
+ * Supports three profiles via SEED_PROFILE env var:
+ *  - dev:   4 staff, 100 clients, ~1000 invoices, appointments 7d back / 30d forward
+ *  - uat:   8 staff, 500 clients, ~4000 invoices, appointments 30d back / 90d forward
+ *  - demo:  Same data volume as UAT (for production-like demo environments)
+ *
+ * Default (SEED_PROFILE unset): UAT-like behavior for backwards compatibility.
+ *
+ * SEED_KNOWN_USERS_ONLY=true: Minimal prod/demo seed with demo users only.
  *
  * Output is fully deterministic: the same seed value always produces the
  * same rows with the same IDs.
  *
  * Usage:
- *   DATABASE_URL=postgres://... npx tsx packages/db/src/seed.ts
+ *   DATABASE_URL=postgres://... SEED_PROFILE=dev npx tsx packages/db/src/seed.ts
  */
 
 import postgres from "postgres";
@@ -38,6 +39,50 @@ function createPrng(seed: number): () => number {
 }
 
 const rand = createPrng(42);
+
+// ── Seed profile configuration ───────────────────────────────────────────────
+
+type SeedProfile = "dev" | "uat" | "demo";
+
+interface ProfileConfig {
+  staff: {
+    manager: number;
+    receptionist: number;
+    groomer: number;
+    bather: number;
+  };
+  clients: number;
+  appointments: {
+    daysBack: number;
+    daysForward: number;
+  };
+  targetInvoices: number;
+}
+
+function getProfileConfig(profile: SeedProfile | undefined): ProfileConfig {
+  const profiles: Record<SeedProfile, ProfileConfig> = {
+    dev: {
+      staff: { manager: 1, receptionist: 1, groomer: 2, bather: 0 },
+      clients: 100,
+      appointments: { daysBack: 7, daysForward: 30 },
+      targetInvoices: 1000,
+    },
+    uat: {
+      staff: { manager: 1, receptionist: 1, groomer: 3, bather: 3 },
+      clients: 500,
+      appointments: { daysBack: 30, daysForward: 90 },
+      targetInvoices: 4000,
+    },
+    demo: {
+      staff: { manager: 1, receptionist: 1, groomer: 3, bather: 3 },
+      clients: 500,
+      appointments: { daysBack: 30, daysForward: 90 },
+      targetInvoices: 4000,
+    },
+  };
+  if (!profile || profile === "uat") return profiles.uat;
+  return profiles[profile] ?? profiles.uat;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -421,33 +466,50 @@ async function seed() {
     return;
   }
 
+  const rawProfile = process.env.SEED_PROFILE?.toLowerCase();
+  const profile: SeedProfile | undefined = (rawProfile === "dev" || rawProfile === "uat" || rawProfile === "demo")
+    ? rawProfile
+    : undefined;
+  const config = getProfileConfig(profile);
+
   const client = postgres(url, { max: 5 });
   const db = drizzle(client, { schema });
 
-  console.log("Seeding Groom Book database...\n");
+  const profileLabel = profile ? ` (${profile})` : "";
+  console.log(`Seeding Groom Book database${profileLabel}...\n`);
 
   // ── Staff ──
   // Deterministic staff IDs so they can be referenced in scripts/tests
-  const managerStaff = [
-    { id: uuid(), name: "Jordan Lee", email: "jordan@groombook.dev", role: "manager" as const, isSuperUser: false },
+  const staffNames = [
+    { name: "Jordan Lee", email: "jordan@groombook.dev" },
+    { name: "Sam Rivera", email: "sam@groombook.dev" },
+    { name: "Sarah Mitchell", email: "sarah@groombook.dev" },
+    { name: "James Park", email: "james@groombook.dev" },
+    { name: "Maria Gonzalez", email: "maria@groombook.dev" },
+    { name: "Tyler Johnson", email: "tyler@groombook.dev" },
+    { name: "Ashley Chen", email: "ashley@groombook.dev" },
+    { name: "Devon Williams", email: "devon@groombook.dev" },
   ];
 
-  const receptionistStaff = [
-    { id: uuid(), name: "Sam Rivera", email: "sam@groombook.dev", role: "receptionist" as const, isSuperUser: false },
-  ];
+  const managerStaff = staffNames.slice(0, config.staff.manager).map(
+    (s) => ({ id: uuid(), name: s.name, email: s.email, role: "manager" as const, isSuperUser: false }),
+  );
 
-  const groomers = [
-    { id: uuid(), name: "Sarah Mitchell", email: "sarah@groombook.dev", role: "groomer" as const, isSuperUser: false },
-    { id: uuid(), name: "James Park", email: "james@groombook.dev", role: "groomer" as const, isSuperUser: false },
-    { id: uuid(), name: "Maria Gonzalez", email: "maria@groombook.dev", role: "groomer" as const, isSuperUser: false },
-  ];
+  const receptionistStaff = staffNames.slice(config.staff.manager, config.staff.manager + config.staff.receptionist).map(
+    (s) => ({ id: uuid(), name: s.name, email: s.email, role: "receptionist" as const, isSuperUser: false }),
+  );
+
+  const groomers = staffNames.slice(config.staff.manager + config.staff.receptionist, config.staff.manager + config.staff.receptionist + config.staff.groomer).map(
+    (s) => ({ id: uuid(), name: s.name, email: s.email, role: "groomer" as const, isSuperUser: false }),
+  );
 
   // Bathers are groomers by role but serve as the secondary staff (bather) on appointments
-  const bathers = [
-    { id: uuid(), name: "Tyler Johnson", email: "tyler@groombook.dev", role: "groomer" as const, isSuperUser: false },
-    { id: uuid(), name: "Ashley Chen", email: "ashley@groombook.dev", role: "groomer" as const, isSuperUser: false },
-    { id: uuid(), name: "Devon Williams", email: "devon@groombook.dev", role: "groomer" as const, isSuperUser: false },
-  ];
+  const bathers = staffNames.slice(config.staff.manager + config.staff.receptionist + config.staff.groomer, config.staff.manager + config.staff.receptionist + config.staff.groomer + config.staff.bather).map(
+    (s) => ({ id: uuid(), name: s.name, email: s.email, role: "groomer" as const, isSuperUser: false }),
+  );
+
+  const totalStaff = config.staff.manager + config.staff.receptionist + config.staff.groomer + config.staff.bather;
+  console.log(`✓ Creating ${totalStaff} staff (${config.staff.manager} manager, ${config.staff.receptionist} receptionist, ${config.staff.groomer} groomers, ${config.staff.bather} bathers)`);
 
   // Truncate downstream tables before staff upsert — clears stale impersonation
   // sessions from prior seed runs so the FK constraint on staff_id is never
@@ -471,7 +533,6 @@ async function seed() {
         set: { id: s.id, name: s.name, role: s.role, isSuperUser: s.isSuperUser, active: true },
       });
   }
-  console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
 
   // ── SEED_ADMIN_EMAIL admin ──
   const adminEmail = process.env.SEED_ADMIN_EMAIL;
@@ -519,8 +580,10 @@ async function seed() {
 
   // ── Clients & Pets ──
   const now = new Date();
-  const oneYearAgo = new Date(now);
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const appointmentsBack = new Date(now);
+  appointmentsBack.setDate(appointmentsBack.getDate() - config.appointments.daysBack);
+  const appointmentsForward = new Date(now);
+  appointmentsForward.setDate(appointmentsForward.getDate() + config.appointments.daysForward);
 
   interface ClientRecord { id: string; name: string }
   interface PetRecord { id: string; clientId: string }
@@ -530,7 +593,7 @@ async function seed() {
 
   // Batch insert clients and pets
   const clientBatchSize = 50;
-  for (let batch = 0; batch < 500 / clientBatchSize; batch++) {
+  for (let batch = 0; batch < Math.ceil(config.clients / clientBatchSize); batch++) {
     const clientBatch: (typeof schema.clients.$inferInsert)[] = [];
     const petBatch: (typeof schema.pets.$inferInsert)[] = [];
 
@@ -617,7 +680,7 @@ async function seed() {
     }
   }
 
-  console.log(`✓ Created 500 clients with ${petRecords.length} pets`);
+  console.log(`✓ Created ${config.clients} clients with ${petRecords.length} pets`);
 
   // ── UAT test clients (guaranteed pending invoices) ─────────────────────────────
   // These 5 clients are deterministic and documented in Shedward AGENTS.md so
@@ -651,7 +714,7 @@ async function seed() {
     const apptId = uuid();
     const svcIdx = 0;
     const svc = servicesDef[svcIdx]!;
-    const completedTime = randDate(oneYearAgo, now);
+    const completedTime = randDate(appointmentsBack, now);
     completedTime.setHours(randInt(8, 16), pick([0, 15, 30, 45]), 0, 0);
     const endTime = new Date(completedTime.getTime() + svc.dur * 60 * 1000);
     await db.insert(schema.appointments).values({
@@ -678,7 +741,13 @@ async function seed() {
   console.log(`✓ Created ${uatClients.length} UAT test clients with guaranteed pending invoices`);
 
   // ── Appointments, Invoices, Visit Logs ──
-  // Generate ~5 appointments per client on average = ~2500 total
+  // Calculate visit count to achieve targetInvoices based on ~65% completion rate
+  const completedRatio = 0.65;
+  const totalVisitsNeeded = Math.ceil(config.targetInvoices / completedRatio);
+  const avgVisitsPerClient = Math.ceil(totalVisitsNeeded / clientRecords.length);
+  const visitCountMin = Math.max(1, Math.floor(avgVisitsPerClient * 0.7));
+  const visitCountMax = Math.max(visitCountMin + 1, Math.ceil(avgVisitsPerClient * 1.3));
+
   const statuses: (typeof schema.appointmentStatusEnum.enumValues)[number][] = [
     "completed", "completed", "completed", "completed", "completed",
     "completed", "completed", "scheduled", "confirmed", "cancelled", "no_show",
@@ -729,8 +798,7 @@ async function seed() {
 
   for (const client of clientRecords) {
     const pets = petsByClient.get(client.id) ?? [];
-    // Each client visits ~3-8 times over the year
-    const visitCount = randInt(3, 8);
+    const visitCount = randInt(visitCountMin, visitCountMax);
 
     for (let v = 0; v < visitCount; v++) {
       // Pick a random pet for this visit
@@ -739,15 +807,15 @@ async function seed() {
       const serviceId = serviceIds[serviceIdx]!;
       const svc = servicesDef[serviceIdx]!;
       const groomer = pick(groomers);
-      const bather = rand() < 0.6 ? pick(bathers) : null;
+      const bather = rand() < 0.6 && bathers.length > 0 ? pick(bathers) : null;
       const status = pick(statuses);
 
-      // Schedule within the past year, or next 2 weeks for upcoming
+      // Schedule within the configured appointment window
       let startTime: Date;
       if (status === "scheduled" || status === "confirmed") {
-        startTime = randDate(now, new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000));
+        startTime = randDate(now, appointmentsForward);
       } else {
-        startTime = randDate(oneYearAgo, now);
+        startTime = randDate(appointmentsBack, now);
       }
       // Snap to business hours (8am - 5pm)
       startTime.setHours(randInt(8, 16), pick([0, 15, 30, 45]), 0, 0);
