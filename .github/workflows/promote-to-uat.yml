@@ -67,7 +67,6 @@ jobs:
           if [ -f "$SEED_JOB" ]; then
             yq -i '.metadata.name = "seed-test-data-" + env(SHORT_SHA)' "$SEED_JOB"
             yq -i '.metadata.annotations."groombook.app/deploy-version" = env(TAG)' "$SEED_JOB"
-            yq -i '.spec.template.spec.containers[0].image = "ghcr.io/groombook/seed:" + env(TAG)' "$SEED_JOB"
           fi
 
           git -C /tmp/infra diff --stat
