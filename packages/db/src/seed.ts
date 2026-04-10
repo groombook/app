@@ -368,6 +368,58 @@ async function seedKnownUsers() {
     }
   }
 
+  // ── Staff: UAT Super User (oidcSub from SEED_UAT_SUPER_OIDC_SUB env var) ──
+  const uatSuperOidcSub = process.env.SEED_UAT_SUPER_OIDC_SUB;
+  if (uatSuperOidcSub) {
+    const UAT_SUPER_STAFF_ID = "00000000-0000-0000-0000-000000000003";
+    const [existingUatSuper] = await db
+      .select()
+      .from(schema.staff)
+      .where(eq(schema.staff.email, "uat-super@groombook.dev"))
+      .limit(1);
+
+    if (existingUatSuper) {
+      console.log(`✓ Staff 'UAT Super User' already exists — skipping`);
+    } else {
+      await db.insert(schema.staff).values({
+        id: UAT_SUPER_STAFF_ID,
+        name: "UAT Super User",
+        email: "uat-super@groombook.dev",
+        oidcSub: uatSuperOidcSub,
+        role: "manager",
+        isSuperUser: true,
+        active: true,
+      });
+      console.log(`✓ Created staff 'UAT Super User' (oidcSub: ${uatSuperOidcSub})`);
+    }
+  }
+
+  // ── Staff: UAT Staff Groomer (oidcSub from SEED_UAT_STAFF_OIDC_SUB env var) ──
+  const uatStaffOidcSub = process.env.SEED_UAT_STAFF_OIDC_SUB;
+  if (uatStaffOidcSub) {
+    const UAT_STAFF_STAFF_ID = "00000000-0000-0000-0000-000000000004";
+    const [existingUatStaff] = await db
+      .select()
+      .from(schema.staff)
+      .where(eq(schema.staff.email, "uat-groomer@groombook.dev"))
+      .limit(1);
+
+    if (existingUatStaff) {
+      console.log(`✓ Staff 'UAT Staff Groomer' already exists — skipping`);
+    } else {
+      await db.insert(schema.staff).values({
+        id: UAT_STAFF_STAFF_ID,
+        name: "UAT Staff Groomer",
+        email: "uat-groomer@groombook.dev",
+        oidcSub: uatStaffOidcSub,
+        role: "groomer",
+        isSuperUser: false,
+        active: true,
+      });
+      console.log(`✓ Created staff 'UAT Staff Groomer' (oidcSub: ${uatStaffOidcSub})`);
+    }
+  }
+
   // ── Services: idempotent upsert using name as unique key ─────────────────────
   // UNIQUE constraint on services.name (migration 0020) must exist first.
   // Uses b0000001-... IDs to match main seed servicesDef for same-named services.
