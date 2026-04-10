@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
-import { getAuth, initAuth } from "./lib/auth.js";
+import { getAuth, initAuth, getActiveProviders } from "./lib/auth.js";
 import { clientsRouter } from "./routes/clients.js";
 import { petsRouter } from "./routes/pets.js";
 import { servicesRouter } from "./routes/services.js";
@@ -90,6 +90,11 @@ app.get("/api/setup/status", async (c) => {
     .where(eq(staff.isSuperUser, true))
     .limit(1);
   return c.json({ needsSetup: !superUser });
+});
+
+// Public auth providers endpoint — no auth required, tells frontend which login options are available
+app.get("/api/auth/providers", async (c) => {
+  return c.json({ providers: getActiveProviders() });
 });
 
 // Protected API routes

@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { genericOAuth } from "better-auth/plugins";
+import { google, github } from "better-auth/social-providers";
 import { getDb, authProviderConfig, eq } from "@groombook/db";
 import { decryptSecret } from "@groombook/db";
 
@@ -25,6 +26,21 @@ export function getAuth() {
 /** Returns a promise that resolves when auth is initialized. */
 export function getAuthPromise() {
   return authInitPromise;
+}
+
+/** Returns which OAuth/social providers are configured via env vars. */
+export function getActiveProviders(): string[] {
+  const providers: string[] = [];
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    providers.push("google");
+  }
+  if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+    providers.push("github");
+  }
+  if (process.env.OIDC_ISSUER && process.env.OIDC_CLIENT_ID && process.env.OIDC_CLIENT_SECRET) {
+    providers.push("authentik");
+  }
+  return providers;
 }
 
 /**
@@ -152,6 +168,23 @@ export async function initAuth(): Promise<void> {
       console.log("[auth] Using env var config (no DB config found)");
     }
 
+    const hasGoogle = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    const hasGitHub = !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
+
+    const socialPlugins = [];
+    if (hasGoogle) {
+      socialPlugins.push(google({
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      }));
+    }
+    if (hasGitHub) {
+      socialPlugins.push(github({
+        clientId: process.env.GITHUB_CLIENT_ID!,
+        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      }));
+    }
+
     // Build Better-Auth instance using resolved config
     authInstance = betterAuth({
       database: drizzleAdapter(db, {
@@ -179,7 +212,8 @@ export async function initAuth(): Promise<void> {
             },
           ],
         }),
-            ],
+        ...socialPlugins,
+      ],
       session: {
         expiresIn: 60 * 60 * 24 * 7, // 7 days
         updateAge: 60 * 60 * 24, // 1 day
