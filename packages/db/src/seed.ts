@@ -368,57 +368,55 @@ async function seedKnownUsers() {
     }
   }
 
-  // ── Staff: UAT Super User (from Terraform via env var) ──
+  // ── Staff: UAT Super User (oidcSub from SEED_UAT_SUPER_OIDC_SUB env var) ──
   const uatSuperOidcSub = process.env.SEED_UAT_SUPER_OIDC_SUB;
   if (uatSuperOidcSub) {
     const UAT_SUPER_STAFF_ID = "00000000-0000-0000-0000-000000000003";
-    const uatSuperEmail = "uat-super-user@groombook.dev";
-    const [existingSuper] = await db
+    const [existingUatSuper] = await db
       .select()
       .from(schema.staff)
-      .where(eq(schema.staff.email, uatSuperEmail))
+      .where(eq(schema.staff.email, "uat-super@groombook.dev"))
       .limit(1);
 
-    if (existingSuper) {
-      console.log(`✓ UAT Super User staff '${existingSuper.name}' already exists — skipping`);
+    if (existingUatSuper) {
+      console.log(`✓ Staff 'UAT Super User' already exists — skipping`);
     } else {
       await db.insert(schema.staff).values({
         id: UAT_SUPER_STAFF_ID,
         name: "UAT Super User",
-        email: uatSuperEmail,
+        email: "uat-super@groombook.dev",
         oidcSub: uatSuperOidcSub,
         role: "manager",
         isSuperUser: true,
         active: true,
       });
-      console.log(`✓ Created UAT Super User staff (oidcSub: ${uatSuperOidcSub})`);
+      console.log(`✓ Created staff 'UAT Super User' (oidcSub: ${uatSuperOidcSub})`);
     }
   }
 
-  // ── Staff: UAT Staff User (from Terraform via env var) ──
+  // ── Staff: UAT Staff Groomer (oidcSub from SEED_UAT_STAFF_OIDC_SUB env var) ──
   const uatStaffOidcSub = process.env.SEED_UAT_STAFF_OIDC_SUB;
   if (uatStaffOidcSub) {
     const UAT_STAFF_STAFF_ID = "00000000-0000-0000-0000-000000000004";
-    const uatStaffEmail = "uat-staff-user@groombook.dev";
-    const [existingStaff] = await db
+    const [existingUatStaff] = await db
       .select()
       .from(schema.staff)
-      .where(eq(schema.staff.email, uatStaffEmail))
+      .where(eq(schema.staff.email, "uat-groomer@groombook.dev"))
       .limit(1);
 
-    if (existingStaff) {
-      console.log(`✓ UAT Staff User '${existingStaff.name}' already exists — skipping`);
+    if (existingUatStaff) {
+      console.log(`✓ Staff 'UAT Staff Groomer' already exists — skipping`);
     } else {
       await db.insert(schema.staff).values({
         id: UAT_STAFF_STAFF_ID,
-        name: "UAT Staff User",
-        email: uatStaffEmail,
+        name: "UAT Staff Groomer",
+        email: "uat-groomer@groombook.dev",
         oidcSub: uatStaffOidcSub,
         role: "groomer",
         isSuperUser: false,
         active: true,
       });
-      console.log(`✓ Created UAT Staff User (oidcSub: ${uatStaffOidcSub})`);
+      console.log(`✓ Created staff 'UAT Staff Groomer' (oidcSub: ${uatStaffOidcSub})`);
     }
   }
 
