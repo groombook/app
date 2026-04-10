@@ -281,6 +281,24 @@ const productsUsed = [
   "Coconut oil shampoo, leave-in conditioner, cologne",
 ];
 
+const demoPetImages = [
+  "/demo-pets/dog-golden-after.png",
+  "/demo-pets/dog-poodle-groomed.png",
+  "/demo-pets/dog-black-lab.png",
+  "/demo-pets/dog-shih-tzu.png",
+  "/demo-pets/dog-cocker-spaniel.png",
+  "/demo-pets/dog-schnauzer.png",
+  "/demo-pets/dog-maltese.png",
+  "/demo-pets/dog-dachshund.png",
+  "/demo-pets/dog-pomeranian.png",
+  "/demo-pets/dog-bichon-frise.png",
+  "/demo-pets/dog-golden-retriever.png",
+  "/demo-pets/dog-labrador.png",
+  "/demo-pets/dog-mixed-breed.png",
+  "/demo-pets/dog-poodle.png",
+  "/demo-pets/dog-terrier.png",
+];
+
 // ── Service definitions ──────────────────────────────────────────────────────
 // Deterministic service IDs + UNIQUE(name) constraint make seed fully idempotent:
 // first run inserts, subsequent runs update existing rows via ON CONFLICT (name).
@@ -671,6 +689,7 @@ async function seed() {
           shampooPreference: pick(shampoos),
           specialCareNotes: rand() < 0.1 ? "Vet clearance required before grooming" : null,
           customFields: {},
+          image: pick(demoPetImages),
         });
 
         petRecords.push({ id: petId, clientId });
@@ -704,6 +723,7 @@ async function seed() {
             shampooPreference: pet.shampooPreference,
             specialCareNotes: pet.specialCareNotes,
             customFields: pet.customFields,
+            image: pet.image,
           },
         });
     }
@@ -738,8 +758,8 @@ async function seed() {
       .values({ id: uc.id, name: uc.name, email: uc.email, phone: uc.phone, address: uc.address })
       .onConflictDoUpdate({ target: schema.clients.id, set: { name: uc.name, email: uc.email, phone: uc.phone, address: uc.address } });
     await db.insert(schema.pets)
-      .values({ id: uc.petId, clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z") })
-      .onConflictDoUpdate({ target: schema.pets.id, set: { clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z") } });
+      .values({ id: uc.petId, clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z"), image: pick(demoPetImages) })
+      .onConflictDoUpdate({ target: schema.pets.id, set: { clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z"), image: pick(demoPetImages) } });
     // Create one completed appointment for this client
     const apptId = uuid();
     const svcIdx = 0;
