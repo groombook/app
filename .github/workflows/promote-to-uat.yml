@@ -62,6 +62,8 @@ jobs:
           fi
 
           # Update seed Job name to include short SHA (immutable template fix)
+          # NOTE: Do NOT update the image tag here — let the Kustomize images transformer
+          # in the UAT overlay handle it via newTag. This avoids the immutable template issue.
           SEED_JOB="apps/groombook/base/seed-job.yaml"
           if [ -f "$SEED_JOB" ]; then
             yq -i '.metadata.name = "seed-test-data-" + env(SHORT_SHA)' "$SEED_JOB"
