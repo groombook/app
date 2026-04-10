@@ -21,6 +21,54 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { eq, sql } from "drizzle-orm";
 import * as schema from "./schema.js";
 
+// ── Seed profile configuration ─────────────────────────────────────────────
+
+type SeedProfile = "dev" | "uat" | "demo";
+
+interface ProfileConfig {
+  staffCount: { manager: number; receptionist: number; groomer: number; bather: number };
+  clientCount: number;
+  appointmentsBackDays: number;
+  appointmentsForwardDays: number;
+  invoiceCount: number;
+  includeUatClients: boolean;
+}
+
+const profiles: Record<SeedProfile, ProfileConfig> = {
+  dev: {
+    staffCount: { manager: 1, receptionist: 1, groomer: 2, bather: 0 },
+    clientCount: 100,
+    appointmentsBackDays: 7,
+    appointmentsForwardDays: 30,
+    invoiceCount: 1000,
+    includeUatClients: false,
+  },
+  uat: {
+    staffCount: { manager: 1, receptionist: 1, groomer: 3, bather: 3 },
+    clientCount: 500,
+    appointmentsBackDays: 30,
+    appointmentsForwardDays: 90,
+    invoiceCount: 4000,
+    includeUatClients: true,
+  },
+  demo: {
+    staffCount: { manager: 1, receptionist: 1, groomer: 3, bather: 3 },
+    clientCount: 500,
+    appointmentsBackDays: 30,
+    appointmentsForwardDays: 90,
+    invoiceCount: 4000,
+    includeUatClients: true,
+  },
+};
+
+function getProfile(): SeedProfile {
+  const raw = process.env.SEED_PROFILE?.toLowerCase();
+  if (raw === "dev" || raw === "uat" || raw === "demo") {
+    return raw;
+  }
+  return "uat";
+}
+
 // ── Deterministic PRNG (Mulberry32) ──────────────────────────────────────────
 
 /**
@@ -415,44 +463,32 @@ async function seed() {
     process.exit(1);
   }
 
-  // Lean prod/demo seed — known users only, no large dataset
   if (process.env.SEED_KNOWN_USERS_ONLY === "true") {
     await seedKnownUsers();
     return;
   }
 
+  const profile = getProfile();
+  const cfg = profiles[profile];
   const client = postgres(url, { max: 5 });
   const db = drizzle(client, { schema });
 
-  console.log("Seeding Groom Book database...\n");
+  console.log(`Seeding Groom Book database (profile: ${profile})...\n`);
 
   // ── Staff ──
-  // Deterministic staff IDs so they can be referenced in scripts/tests
-  const managerStaff = [
-    { id: uuid(), name: "Jordan Lee", email: "jordan@groombook.dev", role: "manager" as const, isSuperUser: false },
-  ];
+  const managerStaff = Array.from({ length: cfg.staffCount.manager }, (_, i) =>
+    ({ id: uuid(), name: `Manager ${i + 1}`, email: `manager${i + 1}@groombook.dev`, role: "manager" as const, isSuperUser: false })
+  );
+  const receptionistStaff = Array.from({ length: cfg.staffCount.receptionist }, (_, i) =>
+    ({ id: uuid(), name: `Receptionist ${i + 1}`, email: `receptionist${i + 1}@groombook.dev`, role: "receptionist" as const, isSuperUser: false })
+  );
+  const groomers = Array.from({ length: cfg.staffCount.groomer }, (_, i) =>
+    ({ id: uuid(), name: `Groomer ${i + 1}`, email: `groomer${i + 1}@groombook.dev`, role: "groomer" as const, isSuperUser: false })
+  );
+  const bathers = Array.from({ length: cfg.staffCount.bather }, (_, i) =>
+    ({ id: uuid(), name: `Bather ${i + 1}`, email: `bather${i + 1}@groombook.dev`, role: "groomer" as const, isSuperUser: false })
+  );
 
-  const receptionistStaff = [
-    { id: uuid(), name: "Sam Rivera", email: "sam@groombook.dev", role: "receptionist" as const, isSuperUser: false },
-  ];
-
-  const groomers = [
-    { id: uuid(), name: "Sarah Mitchell", email: "sarah@groombook.dev", role: "groomer" as const, isSuperUser: false },
-    { id: uuid(), name: "James Park", email: "james@groombook.dev", role: "groomer" as const, isSuperUser: false },
-    { id: uuid(), name: "Maria Gonzalez", email: "maria@groombook.dev", role: "groomer" as const, isSuperUser: false },
-  ];
-
-  // Bathers are groomers by role but serve as the secondary staff (bather) on appointments
-  const bathers = [
-    { id: uuid(), name: "Tyler Johnson", email: "tyler@groombook.dev", role: "groomer" as const, isSuperUser: false },
-    { id: uuid(), name: "Ashley Chen", email: "ashley@groombook.dev", role: "groomer" as const, isSuperUser: false },
-    { id: uuid(), name: "Devon Williams", email: "devon@groombook.dev", role: "groomer" as const, isSuperUser: false },
-  ];
-
-  // Truncate downstream tables before staff upsert — clears stale impersonation
-  // sessions from prior seed runs so the FK constraint on staff_id is never
-  // violated when ON CONFLICT DO UPDATE touches staff rows that still have
-  // impersonation_sessions references.
   await db.execute(sql`TRUNCATE impersonation_sessions, impersonation_audit_logs, appointments, invoices, invoice_line_items, invoice_tip_splits, grooming_visit_logs CASCADE`);
 
   const allStaff = [...managerStaff, ...receptionistStaff, ...groomers, ...bathers];
@@ -471,7 +507,10 @@ async function seed() {
         set: { id: s.id, name: s.name, role: s.role, isSuperUser: s.isSuperUser, active: true },
       });
   }
-  console.log(`✓ Created ${allStaff.length} staff (1 manager, 1 receptionist, 3 groomers, 3 bathers)`);
+  const staffLabel = cfg.staffCount.bather > 0
+    ? `${allStaff.length} staff (${cfg.staffCount.manager} manager, ${cfg.staffCount.receptionist} receptionist, ${cfg.staffCount.groomer} groomers, ${cfg.staffCount.bather} bathers)`
+    : `${allStaff.length} staff (${cfg.staffCount.manager} manager, ${cfg.staffCount.receptionist} receptionist, ${cfg.staffCount.groomer} groomers)`;
+  console.log(`✓ Created ${staffLabel}`);
 
   // ── SEED_ADMIN_EMAIL admin ──
   const adminEmail = process.env.SEED_ADMIN_EMAIL;
@@ -519,8 +558,10 @@ async function seed() {
 
   // ── Clients & Pets ──
   const now = new Date();
-  const oneYearAgo = new Date(now);
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const appointmentsBackDate = new Date(now);
+  appointmentsBackDate.setDate(appointmentsBackDate.getDate() - cfg.appointmentsBackDays);
+  const appointmentsForwardDate = new Date(now);
+  appointmentsForwardDate.setDate(appointmentsForwardDate.getDate() + cfg.appointmentsForwardDays);
 
   interface ClientRecord { id: string; name: string }
   interface PetRecord { id: string; clientId: string }
@@ -528,9 +569,8 @@ async function seed() {
   const clientRecords: ClientRecord[] = [];
   const petRecords: PetRecord[] = [];
 
-  // Batch insert clients and pets
   const clientBatchSize = 50;
-  for (let batch = 0; batch < 500 / clientBatchSize; batch++) {
+  for (let batch = 0; batch < Math.ceil(cfg.clientCount / clientBatchSize); batch++) {
     const clientBatch: (typeof schema.clients.$inferInsert)[] = [];
     const petBatch: (typeof schema.pets.$inferInsert)[] = [];
 
@@ -617,22 +657,23 @@ async function seed() {
     }
   }
 
-  console.log(`✓ Created 500 clients with ${petRecords.length} pets`);
+  console.log(`✓ Created ${cfg.clientCount} clients with ${petRecords.length} pets`);
 
   // ── UAT test clients (guaranteed pending invoices) ─────────────────────────────
   // These 5 clients are deterministic and documented in Shedward AGENTS.md so
   // UAT can reliably find billing test data without searching.
-  interface UatClient {
-    id: string;
-    name: string;
-    email: string;
-    phone: string;
-    address: string;
-    petId: string;
-    petName: string;
-    petBreed: string;
-  }
-  const uatClients: UatClient[] = [
+  if (cfg.includeUatClients) {
+    interface UatClient {
+      id: string;
+      name: string;
+      email: string;
+      phone: string;
+      address: string;
+      petId: string;
+      petName: string;
+      petBreed: string;
+    }
+    const uatClients: UatClient[] = [
     { id: uuid(), name: "UAT Test Alpha", email: "uat-alpha@groombook.dev", phone: "(555) 100-0001", address: "100 Test Lane, Springfield, CA 90210", petId: uuid(), petName: "TestBuddy", petBreed: "Golden Retriever" },
     { id: uuid(), name: "UAT Test Bravo", email: "uat-bravo@groombook.dev", phone: "(555) 100-0002", address: "200 Test Lane, Springfield, CA 90210", petId: uuid(), petName: "TestMax", petBreed: "Labrador Retriever" },
     { id: uuid(), name: "UAT Test Charlie", email: "uat-charlie@groombook.dev", phone: "(555) 100-0003", address: "300 Test Lane, Springfield, CA 90210", petId: uuid(), petName: "TestCooper", petBreed: "Poodle" },
@@ -651,12 +692,14 @@ async function seed() {
     const apptId = uuid();
     const svcIdx = 0;
     const svc = servicesDef[svcIdx]!;
-    const completedTime = randDate(oneYearAgo, now);
+    const completedTime = randDate(appointmentsBackDate, now);
     completedTime.setHours(randInt(8, 16), pick([0, 15, 30, 45]), 0, 0);
     const endTime = new Date(completedTime.getTime() + svc.dur * 60 * 1000);
+    const uatGroomer = groomers[0]!;
+    const uatBather = bathers.length > 0 ? bathers[0]! : uatGroomer;
     await db.insert(schema.appointments).values({
-      id: apptId, clientId: uc.id, petId: uc.petId, serviceId: serviceIds[svcIdx]!, staffId: groomers[0]!.id,
-      batherStaffId: bathers[0]!.id, status: "completed" as const, startTime: completedTime, endTime, notes: null, priceCents: svc.price,
+      id: apptId, clientId: uc.id, petId: uc.petId, serviceId: serviceIds[svcIdx]!, staffId: uatGroomer.id,
+      batherStaffId: uatBather.id, status: "completed" as const, startTime: completedTime, endTime, notes: null, priceCents: svc.price,
     });
     // Create a PENDING invoice for that appointment
     const invoiceId = uuid();
@@ -674,8 +717,9 @@ async function seed() {
       id: uuid(), petId: uc.petId, appointmentId: apptId, staffId: groomers[0]!.id,
       cutStyle: null, productsUsed: null, notes: null, groomedAt: endTime,
     });
+    }
+    console.log(`✓ Created ${uatClients.length} UAT test clients with guaranteed pending invoices`);
   }
-  console.log(`✓ Created ${uatClients.length} UAT test clients with guaranteed pending invoices`);
 
   // ── Appointments, Invoices, Visit Logs ──
   // Generate ~5 appointments per client on average = ~2500 total
@@ -742,12 +786,12 @@ async function seed() {
       const bather = rand() < 0.6 ? pick(bathers) : null;
       const status = pick(statuses);
 
-      // Schedule within the past year, or next 2 weeks for upcoming
+      // Schedule within the configured appointment window
       let startTime: Date;
       if (status === "scheduled" || status === "confirmed") {
-        startTime = randDate(now, new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000));
+        startTime = randDate(now, appointmentsForwardDate);
       } else {
-        startTime = randDate(oneYearAgo, now);
+        startTime = randDate(appointmentsBackDate, now);
       }
       // Snap to business hours (8am - 5pm)
       startTime.setHours(randInt(8, 16), pick([0, 15, 30, 45]), 0, 0);
@@ -851,6 +895,93 @@ async function seed() {
 
   console.log(`✓ Created ${appointmentCount} appointments`);
   console.log(`✓ Created ${invoiceCount} invoices with line items and tip splits`);
+
+  // ── Enforce target invoice count ───────────────────────────────────────────
+  // If current invoice count is below target (due to profile having fewer
+  // clients/appointments than the target ratio), generate supplemental
+  // completed appointments for existing clients to fill the gap.
+  if (invoiceCount < cfg.invoiceCount) {
+    const additionalNeeded = cfg.invoiceCount - invoiceCount;
+    console.log(`  → Generating ${additionalNeeded} supplemental completed appointments to meet profile target...`);
+
+    const existingClientIds = clientRecords.map(c => c.id);
+    const apptsToGenerate = Math.min(additionalNeeded, existingClientIds.length * 20);
+    let supplementalCount = 0;
+    let supplementalInvoices = 0;
+
+    for (let i = 0; i < apptsToGenerate && supplementalInvoices < additionalNeeded; i++) {
+      const clientId = pick(existingClientIds);
+      const pets = petsByClient.get(clientId) ?? [];
+      if (pets.length === 0) continue;
+
+      const petId = pick(pets);
+      const serviceIdx = randInt(0, serviceIds.length - 1);
+      const serviceId = serviceIds[serviceIdx]!;
+      const svc = servicesDef[serviceIdx]!;
+      const groomer = pick(groomers);
+      const bather = bathers.length > 0 && rand() < 0.6 ? pick(bathers) : null;
+
+      let startTime = randDate(appointmentsBackDate, now);
+      startTime.setHours(randInt(8, 16), pick([0, 15, 30, 45]), 0, 0);
+      const endTime = new Date(startTime.getTime() + svc.dur * 60 * 1000);
+      const effectivePrice = svc.price;
+
+      const apptId = uuid();
+      apptBatch.push({
+        id: apptId, clientId, petId, serviceId,
+        staffId: groomer.id, batherStaffId: bather?.id ?? null,
+        status: "completed", startTime, endTime, notes: null, priceCents: null,
+      });
+      appointmentCount++;
+      supplementalCount++;
+
+      const invoiceId = uuid();
+      const tipCents = rand() < 0.7 ? randInt(200, 3000) : 0;
+      const taxCents = Math.round(effectivePrice * 0.08);
+      const totalCents = effectivePrice + taxCents + tipCents;
+      const paidAt = new Date(endTime.getTime() + randInt(5, 30) * 60 * 1000);
+
+      invoiceBatch.push({
+        id: invoiceId, appointmentId: apptId, clientId,
+        subtotalCents: effectivePrice, taxCents, tipCents, totalCents,
+        status: "paid" as const,
+        paymentMethod: pick(["cash", "card", "card", "card", "check"]) as "cash" | "card" | "check",
+        paidAt, notes: null,
+      });
+      lineItemBatch.push({
+        id: uuid(), invoiceId, description: svc.name, quantity: 1,
+        unitPriceCents: effectivePrice, totalCents: effectivePrice,
+      });
+      if (tipCents > 0) {
+        if (bather) {
+          const groomerShare = Math.round(tipCents * 0.6);
+          const batherShare = tipCents - groomerShare;
+          tipSplitBatch.push(
+            { id: uuid(), invoiceId, staffId: groomer.id, staffName: groomer.name, sharePct: "60.00", shareCents: groomerShare },
+            { id: uuid(), invoiceId, staffId: bather.id, staffName: bather.name, sharePct: "40.00", shareCents: batherShare },
+          );
+        } else {
+          tipSplitBatch.push({ id: uuid(), invoiceId, staffId: groomer.id, staffName: groomer.name, sharePct: "100.00", shareCents: tipCents });
+        }
+      }
+      visitLogBatch.push({
+        id: uuid(), petId, appointmentId: apptId, staffId: groomer.id,
+        cutStyle: pick(cutStyles), productsUsed: pick(productsUsed),
+        notes: pick(visitLogNotes), groomedAt: endTime,
+      });
+      invoiceCount++;
+      supplementalInvoices++;
+      visitLogCount++;
+
+      if (apptBatch.length >= apptBatchSize) {
+        await flushBatches();
+      }
+    }
+
+    await flushBatches();
+    console.log(`  → Added ${supplementalCount} supplemental appointments (${supplementalInvoices} invoices)`);
+    console.log(`✓ Created ${invoiceCount} invoices with line items and tip splits`);
+  }
   console.log(`✓ Created ${visitLogCount} grooming visit logs`);
   console.log("\nSeed complete!");
 
