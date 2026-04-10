@@ -62,11 +62,12 @@ jobs:
             yq -i '.spec.template.spec.containers[0].image = "ghcr.io/groombook/migrate:" + env(TAG)' "$MIGRATE_JOB"
           fi
 
-          # Update seed Job name to include short SHA (immutable template fix)
+          # Update seed Job name to include short SHA and update image tag (immutable template fix)
           SEED_JOB="apps/groombook/base/seed-job.yaml"
           if [ -f "$SEED_JOB" ]; then
             yq -i '.metadata.name = "seed-test-data-" + env(SHORT_SHA)' "$SEED_JOB"
             yq -i '.metadata.annotations."groombook.app/deploy-version" = env(TAG)' "$SEED_JOB"
+            yq -i '.spec.template.spec.containers[0].image = "ghcr.io/groombook/seed:" + env(TAG)' "$SEED_JOB"
           fi
 
           git -C /tmp/infra diff --stat
