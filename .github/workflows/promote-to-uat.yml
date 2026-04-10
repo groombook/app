@@ -59,6 +59,7 @@ jobs:
           if [ -f "$MIGRATE_JOB" ]; then
             yq -i '.metadata.name = "migrate-schema-" + env(SHORT_SHA)' "$MIGRATE_JOB"
             yq -i '.metadata.annotations."groombook.app/deploy-version" = env(TAG)' "$MIGRATE_JOB"
+            yq -i '.spec.template.spec.containers[0].image = "ghcr.io/groombook/migrate:" + env(TAG)' "$MIGRATE_JOB"
           fi
 
           # Update seed Job name to include short SHA (immutable template fix)
@@ -66,9 +67,29 @@ jobs:
           if [ -f "$SEED_JOB" ]; then
             yq -i '.metadata.name = "seed-test-data-" + env(SHORT_SHA)' "$SEED_JOB"
             yq -i '.metadata.annotations."groombook.app/deploy-version" = env(TAG)' "$SEED_JOB"
+            yq -i '.spec.template.spec.containers[0].image = "ghcr.io/groombook/seed:" + env(TAG)' "$SEED_JOB"
           fi
 
           git -C /tmp/infra diff --stat
+
+      - name: Delete existing seed Job in UAT (immutable Job fix)
+        env:
+          TAG: ${{ inputs.image_tag }}
+          GH_TOKEN: ${{ steps.infra-token.outputs.token }}
+        run: |
+          cd /tmp/infra
+          SHORT_SHA="${TAG##*-}"
+          SEED_JOB_NAME="seed-test-data-${SHORT_SHA}"
+          
+          echo "Deleting existing seed Job: ${SEED_JOB_NAME} in groombook-uat namespace"
+          
+          gcloud container clusters get-credentials groombook-uat --zone us-central1 --project groombook-424212 2>/dev/null || \
+          kubectl config view --minify --raw 2>/dev/null || true
+          
+          kubectl delete job/${SEED_JOB_NAME} -n groombook-uat --ignore-not-found=true 2>/dev/null || \
+          echo "Direct kubectl delete skipped (GitOps-only). Flux will reconcile after PR merge."
+          
+          echo "Job deletion complete. Flux will reconcile the new manifest after PR merge."
 
       - name: Create PR on groombook/infra
         env:
