@@ -297,6 +297,19 @@ const demoPetImages = [
   "/demo-pets/dog-mixed-breed.png",
   "/demo-pets/dog-poodle.png",
   "/demo-pets/dog-terrier.png",
+  "/demo-pets/dog-afghan-hound.png",
+  "/demo-pets/dog-basset-brown-white.png",
+  "/demo-pets/dog-bichon-white-groomed.png",
+  "/demo-pets/dog-boxer-fawn-athletic.png",
+  "/demo-pets/dog-cavalier-cream-gentle.png",
+  "/demo-pets/dog-cocker-buff-friendly.png",
+  "/demo-pets/dog-corgi.png",
+  "/demo-pets/dog-dachshund-black-tan.png",
+  "/demo-pets/dog-golden-before.png",
+  "/demo-pets/dog-pomeranian-white-studio.png",
+  "/demo-pets/dog-schnauzer-black-groomed.png",
+  "/demo-pets/dog-setter-red-sunlit.png",
+  "/demo-pets/dog-sheepdog-merle-running.png",
 ];
 
 // ── Service definitions ──────────────────────────────────────────────────────
