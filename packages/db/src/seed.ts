@@ -316,7 +316,6 @@ const puggleImages = [
   "/demo-pets/dog-puggle-fawn-playful.png",
   "/demo-pets/dog-puggle-black-sitting.png",
   "/demo-pets/dog-puggle-cream-groomed.png",
-  "/demo-pets/dog-puggle-tricolor-outdoor.png",
   "/demo-pets/dog-puggle-fawn-grooming.png",
 ];
 
