@@ -23,7 +23,6 @@ if (process.env.AUTH_DISABLED === "true") {
 }
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
-  // Better-Auth's own routes handle their own auth (OAuth callbacks, session mgmt)
   if (c.req.path.startsWith("/api/auth/")) {
     await next();
     return;
@@ -37,7 +36,14 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     return;
   }
 
-  const session = await getAuth().api.getSession({
+  let auth;
+  try {
+    auth = getAuth();
+  } catch {
+    return c.json({ error: "Authentication not configured" }, 503);
+  }
+
+  const session = await auth.api.getSession({
     headers: c.req.raw.headers,
   });
 

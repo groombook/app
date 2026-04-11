@@ -23,17 +23,26 @@ import { useSession, signIn } from "./lib/auth-client.js";
 function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [providers, setProviders] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/providers")
       .then((r) => r.json())
       .then((data) => setProviders(data.providers ?? []))
       .catch(() => setProviders([]));
+    const params = new URLSearchParams(window.location.search);
+    const authError = params.get("error");
+    if (authError) setError(authError.replace(/_/g, " "));
   }, []);
 
   const handleSocialLogin = async (provider: string) => {
     setIsLoading(true);
-    await signIn.social({ provider, callbackURL: window.location.origin });
+    setError(null);
+    const result = await signIn.social({ provider, callbackURL: window.location.origin });
+    if (result?.error) {
+      setError(result.error.message ?? "Sign-in failed");
+      setIsLoading(false);
+    }
   };
 
   const isGoogle = providers.includes("google");
@@ -65,6 +74,11 @@ function LoginPage() {
         <p style={{ color: "#6b7280", marginBottom: "1.5rem", fontSize: 14 }}>
           Sign in to continue
         </p>
+        {error && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "0.5rem 0.75rem", marginBottom: "1rem", color: "#991b1b", fontSize: 13 }}>
+            {error}
+          </div>
+        )}
         {isGoogle && (
           <button
             onClick={() => handleSocialLogin("google")}
