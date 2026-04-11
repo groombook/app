@@ -184,7 +184,7 @@ const dogBreeds = [
   "Brittany", "English Springer Spaniel", "Maltese", "Bichon Frise",
   "West Highland White Terrier", "Vizsla", "Chihuahua", "Collie",
   "Basset Hound", "Newfoundland", "Samoyed", "Australian Shepherd",
-  "Pembroke Welsh Corgi", "French Bulldog", "Weimaraner",
+  "Pembroke Welsh Corgi", "French Bulldog", "Weimaraner", "Puggle",
   "Mixed Breed", "Mixed Breed", "Mixed Breed",
 ];
 
@@ -279,6 +279,44 @@ const productsUsed = [
   "Puppy shampoo, gentle conditioner",
   "Medicated shampoo (vet prescribed), moisturizer",
   "Coconut oil shampoo, leave-in conditioner, cologne",
+];
+
+const demoPetImages = [
+  "/demo-pets/dog-golden-after.png",
+  "/demo-pets/dog-poodle-groomed.png",
+  "/demo-pets/dog-black-lab.png",
+  "/demo-pets/dog-shih-tzu.png",
+  "/demo-pets/dog-cocker-spaniel.png",
+  "/demo-pets/dog-schnauzer.png",
+  "/demo-pets/dog-maltese.png",
+  "/demo-pets/dog-dachshund.png",
+  "/demo-pets/dog-pomeranian.png",
+  "/demo-pets/dog-bichon-frise.png",
+  "/demo-pets/dog-golden-retriever.png",
+  "/demo-pets/dog-labrador.png",
+  "/demo-pets/dog-mixed-breed.png",
+  "/demo-pets/dog-poodle.png",
+  "/demo-pets/dog-terrier.png",
+  "/demo-pets/dog-afghan-hound.png",
+  "/demo-pets/dog-basset-brown-white.png",
+  "/demo-pets/dog-bichon-white-groomed.png",
+  "/demo-pets/dog-boxer-fawn-athletic.png",
+  "/demo-pets/dog-cavalier-cream-gentle.png",
+  "/demo-pets/dog-cocker-buff-friendly.png",
+  "/demo-pets/dog-corgi.png",
+  "/demo-pets/dog-dachshund-black-tan.png",
+  "/demo-pets/dog-golden-before.png",
+  "/demo-pets/dog-pomeranian-white-studio.png",
+  "/demo-pets/dog-schnauzer-black-groomed.png",
+  "/demo-pets/dog-setter-red-sunlit.png",
+  "/demo-pets/dog-sheepdog-merle-running.png",
+];
+
+const puggleImages = [
+  "/demo-pets/dog-puggle-fawn-playful.png",
+  "/demo-pets/dog-puggle-black-sitting.png",
+  "/demo-pets/dog-puggle-cream-groomed.png",
+  "/demo-pets/dog-puggle-fawn-grooming.png",
 ];
 
 // ── Service definitions ──────────────────────────────────────────────────────
@@ -621,6 +659,7 @@ async function seed() {
   const clientRecords: ClientRecord[] = [];
   const petRecords: PetRecord[] = [];
 
+  let petIndex = 0; // Track pet count to assign Puggle images to first 250 pets
   const clientBatchSize = 50;
   for (let batch = 0; batch < Math.ceil(cfg.clientCount / clientBatchSize); batch++) {
     const clientBatch: (typeof schema.clients.$inferInsert)[] = [];
@@ -652,7 +691,7 @@ async function seed() {
       const petCount = rand() < 0.5 ? 1 : rand() < 0.7 ? 2 : 3;
       for (let p = 0; p < petCount; p++) {
         const petId = uuid();
-        const breed = pick(dogBreeds);
+        const breed = petIndex < 250 ? "Puggle" : pick(dogBreeds);
         const dob = new Date(now);
         dob.setFullYear(dob.getFullYear() - randInt(1, 14));
         dob.setMonth(randInt(0, 11));
@@ -671,9 +710,11 @@ async function seed() {
           shampooPreference: pick(shampoos),
           specialCareNotes: rand() < 0.1 ? "Vet clearance required before grooming" : null,
           customFields: {},
+          image: petIndex < 250 ? pick(puggleImages) : pick(demoPetImages),
         });
 
         petRecords.push({ id: petId, clientId });
+        petIndex++;
       }
     }
 
@@ -704,6 +745,7 @@ async function seed() {
             shampooPreference: pet.shampooPreference,
             specialCareNotes: pet.specialCareNotes,
             customFields: pet.customFields,
+            image: pet.image,
           },
         });
     }
@@ -738,8 +780,8 @@ async function seed() {
       .values({ id: uc.id, name: uc.name, email: uc.email, phone: uc.phone, address: uc.address })
       .onConflictDoUpdate({ target: schema.clients.id, set: { name: uc.name, email: uc.email, phone: uc.phone, address: uc.address } });
     await db.insert(schema.pets)
-      .values({ id: uc.petId, clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z") })
-      .onConflictDoUpdate({ target: schema.pets.id, set: { clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z") } });
+      .values({ id: uc.petId, clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z"), image: pick(demoPetImages) })
+      .onConflictDoUpdate({ target: schema.pets.id, set: { clientId: uc.id, name: uc.petName, species: "Dog", breed: uc.petBreed, weightKg: "25.00", dateOfBirth: new Date("2021-03-15T00:00:00Z"), image: pick(demoPetImages) } });
     // Create one completed appointment for this client
     const apptId = uuid();
     const svcIdx = 0;
