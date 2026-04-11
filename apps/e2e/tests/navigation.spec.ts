@@ -44,7 +44,10 @@ test.beforeEach(async ({ page }) => {
         json: { newClients: [], activeInPeriodCount: 0, churnRisk: [], churnRiskTotal: 0 },
       });
     }
-    // Appointments, clients, services, staff, invoices, book, etc.
+    if (url.includes("/api/invoices")) {
+      return route.fulfill({ json: { data: [], total: 0 } });
+    }
+    // Appointments, clients, services, staff, book, etc.
     return route.fulfill({ json: [] });
   });
 });
@@ -82,7 +85,6 @@ test("admin staff page loads", async ({ page }) => {
 
 test("admin invoices page loads", async ({ page }) => {
   await page.goto("/admin/invoices");
-  await page.waitForLoadState("networkidle");
   await expect(page.getByText("GroomBook")).toBeVisible();
   await expect(page.getByRole("link", { name: "Invoices" })).toBeVisible();
 });
