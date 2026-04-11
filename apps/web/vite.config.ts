@@ -41,11 +41,11 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallbackDenylist: [
-          /^\/api\/auth\/oauth2\/callback\//,
+          /^\/api\/auth\//,
         ],
         runtimeCaching: [
           {
-            urlPattern: /^http.*\/api\/.*/i,
+            urlPattern: /^http.*\/api\/(?!auth\/).*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",

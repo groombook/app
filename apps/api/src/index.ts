@@ -105,7 +105,13 @@ api.use("*", resolveStaffMiddleware);
 // Better-Auth handler — mounted as sub-app to handle all /api/auth/* routes
 // authMiddleware and resolveStaffMiddleware both skip /api/auth/ paths
 const authRouter = new Hono();
-authRouter.all("/*", (c) => getAuth().handler(c.req.raw));
+authRouter.all("/*", (c) => {
+  try {
+    return getAuth().handler(c.req.raw);
+  } catch {
+    return c.json({ error: "Authentication not configured" }, 503);
+  }
+});
 api.route("/auth", authRouter);
 
 // ── Role guards ────────────────────────────────────────────────────────────────
