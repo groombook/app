@@ -90,6 +90,12 @@ export async function initAuth(): Promise<void> {
         database: drizzleAdapter(getDb(), { provider: "pg" }),
         secret: BETTER_AUTH_SECRET ?? "placeholder-secret-do-not-use-in-prod",
         baseURL: BETTER_AUTH_URL,
+        rateLimit: {
+          enabled: true,
+          max: 10,
+          window: 60,
+          storage: "database",
+        },
         plugins: [
           genericOAuth({
             config: [
@@ -177,6 +183,12 @@ export async function initAuth(): Promise<void> {
       }),
       secret: BETTER_AUTH_SECRET,
       baseURL: BETTER_AUTH_URL,
+      rateLimit: {
+        enabled: true,
+        max: 10,
+        window: 60,
+        storage: "database",
+      },
       account: {
         storeStateStrategy: "cookie" as const,
       },

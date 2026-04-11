@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import { and, eq, getDb, isNull, staff } from "@groombook/db";
+import { eq, getDb, staff } from "@groombook/db";
 
 export type StaffRole = "groomer" | "receptionist" | "manager";
 export type StaffRow = typeof staff.$inferSelect;
@@ -90,25 +90,6 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
     .from(staff)
     .where(eq(staff.oidcSub, jwt.sub));
   if (!fallbackRow) {
-    // Auto-link: staff record exists with matching email but no userId — link it now
-    if (jwt.email) {
-      const [linkedStaff] = await db
-        .select()
-        .from(staff)
-        .where(and(eq(staff.email, jwt.email), isNull(staff.userId)));
-      if (linkedStaff) {
-        await db
-          .update(staff)
-          .set({ userId: jwt.sub })
-          .where(eq(staff.id, linkedStaff.id));
-        console.log(
-          `[rbac] Auto-linked staff ${linkedStaff.id} to Better-Auth user ${jwt.sub} via email ${jwt.email}`
-        );
-        c.set("staff", linkedStaff);
-        await next();
-        return;
-      }
-    }
     return c.json(
       { error: "Forbidden: no staff record found for authenticated user" },
       403

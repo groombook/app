@@ -1,4 +1,4 @@
-import { Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
+import { Routes, Route, Link, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AppointmentsPage } from "./pages/Appointments.js";
 import { ClientsPage } from "./pages/Clients.js";
@@ -18,7 +18,7 @@ import { DevLoginSelector, getDevUser } from "./pages/DevLoginSelector.js";
 import { DevSessionIndicator } from "./components/DevSessionIndicator.js";
 import { BrandingProvider, useBranding } from "./BrandingContext.js";
 import { GlobalSearch } from "./components/GlobalSearch.js";
-import { useSession, signIn } from "./lib/auth-client.js";
+import { useSession, signIn, signOut } from "./lib/auth-client.js";
 
 function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -181,6 +181,7 @@ const NAV_LINKS = [
 
 function AdminLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { branding } = useBranding();
 
   const logoSrc = branding.logoBase64 && branding.logoMimeType
@@ -261,6 +262,25 @@ function AdminLayout() {
             </Link>
           );
         })}
+        <button
+          onClick={async () => {
+            await signOut();
+            navigate("/login");
+          }}
+          style={{
+            marginLeft: "auto",
+            padding: "0.4rem 0.85rem",
+            borderRadius: 6,
+            border: "1px solid #e2e8f0",
+            background: "#fff",
+            color: "#4b5563",
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Logout
+        </button>
       </nav>
       <main style={{ padding: "1.25rem 1.5rem" }}>
         <Routes>

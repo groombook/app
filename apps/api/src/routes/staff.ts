@@ -18,6 +18,10 @@ const createStaffSchema = z.object({
 
 const updateStaffSchema = createStaffSchema.partial().omit({ email: true });
 
+const linkUserSchema = z.object({
+  userId: z.string().min(1),
+});
+
 staffRouter.get("/me", async (c) => {
   const staffRow = c.get("staff");
   return c.json(staffRow);
@@ -104,6 +108,32 @@ staffRouter.patch("/:id", zValidator("json", updateStaffSchema), async (c) => {
     .returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json(row);
+});
+
+staffRouter.patch("/:id/link-user", zValidator("json", linkUserSchema), async (c) => {
+  const db = getDb();
+  const targetId = c.req.param("id");
+  const body = c.req.valid("json");
+  const currentStaff = c.get("staff");
+
+  if (currentStaff.role !== "manager" && !currentStaff.isSuperUser) {
+    return c.json({ error: "Forbidden: only managers or super users can link staff to users" }, 403);
+  }
+
+  const [existing] = await db
+    .select()
+    .from(staff)
+    .where(eq(staff.id, targetId))
+    .limit(1);
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const [updated] = await db
+    .update(staff)
+    .set({ userId: body.userId, updatedAt: new Date() })
+    .where(eq(staff.id, targetId))
+    .returning();
+
+  return c.json(updated);
 });
 
 staffRouter.delete("/:id", async (c) => {
