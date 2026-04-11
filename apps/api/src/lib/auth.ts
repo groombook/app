@@ -171,17 +171,21 @@ export async function initAuth(): Promise<void> {
     const hasGoogle = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
     const hasGitHub = !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 
+    const callbackBase = `${BETTER_AUTH_URL}/api/auth/callback`;
+
     const socialPlugins = [];
     if (hasGoogle) {
       socialPlugins.push(google({
         clientId: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirectURI: `${callbackBase}/google`,
       }));
     }
     if (hasGitHub) {
       socialPlugins.push(github({
         clientId: process.env.GITHUB_CLIENT_ID!,
         clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        redirectURI: `${callbackBase}/github`,
       }));
     }
 
