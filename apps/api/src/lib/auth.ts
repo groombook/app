@@ -1,7 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { genericOAuth } from "better-auth/plugins";
-import { google, github } from "better-auth/social-providers";
 import { getDb, authProviderConfig, eq } from "@groombook/db";
 import { decryptSecret } from "@groombook/db";
 
@@ -173,22 +172,6 @@ export async function initAuth(): Promise<void> {
 
     const callbackBase = `${BETTER_AUTH_URL}/api/auth/callback`;
 
-    const socialPlugins = [];
-    if (hasGoogle) {
-      socialPlugins.push(google({
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirectURI: `${callbackBase}/google`,
-      }));
-    }
-    if (hasGitHub) {
-      socialPlugins.push(github({
-        clientId: process.env.GITHUB_CLIENT_ID!,
-        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-        redirectURI: `${callbackBase}/github`,
-      }));
-    }
-
     // Build Better-Auth instance using resolved config
     authInstance = betterAuth({
       database: drizzleAdapter(db, {
@@ -216,8 +199,23 @@ export async function initAuth(): Promise<void> {
             },
           ],
         }),
-        ...socialPlugins,
       ],
+      socialProviders: {
+        ...(hasGoogle ? {
+          google: {
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+            redirectURI: `${callbackBase}/google`,
+          },
+        } : {}),
+        ...(hasGitHub ? {
+          github: {
+            clientId: process.env.GITHUB_CLIENT_ID!,
+            clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+            redirectURI: `${callbackBase}/github`,
+          },
+        } : {}),
+      },
       session: {
         expiresIn: 60 * 60 * 24 * 7, // 7 days
         updateAge: 60 * 60 * 24, // 1 day
