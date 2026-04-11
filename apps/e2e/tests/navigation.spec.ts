@@ -82,6 +82,7 @@ test("admin staff page loads", async ({ page }) => {
 
 test("admin invoices page loads", async ({ page }) => {
   await page.goto("/admin/invoices");
+  await page.waitForLoadState("networkidle");
   await expect(page.getByText("GroomBook")).toBeVisible();
   await expect(page.getByRole("link", { name: "Invoices" })).toBeVisible();
 });
