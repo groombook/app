@@ -9,6 +9,17 @@ export const setupRouter = new Hono<AppEnv>();
 // GET /api/setup/status — public (no auth), returns whether setup is needed
 // and whether the auth provider bootstrap step should be shown
 setupRouter.get("/status", async (c) => {
+  const skipOobe = ["true", "1", "yes"].includes((process.env.SKIP_OOBE || "").toLowerCase());
+  if (skipOobe) {
+    return c.json({
+      needsSetup: false,
+      showAuthProviderStep: false,
+      authConfigExists: false,
+      authEnvVarsSet: false,
+      skipped: true,
+    });
+  }
+
   const db = getDb();
 
   // Check if any super user exists
