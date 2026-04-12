@@ -109,8 +109,11 @@ export const clients = pgTable("clients", {
   phone: text("phone"),
   address: text("address"),
   notes: text("notes"),
-  // Set to true if the client has opted out of email reminders/notifications
   emailOptOut: boolean("email_opt_out").notNull().default(false),
+  smsOptIn: boolean("sms_opt_in").notNull().default(false),
+  smsConsentDate: timestamp("sms_consent_date"),
+  smsOptOutDate: timestamp("sms_opt_out_date"),
+  smsConsentText: text("sms_consent_text"),
   status: clientStatusEnum("status").notNull().default("active"),
   disabledAt: timestamp("disabled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -305,11 +308,11 @@ export const reminderLogs = pgTable(
     appointmentId: uuid("appointment_id")
       .notNull()
       .references(() => appointments.id, { onDelete: "cascade" }),
-    // "confirmation" | "24h" | "2h"
     reminderType: text("reminder_type").notNull(),
+    channel: text("channel").notNull().default("email"),
     sentAt: timestamp("sent_at").notNull().defaultNow(),
   },
-  (t) => [unique().on(t.appointmentId, t.reminderType)]
+  (t) => [unique().on(t.appointmentId, t.reminderType, t.channel)]
 );
 
 // ─── Impersonation ──────────────────────────────────────────────────────────

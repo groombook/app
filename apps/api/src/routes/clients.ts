@@ -4,12 +4,35 @@ import { z } from "zod/v3";
 import { and, eq, exists, getDb, or, clients, appointments } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
+function normalizeE164(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  if (digits.length > 11 && digits.startsWith("1")) return `+${digits.slice(0, 11)}`;
+  return null;
+}
+
+function e164String() {
+  return z.string().transform((v, ctx) => {
+    if (!v) return v as unknown as undefined;
+    const normalized = normalizeE164(v);
+    if (!normalized) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid phone number. Must be a valid E.164 number (e.g. +12125551234).",
+      });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+}
+
 export const clientsRouter = new Hono<AppEnv>();
 
 const createClientSchema = z.object({
   name: z.string().min(1).max(200),
   email: z.string().email().optional(),
-  phone: z.string().max(50).optional(),
+  phone: e164String().optional(),
   address: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
 });

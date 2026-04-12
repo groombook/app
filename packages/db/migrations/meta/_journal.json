@@ -183,6 +183,13 @@
       "when": 1775482467192,
       "tag": "0025_rate_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1776035812477,
+      "tag": "0026_boring_storm",
+      "breakpoints": true
     }
   ]
 }
