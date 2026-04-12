@@ -418,6 +418,48 @@ describe("GET /setup/status — OOBE bootstrap logic", () => {
     expect(body.showAuthProviderStep).toBe(false); // DB config already exists
     expect(body.authConfigExists).toBe(true);
   });
+
+  it("SKIP_OOBE=true bypasses setup check regardless of DB state", async () => {
+    dbStaffRows = []; // no super user
+    dbAuthConfigRows = [];
+    process.env.SKIP_OOBE = "true";
+
+    const app = makeApp();
+    const { status, body } = await getStatus(app);
+
+    expect(status).toBe(200);
+    expect(body.needsSetup).toBe(false);
+    expect(body.showAuthProviderStep).toBe(false);
+    expect(body.authConfigExists).toBe(false);
+    expect(body.authEnvVarsSet).toBe(false);
+    expect(body.skipped).toBe(true);
+  });
+
+  it("SKIP_OOBE=1 also bypasses setup check", async () => {
+    dbStaffRows = [];
+    dbAuthConfigRows = [];
+    process.env.SKIP_OOBE = "1";
+
+    const app = makeApp();
+    const { status, body } = await getStatus(app);
+
+    expect(status).toBe(200);
+    expect(body.needsSetup).toBe(false);
+    expect(body.skipped).toBe(true);
+  });
+
+  it("SKIP_OOBE=yes also bypasses setup check", async () => {
+    dbStaffRows = [];
+    dbAuthConfigRows = [];
+    process.env.SKIP_OOBE = "yes";
+
+    const app = makeApp();
+    const { status, body } = await getStatus(app);
+
+    expect(status).toBe(200);
+    expect(body.needsSetup).toBe(false);
+    expect(body.skipped).toBe(true);
+  });
 });
 
 describe("POST /setup/auth-provider — OOBE bootstrap", () => {
