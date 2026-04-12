@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { loadStripe, type Stripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { CreditCard, DollarSign, Package, Zap } from "lucide-react";
 
 interface Invoice {
@@ -10,15 +12,11 @@ interface Invoice {
 }
 
 interface PaymentMethod {
+  id: string;
   brand: string;
   last4: string;
   expiryMonth: number;
   expiryYear: number;
-}
-
-interface Package {
-  name: string;
-  remaining: number;
 }
 
 interface BillingPaymentsProps {
@@ -26,15 +24,16 @@ interface BillingPaymentsProps {
   readOnly: boolean;
 }
 
-export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
+function BillingPaymentsInner({ sessionId, readOnly }: BillingPaymentsProps) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
+  const [packages, setPackages] = useState<{ name: string; remaining: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"invoices" | "payment" | "packages">("invoices");
   const [autopay, setAutopay] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [publishableKey, setPublishableKey] = useState<string>("");
 
   useEffect(() => {
     async function fetchData() {
@@ -44,20 +43,37 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
       }
 
       try {
-        const response = await fetch("/api/portal/invoices", {
-          headers: {
-            "X-Impersonation-Session-Id": sessionId,
-          },
-        });
+        const [configRes, invoicesRes, methodsRes] = await Promise.all([
+          fetch("/api/portal/config", {
+            headers: { "X-Impersonation-Session-Id": sessionId },
+          }),
+          fetch("/api/portal/invoices", {
+            headers: { "X-Impersonation-Session-Id": sessionId },
+          }),
+          fetch("/api/portal/payment-methods", {
+            headers: { "X-Impersonation-Session-Id": sessionId },
+          }),
+        ]);
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch invoices");
+        if (!configRes.ok) throw new Error("Failed to fetch config");
+        const configData = await configRes.json();
+        setPublishableKey(configData.stripePublishableKey ?? "");
+
+        const invoicesData = await invoicesRes.json();
+        setInvoices(Array.isArray(invoicesData) ? invoicesData : invoicesData.invoices || []);
+
+        if (methodsRes.ok) {
+          const methodsData = await methodsRes.json();
+          setPaymentMethods(
+            (methodsData ?? []).map((m: { id: string; card: { brand: string; last4: string; exp_month: number; exp_year: number } }) => ({
+              id: m.id,
+              brand: m.card?.brand ?? "unknown",
+              last4: m.card?.last4 ?? "****",
+              expiryMonth: m.card?.exp_month ?? 0,
+              expiryYear: m.card?.exp_year ?? 0,
+            }))
+          );
         }
-
-        const data = await response.json();
-        setInvoices(Array.isArray(data) ? data : data.invoices || []);
-        setPaymentMethods(data.paymentMethods || []);
-        setPackages(data.packages || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
       } finally {
@@ -68,12 +84,8 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
     fetchData();
   }, [sessionId]);
 
-  const formatCents = (cents: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(cents / 100);
-  };
+  const formatCents = (cents: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 
   const pending = invoices.filter((i) => i.status === "pending");
   const totalPending = pending.reduce((sum, i) => sum + i.totalCents, 0);
@@ -82,9 +94,9 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-24 bg-gray-200 rounded"></div>
-          <div className="h-24 bg-gray-200 rounded"></div>
+          <div className="h-6 bg-gray-200 rounded w-1/3" />
+          <div className="h-24 bg-gray-200 rounded" />
+          <div className="h-24 bg-gray-200 rounded" />
         </div>
       </div>
     );
@@ -100,7 +112,6 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
 
   return (
     <div className="space-y-6">
-      {/* Outstanding Balance Banner */}
       {totalPending > 0 && (
         <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -110,16 +121,15 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
               {pending.length} unpaid invoice{pending.length > 1 ? "s" : ""}
             </p>
           </div>
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
-            >
-              Pay Now
-            </button>
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            className="px-6 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover)"
+          >
+            Pay Now
+          </button>
         </div>
       )}
 
-      {/* Tabs */}
       <div className="flex gap-2">
         {([
           { id: "invoices" as const, label: "Invoices", icon: DollarSign },
@@ -141,7 +151,6 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
         ))}
       </div>
 
-      {/* Invoices */}
       {tab === "invoices" && (
         <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -152,7 +161,7 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
                   <th className="px-5 py-3 font-medium">Description</th>
                   <th className="px-5 py-3 font-medium">Amount</th>
                   <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium"></th>
+                  <th className="px-5 py-3 font-medium" />
                 </tr>
               </thead>
               <tbody>
@@ -160,9 +169,7 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
                   <tr key={inv.id} className="border-b border-stone-50 hover:bg-stone-50/50">
                     <td className="px-5 py-3 text-stone-700">
                       {new Date(inv.date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
+                        month: "short", day: "numeric", year: "numeric",
                       })}
                     </td>
                     <td className="px-5 py-3 text-stone-600">
@@ -201,7 +208,6 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
         </div>
       )}
 
-      {/* Payment Methods */}
       {tab === "payment" && (
         <div className="space-y-4">
           {paymentMethods.length === 0 ? (
@@ -210,7 +216,7 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
             <div className="space-y-3">
               {paymentMethods.map((method) => (
                 <div
-                  key={`${method.brand}-${method.last4}`}
+                  key={method.id}
                   className="flex items-center justify-between p-4 border border-stone-200 rounded-lg bg-white"
                 >
                   <div className="flex items-center gap-3">
@@ -223,7 +229,18 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
                     </span>
                   </div>
                   {!readOnly && (
-                    <button className="text-sm text-blue-600 hover:underline">
+                    <button
+                      onClick={async () => {
+                        const res = await fetch(`/api/portal/payment-methods/${method.id}`, {
+                          method: "DELETE",
+                          headers: { "X-Impersonation-Session-Id": sessionId ?? "" },
+                        });
+                        if (res.ok) {
+                          setPaymentMethods((prev) => prev.filter((m) => m.id !== method.id));
+                        }
+                      }}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
                       Remove
                     </button>
                   )}
@@ -232,7 +249,6 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
             </div>
           )}
 
-          {/* Autopay */}
           <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -241,9 +257,7 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-stone-800">Autopay</p>
-                  <p className="text-xs text-stone-500">
-                    Automatically charge after each appointment
-                  </p>
+                  <p className="text-xs text-stone-500">Automatically charge after each appointment</p>
                 </div>
               </div>
               {!readOnly ? (
@@ -269,17 +283,13 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
         </div>
       )}
 
-      {/* Packages */}
       {tab === "packages" && (
         <div className="space-y-4">
           {packages.length === 0 ? (
             <p className="text-gray-500 italic">No packages purchased</p>
           ) : (
             packages.map((pkg, index) => (
-              <div
-                key={index}
-                className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm"
-              >
+              <div key={index} className="bg-white rounded-2xl border border-stone-200 p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-stone-800">{pkg.name}</span>
                   <span className="text-stone-600">{pkg.remaining} remaining</span>
@@ -290,59 +300,120 @@ export function BillingPayments({ sessionId, readOnly }: BillingPaymentsProps) {
         </div>
       )}
 
-      {/* Payment Modal */}
-      {showPaymentModal && (
-        <PaymentModal
+      {showPaymentModal && publishableKey && (
+        <PaymentModalWrapper
+          key={Date.now()}
+          sessionId={sessionId ?? ""}
+          publishableKey={publishableKey}
           pending={pending}
-          totalPending={totalPending}
           onClose={() => setShowPaymentModal(false)}
+          onSuccess={() => {
+            setInvoices((prev) =>
+              prev.map((inv) =>
+                pending.some((p) => p.id === inv.id) ? { ...inv, status: "paid" as const } : inv
+              )
+            );
+            setShowPaymentModal(false);
+          }}
         />
       )}
     </div>
   );
 }
 
-function PaymentModal({
-  pending,
-  totalPending: _totalPending,
-  onClose,
-}: {
+interface PaymentModalWrapperProps {
+  sessionId: string;
+  publishableKey: string;
   pending: Invoice[];
-  totalPending: number;
   onClose: () => void;
-}) {
-  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(
-    new Set(pending.map((i) => i.id))
+  onSuccess: () => void;
+}
+
+function PaymentModalWrapper({ sessionId, publishableKey, pending, onClose, onSuccess }: PaymentModalWrapperProps) {
+  const [stripePromise] = useState(() =>
+    publishableKey ? loadStripe(publishableKey) : Promise.resolve(null)
   );
+
+  return (
+    <Elements stripe={stripePromise} options={{ mode: "payment", amount: pending.reduce((s, i) => s + i.totalCents, 0), currency: "usd" }}>
+      <PaymentModal sessionId={sessionId} pending={pending} onClose={onClose} onSuccess={onSuccess} />
+    </Elements>
+  );
+}
+
+interface PaymentModalProps {
+  sessionId: string;
+  pending: Invoice[];
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function PaymentModal({ sessionId, pending, onClose, onSuccess }: PaymentModalProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set(pending.map((i) => i.id)));
+  const [saveCard, setSaveCard] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const formatCents = (cents: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(cents / 100);
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 
   const toggleInvoice = (id: string) => {
     const next = new Set(selectedInvoices);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelectedInvoices(next);
   };
 
-  const handlePay = async () => {
-    setIsProcessing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsProcessing(false);
-    setIsComplete(true);
-  };
+  const selectedTotal = pending.filter((i) => selectedInvoices.has(i.id)).reduce((sum, i) => sum + i.totalCents, 0);
 
-  const selectedTotal = pending
-    .filter((i) => selectedInvoices.has(i.id))
-    .reduce((sum, i) => sum + i.totalCents, 0);
+  const handlePay = async () => {
+    if (!stripe || !elements) return;
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const isMulti = selectedInvoices.size > 1;
+      const endpoint = isMulti ? "/api/portal/invoices/pay-multiple" : `/api/portal/invoices/${[...selectedInvoices][0]}/pay`;
+      const body = isMulti ? { invoiceIds: [...selectedInvoices] } : {};
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Impersonation-Session-Id": sessionId,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed to initialize payment");
+      }
+
+      const { clientSecret } = await res.json();
+
+      const { error: stripeError } = await stripe.confirmPayment({
+        elements,
+        clientSecret,
+        confirmParams: saveCard ? { setup_future_usage: "off_session" } : undefined,
+      });
+
+      if (stripeError) {
+        setError(stripeError.message ?? "Payment failed");
+        setIsProcessing(false);
+        return;
+      }
+
+      setIsComplete(true);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      setIsProcessing(false);
+    }
+  };
 
   if (isComplete) {
     return (
@@ -357,10 +428,7 @@ function PaymentModal({
           <p className="text-stone-500 text-sm mb-6">
             Your payment of {formatCents(selectedTotal)} has been processed. A receipt has been sent to your email.
           </p>
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium"
-          >
+          <button onClick={onClose} className="w-full px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium">
             Done
           </button>
         </div>
@@ -408,21 +476,35 @@ function PaymentModal({
                   </p>
                 </div>
               </div>
-              <span className="text-sm font-medium text-stone-800">
-                {formatCents(inv.totalCents)}
-              </span>
+              <span className="text-sm font-medium text-stone-800">{formatCents(inv.totalCents)}</span>
             </label>
           ))}
         </div>
 
         <div className="border-t border-stone-200 pt-4 mb-6">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <span className="text-sm text-stone-600">Total</span>
-            <span className="text-lg font-bold text-stone-800">
-              {formatCents(selectedTotal)}
-            </span>
+            <span className="text-lg font-bold text-stone-800">{formatCents(selectedTotal)}</span>
           </div>
+
+          <PaymentElement />
         </div>
+
+        <label className="flex items-center gap-2 mb-4">
+          <input
+            type="checkbox"
+            checked={saveCard}
+            onChange={(e) => setSaveCard(e.target.checked)}
+            className="w-4 h-4 rounded border-stone-300 text-(--color-accent) focus:ring-(--color-accent)"
+          />
+          <span className="text-sm text-stone-600">Save card for future payments</span>
+        </label>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         <div className="flex gap-3">
           <button
@@ -433,7 +515,7 @@ function PaymentModal({
           </button>
           <button
             onClick={handlePay}
-            disabled={selectedInvoices.size === 0 || isProcessing}
+            disabled={selectedInvoices.size === 0 || isProcessing || !stripe}
             className="flex-1 px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover) disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing ? "Processing..." : "Pay Now"}
@@ -442,6 +524,10 @@ function PaymentModal({
       </div>
     </div>
   );
+}
+
+export function BillingPayments(props: BillingPaymentsProps) {
+  return <BillingPaymentsInner {...props} />;
 }
 
 export default BillingPayments;
