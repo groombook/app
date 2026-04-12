@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { User, Lock, PawPrint, FileCheck, Plus, Archive } from "lucide-react";
 import { PetForm } from "./PetForm.js";
+import { authClient } from "../../lib/auth-client.js";
 
 interface Props {
   sessionId: string | null;
@@ -148,9 +149,11 @@ function PasswordChange({ readOnly }: { readOnly: boolean }) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const passwordsMatch = newPassword === confirmPassword;
-  const canSubmit = currentPassword.length > 0 && newPassword.length > 0 && passwordsMatch;
+  const canSubmit = newPassword.length > 0 && passwordsMatch && !loading;
 
   if (readOnly) {
     return (
@@ -160,17 +163,34 @@ function PasswordChange({ readOnly }: { readOnly: boolean }) {
     );
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!canSubmit) return;
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
-    // TODO: Wire up to actual password-change API endpoint once backend support exists
     setError(null);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    setLoading(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await (authClient as any).changePassword({
+        currentPassword,
+        newPassword,
+      });
+      if (result.error) {
+        setError(result.error.message ?? "Failed to change password.");
+      } else {
+        setSuccess(true);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setTimeout(() => setSuccess(false), 4000);
+      }
+    } catch {
+      setError("An unexpected error occurred.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -205,12 +225,13 @@ function PasswordChange({ readOnly }: { readOnly: boolean }) {
           />
         </div>
         {error && <p className="text-sm text-red-500">{error}</p>}
+        {success && <p className="text-sm text-green-600">Password updated successfully.</p>}
         <button
           onClick={handleSubmit}
           disabled={!canSubmit}
           className="px-4 py-2 bg-(--color-accent) text-white rounded-lg text-sm font-medium hover:bg-(--color-accent-hover) disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Update Password
+          {loading ? "Updating..." : "Update Password"}
         </button>
       </div>
     </div>

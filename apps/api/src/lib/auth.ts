@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { genericOAuth } from "better-auth/plugins";
 import { getDb, authProviderConfig, eq } from "@groombook/db";
 import { decryptSecret } from "@groombook/db";
+import { sendEmail } from "../services/email.js";
 
 const BETTER_AUTH_SECRET = process.env.BETTER_AUTH_SECRET;
 const BETTER_AUTH_URL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
@@ -176,6 +177,52 @@ export async function initAuth(): Promise<void> {
     const hasGoogle = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
     const hasGitHub = !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 
+    // Fetch OIDC discovery document to derive canonical provider URLs.
+    // Replace the host of token/userinfo endpoints with internalBaseUrl when set,
+    // while keeping authorizationUrl public for browser redirects.
+    const discoveryUrlStr = `${providerConfig.issuerUrl}/.well-known/openid-configuration`;
+    let oidcConfig: Record<string, string> = {};
+    try {
+      const discoveryRes = await fetch(discoveryUrlStr);
+      if (discoveryRes.ok) {
+        const discovery = await discoveryRes.json() as {
+          authorization_endpoint?: string;
+          token_endpoint?: string;
+          userinfo_endpoint?: string;
+        };
+        const replaceHost = (url: string, newHost: string) => {
+          try {
+            const parsed = new URL(url);
+            const newParsed = new URL(newHost);
+            return `${newParsed.origin}${parsed.pathname}${parsed.search}`;
+          } catch {
+            return url;
+          }
+        };
+        const authzUrl = discovery.authorization_endpoint;
+        const tokenUrl = discovery.token_endpoint;
+        const userInfoUrl = discovery.userinfo_endpoint;
+        if (authzUrl && tokenUrl && userInfoUrl) {
+          oidcConfig = {
+            authorizationUrl: authzUrl,
+            tokenUrl: providerConfig.internalBaseUrl
+              ? replaceHost(tokenUrl, providerConfig.internalBaseUrl)
+              : tokenUrl,
+            userInfoUrl: providerConfig.internalBaseUrl
+              ? replaceHost(userInfoUrl, providerConfig.internalBaseUrl)
+              : userInfoUrl,
+          };
+          console.log("[auth] OIDC discovery successful, provider:", providerConfig.providerId);
+        } else {
+          console.warn("[auth] OIDC discovery missing required endpoints, using discoveryUrl only");
+        }
+      } else {
+        console.warn(`[auth] OIDC discovery failed (${discoveryRes.status}), using discoveryUrl only`);
+      }
+    } catch (err) {
+      console.warn(`[auth] OIDC discovery fetch failed: ${err}, using discoveryUrl only`);
+    }
+
     // Build Better-Auth instance using resolved config
     authInstance = betterAuth({
       database: drizzleAdapter(db, {
@@ -192,6 +239,19 @@ export async function initAuth(): Promise<void> {
       account: {
         storeStateStrategy: "cookie" as const,
       },
+      emailAndPassword: {
+        enabled: true,
+        emailVerification: {
+          sendVerificationEmail: async ({ user, url }: { user: { email: string }; url: string }) => {
+            await sendEmail({
+              to: user.email,
+              subject: "Verify your GroomBook email",
+              text: `Click the link to verify your email: ${url}`,
+              html: `<p>Click the link to verify your email:</p><a href="${url}">${url}</a>`,
+            });
+          },
+        },
+      },
       plugins: [
         genericOAuth({
           config: [
@@ -199,15 +259,8 @@ export async function initAuth(): Promise<void> {
               providerId: providerConfig.providerId,
               clientId: providerConfig.clientId,
               clientSecret: providerConfig.clientSecret,
-              ...(providerConfig.internalBaseUrl
-                ? {
-                    authorizationUrl: `${new URL(providerConfig.issuerUrl).origin}/application/o/authorize/`,
-                    tokenUrl: `${providerConfig.internalBaseUrl}/application/o/token/`,
-                    userInfoUrl: `${providerConfig.internalBaseUrl}/application/o/userinfo/`,
-                  }
-                : {
-                    discoveryUrl: `${providerConfig.issuerUrl}/.well-known/openid-configuration`,
-                  }),
+              discoveryUrl: discoveryUrlStr,
+              ...(Object.keys(oidcConfig).length > 0 ? oidcConfig : {}),
               scopes: providerConfig.scopes.split(" ").filter(Boolean),
             },
           ],
