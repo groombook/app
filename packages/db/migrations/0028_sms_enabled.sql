@@ -1,0 +1,1 @@
+ALTER TABLE "business_settings" ADD COLUMN "sms_enabled" boolean NOT NULL DEFAULT false;
