@@ -210,6 +210,7 @@ function AdminLayout() {
           alignItems: "center",
           gap: 8,
           marginRight: "1.25rem",
+          flexShrink: 0,
         }}>
           {logoSrc && (
             <img src={logoSrc} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
@@ -223,52 +224,61 @@ function AdminLayout() {
           </strong>
         </div>
         <GlobalSearch />
-        <Link
-          to="/admin/book"
-          style={{
-            padding: "0.4rem 0.85rem",
-            borderRadius: 6,
-            textDecoration: "none",
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#fff",
-            background: branding.primaryColor,
-            marginRight: "0.5rem",
-            boxShadow: "0 1px 2px rgba(79, 138, 111, 0.3)",
-          }}
-        >
-          Book
-        </Link>
-        {NAV_LINKS.map(({ to, label }) => {
-          const active =
-            to === "/admin"
-              ? location.pathname === "/admin"
-              : location.pathname.startsWith(to);
-          return (
-            <Link
-              key={to}
-              to={to}
-              style={{
-                padding: "0.4rem 0.75rem",
-                borderRadius: 6,
-                textDecoration: "none",
-                fontSize: 13,
-                fontWeight: active ? 600 : 500,
-                color: active ? "#2d6a4f" : "#4b5563",
-                background: active ? "#ecfdf5" : "transparent",
-              }}
-            >
-              {label}
-            </Link>
-          );
-        })}
+        <div style={{
+          display: "flex",
+          overflowX: "auto",
+          flex: 1,
+          minWidth: 0,
+          gap: "0.25rem",
+        }}>
+          <Link
+            to="/admin/book"
+            style={{
+              padding: "0.4rem 0.85rem",
+              borderRadius: 6,
+              textDecoration: "none",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#fff",
+              background: branding.primaryColor,
+              boxShadow: "0 1px 2px rgba(79, 138, 111, 0.3)",
+              flexShrink: 0,
+            }}
+          >
+            Book
+          </Link>
+          {NAV_LINKS.map(({ to, label }) => {
+            const active =
+              to === "/admin"
+                ? location.pathname === "/admin"
+                : location.pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                style={{
+                  padding: "0.4rem 0.75rem",
+                  borderRadius: 6,
+                  textDecoration: "none",
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 500,
+                  color: active ? "#2d6a4f" : "#4b5563",
+                  background: active ? "#ecfdf5" : "transparent",
+                  flexShrink: 0,
+                }}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </div>
         <button
           onClick={async () => {
             await signOut();
             navigate("/login");
           }}
           style={{
-            marginLeft: "auto",
+            flexShrink: 0,
             padding: "0.4rem 0.85rem",
             borderRadius: 6,
             border: "1px solid #e2e8f0",
