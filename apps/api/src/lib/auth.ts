@@ -95,7 +95,7 @@ export async function initAuth(): Promise<void> {
           enabled: true,
           max: 10,
           window: 60,
-          storage: "database",
+          storage: "memory",
         },
         plugins: [
           genericOAuth({
@@ -234,7 +234,7 @@ export async function initAuth(): Promise<void> {
         enabled: true,
         max: 10,
         window: 60,
-        storage: "database",
+        storage: "memory",
       },
       account: {
         storeStateStrategy: "cookie" as const,
