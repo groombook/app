@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { and, eq, getDb, sql, staff, businessSettings, authProviderConfig, encryptSecret } from "@groombook/db";
+import { eq, getDb, staff, businessSettings, authProviderConfig, encryptSecret } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
 export const setupRouter = new Hono<AppEnv>();
@@ -94,21 +94,6 @@ setupRouter.post("/", zValidator("json", setupSchema), async (c) => {
         .where(eq(staff.userId, jwt.sub));
       if (byUserId) {
         resolvedStaff = byUserId;
-      }
-    }
-
-    if (!resolvedStaff && jwt.email) {
-      // Try auto-link by email: staff record exists with matching email but no userId
-      const [byEmail] = await tx
-        .select()
-        .from(staff)
-        .where(and(eq(staff.email, jwt.email), sql`${staff.userId} IS NULL`));
-      if (byEmail) {
-        await tx
-          .update(staff)
-          .set({ userId: jwt.sub })
-          .where(eq(staff.id, byEmail.id));
-        resolvedStaff = { ...byEmail, userId: jwt.sub };
       }
     }
 
