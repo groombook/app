@@ -3,13 +3,13 @@ kind: Kustomization
 namespace: groombook-uat
 images:
   - name: ghcr.io/groombook/api
-    newTag: "2026.04.03-90be1be"
+    newTag: "2026.04.12-15131b7"
   - name: ghcr.io/groombook/web
-    newTag: "2026.04.03-90be1be"
+    newTag: "2026.04.12-15131b7"
   - name: ghcr.io/groombook/migrate
-    newTag: "2026.04.03-90be1be"
+    newTag: "2026.04.12-15131b7"
   - name: ghcr.io/groombook/seed
-    newTag: "2026.04.03-90be1be"
+    newTag: "2026.04.12-15131b7"
 resources:
   - ../../base
   - postgres-sealed-secret.yaml
