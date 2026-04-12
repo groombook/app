@@ -12,6 +12,7 @@ import {
   services,
   staff,
   reminderLogs,
+  session,
 } from "@groombook/db";
 import {
   buildReminderEmail,
@@ -155,6 +156,19 @@ export function startReminderScheduler(): void {
     runReminderCheck().catch((err) => {
       console.error("[reminders] Error during reminder check:", err);
     });
+    runSessionCleanup().catch((err) => {
+      console.error("[reminders] Error during session cleanup:", err);
+    });
   });
   console.log("[reminders] Reminder scheduler started");
+}
+
+// Deletes expired sessions from the database.
+// Runs every minute alongside reminder checks.
+export async function runSessionCleanup(): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .delete(session)
+    .where(lt(session.expiresAt, now));
 }
