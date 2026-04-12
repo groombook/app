@@ -35,6 +35,12 @@ portalRouter.get("/me", async (c) => {
   return c.json({ id: client.id, name: client.name, email: client.email, phone: client.phone });
 });
 
+portalRouter.get("/config", async (c) => {
+  return c.json({
+    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? "",
+  });
+});
+
 portalRouter.get("/services", async (c) => {
   const db = getDb();
   const allServices = await db.select().from(services).where(eq(services.active, true));
@@ -123,7 +129,7 @@ portalRouter.get("/invoices", async (c) => {
     id: inv.id,
     status: inv.status,
     totalCents: inv.totalCents,
-    createdAt: inv.createdAt,
+    date: inv.createdAt,
     lineItems: (itemsByInvoice[inv.id] || []).map(li => ({ id: li.id, description: li.description, quantity: li.quantity, unitPriceCents: li.unitPriceCents, totalCents: li.totalCents })),
   })));
 });
