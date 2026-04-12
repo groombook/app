@@ -176,6 +176,13 @@
       "when": 1775396067192,
       "tag": "0024_invoice_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1775482467192,
+      "tag": "0025_rate_limit",
+      "breakpoints": true
     }
   ]
 }
