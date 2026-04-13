@@ -459,7 +459,6 @@ portalRouter.delete("/waitlist/:id", async (c) => {
 import {
   createPaymentIntent,
   listPaymentMethods,
-  attachPaymentMethod,
   detachPaymentMethod,
   createSetupIntent,
   getOrCreateStripeCustomer,
