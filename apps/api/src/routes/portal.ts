@@ -448,6 +448,145 @@ portalRouter.delete("/waitlist/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// ─── Payment routes ───────────────────────────────────────────────────────────
+
+import {
+  createPaymentIntent,
+  listPaymentMethods,
+  attachPaymentMethod,
+  detachPaymentMethod,
+  createSetupIntent,
+  getOrCreateStripeCustomer,
+} from "../services/payment.js";
+
+const payInvoiceSchema = z.object({
+  invoiceId: z.string().uuid(),
+});
+
+portalRouter.post(
+  "/invoices/:id/pay",
+  zValidator("json", payInvoiceSchema),
+  async (c) => {
+    const db = getDb();
+    const invoiceId = c.req.param("id");
+    const sessionId = c.req.header("X-Impersonation-Session-Id");
+    const clientId = await getClientIdFromSession(sessionId);
+    if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+
+    const [invoice] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.id, invoiceId))
+      .limit(1);
+
+    if (!invoice) return c.json({ error: "Not found" }, 404);
+    if (invoice.clientId !== clientId) return c.json({ error: "Forbidden" }, 403);
+    if (invoice.status === "draft" || invoice.status === "void") {
+      return c.json({ error: "Cannot pay a draft or void invoice" }, 422);
+    }
+    if (invoice.status === "paid") {
+      return c.json({ error: "Invoice is already paid" }, 422);
+    }
+
+    const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY ?? "";
+    const result = await createPaymentIntent(invoiceId, clientId);
+    if (!result) return c.json({ error: "Payment service unavailable" }, 503);
+
+    return c.json({ clientSecret: result.clientSecret, publishableKey: stripePublishableKey });
+  }
+);
+
+const payMultipleSchema = z.object({
+  invoiceIds: z.array(z.string().uuid()).min(1),
+});
+
+portalRouter.post(
+  "/invoices/pay-multiple",
+  zValidator("json", payMultipleSchema),
+  async (c) => {
+    const db = getDb();
+    const body = c.req.valid("json");
+    const sessionId = c.req.header("X-Impersonation-Session-Id");
+    const clientId = await getClientIdFromSession(sessionId);
+    if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+
+    const invoiceRows = await db
+      .select()
+      .from(invoices)
+      .where(inArray(invoices.id, body.invoiceIds));
+
+    if (invoiceRows.length !== body.invoiceIds.length) {
+      return c.json({ error: "One or more invoices not found" }, 404);
+    }
+
+    for (const inv of invoiceRows) {
+      if (inv.clientId !== clientId) return c.json({ error: "Forbidden" }, 403);
+      if (inv.status === "draft" || inv.status === "void") {
+        return c.json({ error: `Invoice ${inv.id} cannot be paid (draft or void)` }, 422);
+      }
+      if (inv.status === "paid") {
+        return c.json({ error: `Invoice ${inv.id} is already paid` }, 422);
+      }
+    }
+
+    const firstInvoice = invoiceRows[0];
+    const allSameClient = invoiceRows.every(inv => inv.clientId === firstInvoice.clientId);
+    if (!allSameClient) {
+      return c.json({ error: "All invoices must belong to the same client" }, 422);
+    }
+
+    const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY ?? "";
+    const result = await createPaymentIntent(body.invoiceIds, clientId);
+    if (!result) return c.json({ error: "Payment service unavailable" }, 503);
+
+    return c.json({ clientSecret: result.clientSecret, publishableKey: stripePublishableKey });
+  }
+);
+
+portalRouter.get("/payment-methods", async (c) => {
+  const sessionId = c.req.header("X-Impersonation-Session-Id");
+  const clientId = await getClientIdFromSession(sessionId);
+  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+
+  const methods = await listPaymentMethods(clientId);
+  if (methods === null) return c.json({ error: "Payment service unavailable" }, 503);
+  return c.json(methods);
+});
+
+portalRouter.post("/payment-methods", async (c) => {
+  const sessionId = c.req.header("X-Impersonation-Session-Id");
+  const clientId = await getClientIdFromSession(sessionId);
+  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+
+  const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY ?? "";
+  const customerId = await getOrCreateStripeCustomer(clientId);
+  if (!customerId) return c.json({ error: "Could not create customer" }, 500);
+
+  const result = await createSetupIntent(customerId);
+  if (!result) return c.json({ error: "Payment service unavailable" }, 503);
+
+  return c.json({ clientSecret: result.clientSecret, publishableKey: stripePublishableKey });
+});
+
+portalRouter.delete("/payment-methods/:id", async (c) => {
+  const sessionId = c.req.header("X-Impersonation-Session-Id");
+  const clientId = await getClientIdFromSession(sessionId);
+  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+
+  const paymentMethodId = c.req.param("id");
+  const ok = await detachPaymentMethod(paymentMethodId);
+  if (!ok) return c.json({ error: "Failed to detach payment method" }, 500);
+  return c.json({ ok: true });
+});
+
+// ─── Config endpoint ─────────────────────────────────────────────────────────
+
+portalRouter.get("/config", (c) => {
+  return c.json({
+    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? "",
+  });
+});
+
 // ─── Dev-mode session creation ──────────────────────────────────────────────
 // Allows the dev login selector to vend an impersonation session for a client
 // without requiring manager auth. Only available when AUTH_DISABLED=true.

@@ -148,3 +148,15 @@ export async function detachPaymentMethod(paymentMethodId: string): Promise<bool
   await stripe.paymentMethods.detach(paymentMethodId);
   return true;
 }
+
+export async function createSetupIntent(customerId: string): Promise<{ clientSecret: string } | null> {
+  const stripe = getStripeClient();
+  if (!stripe) return null;
+
+  const setupIntent = await stripe.setupIntents.create({
+    customer: customerId,
+    payment_method_types: ["card"],
+  });
+
+  return { clientSecret: setupIntent.client_secret! };
+}
