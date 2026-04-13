@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { loadStripe, type Stripe } from "@stripe/stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { CreditCard, DollarSign, Package, Zap } from "lucide-react";
 
@@ -27,7 +27,7 @@ interface BillingPaymentsProps {
 function BillingPaymentsInner({ sessionId, readOnly }: BillingPaymentsProps) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [packages, setPackages] = useState<{ name: string; remaining: number }[]>([]);
+  const [packages] = useState<{ name: string; remaining: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"invoices" | "payment" | "packages">("invoices");
@@ -398,7 +398,10 @@ function PaymentModal({ sessionId, pending, onClose, onSuccess }: PaymentModalPr
       const { error: stripeError } = await stripe.confirmPayment({
         elements,
         clientSecret,
-        confirmParams: saveCard ? { setup_future_usage: "off_session" } : undefined,
+        confirmParams: {
+          return_url: `${window.location.origin}/portal/billing`,
+          ...(saveCard ? { setup_future_usage: "off_session" } : {}),
+        },
       });
 
       if (stripeError) {
