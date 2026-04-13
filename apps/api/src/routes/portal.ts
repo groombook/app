@@ -453,7 +453,6 @@ portalRouter.delete("/waitlist/:id", async (c) => {
 import {
   createPaymentIntent,
   listPaymentMethods,
-  attachPaymentMethod,
   detachPaymentMethod,
   createSetupIntent,
   getOrCreateStripeCustomer,
@@ -530,6 +529,7 @@ portalRouter.post(
     }
 
     const firstInvoice = invoiceRows[0];
+    if (!firstInvoice) return c.json({ error: "No invoices found" }, 400);
     const allSameClient = invoiceRows.every(inv => inv.clientId === firstInvoice.clientId);
     if (!allSameClient) {
       return c.json({ error: "All invoices must belong to the same client" }, 422);

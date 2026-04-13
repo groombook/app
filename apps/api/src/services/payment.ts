@@ -43,11 +43,13 @@ export async function createPaymentIntent(
 
   const db = getDb();
   const invoiceIds = Array.isArray(invoiceIdOrIds) ? invoiceIdOrIds : [invoiceIdOrIds];
+  const firstInvoiceId = invoiceIds[0];
+  if (!firstInvoiceId) return null;
 
   const invoiceRows = await db
     .select()
     .from(invoices)
-    .where(eq(invoices.id, invoiceIds[0]));
+    .where(eq(invoices.id, firstInvoiceId));
 
   const [invoice] = invoiceRows;
   if (!invoice) return null;
@@ -57,7 +59,7 @@ export async function createPaymentIntent(
     const allInvoices = await db
       .select({ totalCents: invoices.totalCents })
       .from(invoices)
-      .where(eq(invoices.id, invoiceIds[0]));
+      .where(eq(invoices.id, firstInvoiceId));
     totalCents = allInvoices.reduce((sum, inv) => sum + inv.totalCents, totalCents);
   }
 
@@ -82,10 +84,10 @@ export async function createPaymentIntent(
       .where(eq(invoices.id, invId));
   }
 
-  return {
-    clientSecret: paymentIntent.client_secret!,
-    paymentIntentId: paymentIntent.id,
-  };
+  const clientSecret = paymentIntent.client_secret;
+  if (!clientSecret) return null;
+
+  return { clientSecret, paymentIntentId: paymentIntent.id };
 }
 
 export async function processRefund(

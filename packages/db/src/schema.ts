@@ -109,8 +109,8 @@ export const clients = pgTable("clients", {
   phone: text("phone"),
   address: text("address"),
   notes: text("notes"),
-  // Set to true if the client has opted out of email reminders/notifications
   emailOptOut: boolean("email_opt_out").notNull().default(false),
+  stripeCustomerId: text("stripe_customer_id"),
   status: clientStatusEnum("status").notNull().default("active"),
   disabledAt: timestamp("disabled_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -251,6 +251,9 @@ export const invoices = pgTable(
     status: invoiceStatusEnum("status").notNull().default("draft"),
     paymentMethod: paymentMethodEnum("payment_method"),
     paidAt: timestamp("paid_at"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    stripeRefundId: text("stripe_refund_id"),
+    paymentFailureReason: text("payment_failure_reason"),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -259,6 +262,7 @@ export const invoices = pgTable(
     index("idx_invoices_client_id").on(t.clientId),
     index("idx_invoices_status").on(t.status),
     index("idx_invoices_created_at").on(t.createdAt),
+    index("idx_invoices_stripe_payment_intent_id").on(t.stripePaymentIntentId),
   ]
 );
 

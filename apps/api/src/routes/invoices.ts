@@ -13,8 +13,9 @@ import {
   clients,
   sql,
 } from "@groombook/db";
+import type { AppEnv } from "../middleware/rbac.js";
 
-export const invoicesRouter = new Hono();
+export const invoicesRouter = new Hono<AppEnv>();
 
 const createInvoiceSchema = z.object({
   appointmentId: z.string().uuid().optional(),

@@ -1,5 +1,5 @@
 {
-  "id": "0027_stripe_identifiers",
+  "id": "0026_stripe_payment",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
