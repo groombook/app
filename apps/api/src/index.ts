@@ -28,6 +28,7 @@ import { resolveStaffMiddleware, requireRole, requireRoleOrSuperUser, requireSup
 import { devRouter } from "./routes/dev.js";
 import { adminSeedRouter } from "./routes/admin/seed.js";
 import { startReminderScheduler } from "./services/reminders.js";
+import { webhooksRouter } from "./routes/stripe-webhooks.js";
 
 const app = new Hono();
 
@@ -49,6 +50,9 @@ app.route("/api/book", bookRouter);
 
 // Public portal routes — client-facing, authenticated via impersonation session header
 app.route("/api/portal", portalRouter);
+
+// Public Stripe webhook endpoint — signature-verified, no auth required
+app.route("/api/webhooks/stripe", webhooksRouter);
 
 // Dev/demo routes — config is always public, users endpoint is guarded internally
 app.route("/api/dev", devRouter);
