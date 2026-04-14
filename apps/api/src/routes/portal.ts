@@ -462,44 +462,8 @@ import {
   detachPaymentMethod,
   createSetupIntent,
   getOrCreateStripeCustomer,
+  getStripeClient,
 } from "../services/payment.js";
-
-const payInvoiceSchema = z.object({
-  invoiceId: z.string().uuid(),
-});
-
-portalRouter.post(
-  "/invoices/:id/pay",
-  zValidator("json", payInvoiceSchema),
-  async (c) => {
-    const db = getDb();
-    const invoiceId = c.req.param("id");
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-    const clientId = await getClientIdFromSession(sessionId);
-    if (!clientId) return c.json({ error: "Unauthorized" }, 401);
-
-    const [invoice] = await db
-      .select()
-      .from(invoices)
-      .where(eq(invoices.id, invoiceId))
-      .limit(1);
-
-    if (!invoice) return c.json({ error: "Not found" }, 404);
-    if (invoice.clientId !== clientId) return c.json({ error: "Forbidden" }, 403);
-    if (invoice.status === "draft" || invoice.status === "void") {
-      return c.json({ error: "Cannot pay a draft or void invoice" }, 422);
-    }
-    if (invoice.status === "paid") {
-      return c.json({ error: "Invoice is already paid" }, 422);
-    }
-
-    const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY ?? "";
-    const result = await createPaymentIntent(invoiceId, clientId);
-    if (!result) return c.json({ error: "Payment service unavailable" }, 503);
-
-    return c.json({ clientSecret: result.clientSecret, publishableKey: stripePublishableKey });
-  }
-);
 
 const payMultipleSchema = z.object({
   invoiceIds: z.array(z.string().uuid()).min(1),
@@ -580,17 +544,21 @@ portalRouter.delete("/payment-methods/:id", async (c) => {
   if (!clientId) return c.json({ error: "Unauthorized" }, 401);
 
   const paymentMethodId = c.req.param("id");
+
+  const stripeCustomerId = await getOrCreateStripeCustomer(clientId);
+  if (!stripeCustomerId) return c.json({ error: "No payment method found" }, 404);
+
+  const stripe = getStripeClient();
+  if (!stripe) return c.json({ error: "Payment service unavailable" }, 503);
+
+  const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+  if (!paymentMethod || paymentMethod.customer !== stripeCustomerId) {
+    return c.json({ error: "Payment method not found" }, 404);
+  }
+
   const ok = await detachPaymentMethod(paymentMethodId);
   if (!ok) return c.json({ error: "Failed to detach payment method" }, 500);
   return c.json({ ok: true });
-});
-
-// ─── Config endpoint ─────────────────────────────────────────────────────────
-
-portalRouter.get("/config", (c) => {
-  return c.json({
-    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY ?? "",
-  });
 });
 
 // ─── Dev-mode session creation ──────────────────────────────────────────────

@@ -1,9 +1,9 @@
 import Stripe from "stripe";
-import { getDb, clients, eq, invoices } from "@groombook/db";
+import { getDb, clients, eq, inArray, invoices } from "@groombook/db";
 
 let _stripe: Stripe | null | undefined;
 
-function getStripeClient(): Stripe | null {
+export function getStripeClient(): Stripe | null {
   if (_stripe === undefined) {
     const secretKey = process.env.STRIPE_SECRET_KEY;
     if (!secretKey) return null;
@@ -59,8 +59,8 @@ export async function createPaymentIntent(
     const allInvoices = await db
       .select({ totalCents: invoices.totalCents })
       .from(invoices)
-      .where(eq(invoices.id, firstInvoiceId));
-    totalCents = allInvoices.reduce((sum, inv) => sum + inv.totalCents, totalCents);
+      .where(inArray(invoices.id, invoiceIds));
+    totalCents = allInvoices.reduce((sum, inv) => sum + inv.totalCents, 0);
   }
 
   const stripeCustomerId = await getOrCreateStripeCustomer(clientId);

@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import Stripe from "stripe";
 import { eq, getDb, invoices } from "@groombook/db";
+import { getStripeClient } from "../services/payment.js";
 
 export const webhooksRouter = new Hono();
 
 webhooksRouter.post("/stripe", async (c) => {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
     return c.json({ error: "Webhook secret not configured" }, 503);
   }
 
@@ -22,11 +23,14 @@ webhooksRouter.post("/stripe", async (c) => {
     return c.json({ error: "Could not read body" }, 400);
   }
 
-  const stripe = new Stripe(secret, { apiVersion: "2026-03-25.dahlia" });
+  const stripe = getStripeClient();
+  if (!stripe) {
+    return c.json({ error: "Stripe not configured" }, 503);
+  }
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, secret);
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invalid signature";
     return c.json({ error: message }, 401);
