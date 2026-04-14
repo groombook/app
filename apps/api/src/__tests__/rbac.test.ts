@@ -362,7 +362,7 @@ describe("requireRoleOrSuperUser", () => {
     const res = await app.request("/test");
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toMatch(/super user privileges required/i);
+    expect(body.error).toMatch(/role 'receptionist' is not permitted/i);
   });
 
   it("blocks a non-super-user groomer from manager-only routes", async () => {
@@ -370,7 +370,7 @@ describe("requireRoleOrSuperUser", () => {
     const res = await app.request("/test");
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toMatch(/super user privileges required/i);
+    expect(body.error).toMatch(/role 'groomer' is not permitted/i);
   });
 
   it("allows a manager with multiple allowed roles", async () => {

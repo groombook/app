@@ -142,8 +142,8 @@ describe("auth init", () => {
       ...originalEnv,
       AUTH_DISABLED: "true",
       NODE_ENV: "test",
+      BETTER_AUTH_SECRET: "placeholder-for-test-only",
     };
-    delete process.env.BETTER_AUTH_SECRET;
 
     const { initAuth, getAuth } = await reimportAuth();
     await expect(initAuth()).resolves.toBeUndefined();

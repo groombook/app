@@ -31,11 +31,11 @@ const BASE_APPT = {
 
 // ─── Shared mock DB state ─────────────────────────────────────────────────────
 
-let mockAppt: typeof BASE_APPT | null = BASE_APPT;
+let mockAppt: (typeof BASE_APPT & { confirmationToken: string }) | null = BASE_APPT as typeof BASE_APPT & { confirmationToken: string };
 let lastUpdate: Record<string, unknown> = {};
 
 function resetMock() {
-  mockAppt = { ...BASE_APPT };
+  mockAppt = { ...BASE_APPT, confirmationToken: "valid-token-abc123" } as typeof BASE_APPT & { confirmationToken: string };
   lastUpdate = {};
 }
 
@@ -55,19 +55,39 @@ vi.mock("@groombook/db", () => {
         }),
       }),
       update: () => ({
-        set: (vals: Record<string, unknown>) => ({
-          where: () => {
-            lastUpdate = { ...vals };
-            if (mockAppt) {
-              mockAppt = { ...mockAppt, ...vals } as typeof BASE_APPT;
-            }
-            return { returning: () => (mockAppt ? [mockAppt] : []) };
-          },
-        }),
+        set: (vals: Record<string, unknown>) => {
+          const setVals = vals;
+          return {
+            where: () => {
+              const preUpdate = mockAppt ? { ...mockAppt } : null;
+              const preStatus = preUpdate?.confirmationStatus;
+              const preStart = preUpdate?.startTime;
+              lastUpdate = { ...setVals };
+              const whereMatched =
+                preUpdate != null &&
+                preStatus === "pending" &&
+                preStart != null &&
+                preStart > new Date();
+              if (whereMatched && mockAppt) {
+                mockAppt = { ...mockAppt, ...setVals } as typeof BASE_APPT & { confirmationToken: string };
+              }
+              return {
+                returning: () => {
+                  if (!preUpdate) return [];
+                  if (preStatus !== "pending") return [];
+                  if (preStart && preStart <= new Date()) return [];
+                  return whereMatched && mockAppt ? [mockAppt] : [];
+                },
+              };
+            },
+          };
+        },
       }),
     }),
     appointments,
     eq: () => ({}),
+    and: (a: unknown, b: unknown, c?: unknown) => (c ? [a, b, c] : [a, b]),
+    gt: () => ({}),
   };
 });
 

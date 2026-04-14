@@ -6,6 +6,25 @@ import type { AppEnv } from "../middleware/rbac.js";
 
 export const setupRouter = new Hono<AppEnv>();
 
+// Simple in-memory rate limiter: 10 req/min per IP for setup endpoints
+const setupRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const SETUP_RATE_LIMIT = 10;
+const SETUP_RATE_WINDOW_MS = 60 * 1000;
+
+function checkSetupRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = setupRateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    setupRateLimitMap.set(ip, { count: 1, resetAt: now + SETUP_RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= SETUP_RATE_LIMIT) {
+    return false;
+  }
+  entry.count++;
+  return true;
+}
+
 // GET /api/setup/status — public (no auth), returns whether setup is needed
 // and whether the auth provider bootstrap step should be shown
 setupRouter.get("/status", async (c) => {
@@ -185,6 +204,11 @@ const authProviderTestSchema = z.object({
  * After setup completes, this endpoint permanently returns 403.
  */
 setupRouter.post("/auth-provider", async (c) => {
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!checkSetupRateLimit(ip)) {
+    return c.json({ error: "Too many requests. Please try again later." }, 429);
+  }
+
   const db = getDb();
 
   // Guard: only allow during fresh install (no super user yet)
@@ -254,6 +278,11 @@ setupRouter.post("/auth-provider", async (c) => {
  * Only available when needsSetup is true (no super user = fresh install).
  */
 setupRouter.post("/auth-provider/test", async (c) => {
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!checkSetupRateLimit(ip)) {
+    return c.json({ ok: false, error: "Too many requests. Please try again later." }, 429);
+  }
+
   const db = getDb();
 
   // Guard: only allow during fresh install (no super user yet)

@@ -255,39 +255,37 @@ bookRouter.get("/confirm/:token", async (c) => {
   const token = c.req.param("token");
   const db = getDb();
 
+  // Atomic: consume token and confirm in a single query to prevent replay.
+  // Only future appointments can be confirmed.
   const [appt] = await db
-    .select()
-    .from(appointments)
-    .where(eq(appointments.confirmationToken, token))
-    .limit(1);
-
-  if (!appt) {
-    return c.redirect(`${BASE_URL()}/booking/error`);
-  }
-
-  // Reject if appointment is in the past
-  if (appt.startTime < new Date()) {
-    return c.redirect(`${BASE_URL()}/booking/error`);
-  }
-
-  // Idempotent confirm: if already confirmed, redirect to success
-  if (appt.confirmationStatus === "confirmed") {
-    return c.redirect(`${BASE_URL()}/booking/confirmed`);
-  }
-
-  // Reject if already cancelled
-  if (appt.confirmationStatus === "cancelled") {
-    return c.redirect(`${BASE_URL()}/booking/error`);
-  }
-
-  await db
     .update(appointments)
     .set({
       confirmationStatus: "confirmed",
       confirmedAt: new Date(),
+      confirmationToken: null,
       updatedAt: new Date(),
     })
-    .where(eq(appointments.id, appt.id));
+    .where(
+      and(
+        eq(appointments.confirmationToken, token),
+        eq(appointments.confirmationStatus, "pending"),
+        gt(appointments.startTime, new Date())
+      )
+    )
+    .returning();
+
+  if (!appt) {
+    // Check status for idempotency: already-confirmed → redirect to confirmed
+    const [existing] = await db
+      .select({ confirmationStatus: appointments.confirmationStatus })
+      .from(appointments)
+      .where(eq(appointments.confirmationToken, token))
+      .limit(1);
+    if (existing?.confirmationStatus === "confirmed") {
+      return c.redirect(`${BASE_URL()}/booking/confirmed`);
+    }
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
 
   return c.redirect(`${BASE_URL()}/booking/confirmed`);
 });
@@ -299,29 +297,9 @@ bookRouter.get("/cancel/:token", async (c) => {
   const token = c.req.param("token");
   const db = getDb();
 
+  // Atomic: consume token and cancel in a single query to prevent replay.
+  // Only future appointments can be cancelled.
   const [appt] = await db
-    .select()
-    .from(appointments)
-    .where(eq(appointments.confirmationToken, token))
-    .limit(1);
-
-  if (!appt) {
-    return c.redirect(`${BASE_URL()}/booking/error`);
-  }
-
-  // Reject if appointment is in the past
-  if (appt.startTime < new Date()) {
-    return c.redirect(`${BASE_URL()}/booking/error`);
-  }
-
-  // Reject if already cancelled (token was nullified — this path won't normally hit,
-  // but guard against edge cases where token lookup still works)
-  if (appt.confirmationStatus === "cancelled") {
-    return c.redirect(`${BASE_URL()}/booking/error`);
-  }
-
-  // Single-use cancellation: nullify token after use
-  await db
     .update(appointments)
     .set({
       confirmationStatus: "cancelled",
@@ -329,7 +307,18 @@ bookRouter.get("/cancel/:token", async (c) => {
       confirmationToken: null,
       updatedAt: new Date(),
     })
-    .where(eq(appointments.id, appt.id));
+    .where(
+      and(
+        eq(appointments.confirmationToken, token),
+        eq(appointments.confirmationStatus, "pending"),
+        gt(appointments.startTime, new Date())
+      )
+    )
+    .returning();
+
+  if (!appt) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
 
   return c.redirect(`${BASE_URL()}/booking/cancelled`);
 });

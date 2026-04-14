@@ -86,10 +86,15 @@ export async function initAuth(): Promise<void> {
     // AUTH_DISABLED=true means dev/demo mode — still build Better-Auth with placeholder
     // config so auth.handler exists (middleware bypasses it anyway)
     if (process.env.AUTH_DISABLED === "true") {
+      if (!BETTER_AUTH_SECRET) {
+        throw new Error(
+          "[FATAL] BETTER_AUTH_SECRET must be set when AUTH_DISABLED=true"
+        );
+      }
       console.warn("[auth] AUTH_DISABLED=true — building placeholder auth instance");
       authInstance = betterAuth({
         database: drizzleAdapter(getDb(), { provider: "pg" }),
-        secret: BETTER_AUTH_SECRET ?? "placeholder-secret-do-not-use-in-prod",
+        secret: BETTER_AUTH_SECRET,
         baseURL: BETTER_AUTH_URL,
         rateLimit: {
           enabled: true,
@@ -199,20 +204,36 @@ export async function initAuth(): Promise<void> {
             return url;
           }
         };
+        const validateIssuerHost = (url: string, issuerUrl: string): boolean => {
+          try {
+            const discovered = new URL(url);
+            const expected = new URL(issuerUrl);
+            return discovered.hostname === expected.hostname;
+          } catch {
+            return false;
+          }
+        };
         const authzUrl = discovery.authorization_endpoint;
         const tokenUrl = discovery.token_endpoint;
         const userInfoUrl = discovery.userinfo_endpoint;
         if (authzUrl && tokenUrl && userInfoUrl) {
-          oidcConfig = {
-            authorizationUrl: authzUrl,
-            tokenUrl: providerConfig.internalBaseUrl
-              ? replaceHost(tokenUrl, providerConfig.internalBaseUrl)
-              : tokenUrl,
-            userInfoUrl: providerConfig.internalBaseUrl
-              ? replaceHost(userInfoUrl, providerConfig.internalBaseUrl)
-              : userInfoUrl,
-          };
-          console.log("[auth] OIDC discovery successful, provider:", providerConfig.providerId);
+          const validAuthz = validateIssuerHost(authzUrl, providerConfig.issuerUrl);
+          const validToken = validateIssuerHost(tokenUrl, providerConfig.issuerUrl);
+          const validUserInfo = validateIssuerHost(userInfoUrl, providerConfig.issuerUrl);
+          if (!validAuthz || !validToken || !validUserInfo) {
+            console.warn("[auth] OIDC discovery URL host mismatch — possible redirection attack, rejecting");
+          } else {
+            oidcConfig = {
+              authorizationUrl: authzUrl,
+              tokenUrl: providerConfig.internalBaseUrl
+                ? replaceHost(tokenUrl, providerConfig.internalBaseUrl)
+                : tokenUrl,
+              userInfoUrl: providerConfig.internalBaseUrl
+                ? replaceHost(userInfoUrl, providerConfig.internalBaseUrl)
+                : userInfoUrl,
+            };
+            console.log("[auth] OIDC discovery successful, provider:", providerConfig.providerId);
+          }
         } else {
           console.warn("[auth] OIDC discovery missing required endpoints, using discoveryUrl only");
         }
@@ -286,6 +307,9 @@ export async function initAuth(): Promise<void> {
         cookieCache: {
           enabled: true,
           maxAge: 5 * 60, // 5 minutes
+        },
+        cookieAttributes: {
+          sameSite: "strict",
         },
       },
       trustedOrigins: [process.env.CORS_ORIGIN ?? "http://localhost:5173"],

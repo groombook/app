@@ -149,9 +149,9 @@ export function requireRoleOrSuperUser(
     }
     return c.json(
       {
-        error: staffRow.isSuperUser
-          ? `Forbidden: role '${staffRow.role}' is not permitted`
-          : "Forbidden: super user privileges required",
+        error: hasAllowedRole
+          ? "Forbidden: super user privileges required"
+          : `Forbidden: role '${staffRow.role}' is not permitted`,
       },
       403
     );

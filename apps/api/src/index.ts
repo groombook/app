@@ -42,6 +42,23 @@ app.use(
   })
 );
 
+// CSRF protection for state-changing requests
+app.use("/api/*", async (c, next) => {
+  const method = c.req.method;
+  if (["GET", "HEAD", "OPTIONS"].includes(method)) {
+    await next();
+    return;
+  }
+  const origin = c.req.header("origin");
+  const trustedOrigin = process.env.CORS_ORIGIN ?? "http://localhost:5173";
+  if (origin && origin !== trustedOrigin) {
+    c.status(403);
+    c.json({ error: "CSRF validation failed: origin mismatch" });
+    return;
+  }
+  await next();
+});
+
 // Health check (no auth required)
 app.get("/health", (c) => c.json({ status: "ok" }));
 
