@@ -7,3 +7,5 @@ apps/web/dist
 apps/api/dist
 packages/db/dist
 packages/types/dist
+.turbo
+screenshots/
