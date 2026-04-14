@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import Stripe from "stripe";
+import { z } from "zod/v3";
 import { eq, getDb, invoices } from "@groombook/db";
 import { getStripeClient } from "../services/payment.js";
 
@@ -44,10 +45,13 @@ webhooksRouter.post("/stripe", async (c) => {
       const invoiceIds = pi.metadata.groombook_invoice_ids.split(",");
       for (const invoiceId of invoiceIds) {
         if (!invoiceId) continue;
+        const parsed = z.string().uuid().safeParse(invoiceId.trim());
+        if (!parsed.success) continue;
+        const invoiceIdTrimmed = invoiceId.trim();
         const [inv] = await db
           .select()
           .from(invoices)
-          .where(eq(invoices.id, invoiceId))
+          .where(eq(invoices.id, invoiceIdTrimmed))
           .limit(1);
         if (!inv) continue;
         if (inv.stripePaymentIntentId && inv.stripePaymentIntentId !== pi.id) continue;
@@ -60,7 +64,7 @@ webhooksRouter.post("/stripe", async (c) => {
             stripePaymentIntentId: pi.id,
             updatedAt: new Date(),
           })
-          .where(eq(invoices.id, invoiceId));
+          .where(eq(invoices.id, invoiceIdTrimmed));
       }
     }
   } else if (event.type === "payment_intent.payment_failed") {
@@ -69,13 +73,16 @@ webhooksRouter.post("/stripe", async (c) => {
       const invoiceIds = pi.metadata.groombook_invoice_ids.split(",");
       for (const invoiceId of invoiceIds) {
         if (!invoiceId) continue;
+        const parsed = z.string().uuid().safeParse(invoiceId.trim());
+        if (!parsed.success) continue;
+        const invoiceIdTrimmed = invoiceId.trim();
         await db
           .update(invoices)
           .set({
             paymentFailureReason: pi.last_payment_error?.message ?? "Payment failed",
             updatedAt: new Date(),
           })
-          .where(eq(invoices.id, invoiceId));
+          .where(eq(invoices.id, invoiceIdTrimmed));
       }
     }
   } else if (event.type === "charge.refunded") {
