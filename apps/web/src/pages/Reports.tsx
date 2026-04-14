@@ -199,11 +199,11 @@ export function ReportsPage() {
       }
 
       const [summData, revData, apptData, svcData, clientData] = await Promise.all([
-        summRes.json() as Promise<Summary>,
-        revRes.json() as Promise<{ byPeriod: RevenuePeriod[]; byGroomer: RevenueByGroomer[] }>,
-        apptRes.json() as Promise<{ byPeriod: ApptPeriod[] }>,
-        svcRes.json() as Promise<{ rows: ServiceRow[] }>,
-        clientRes.json() as Promise<ClientReport>,
+        summRes.ok ? summRes.json() as Promise<Summary> : summRes.text().then(() => { throw new Error("summary response not ok"); }),
+        revRes.ok ? revRes.json() as Promise<{ byPeriod: RevenuePeriod[]; byGroomer: RevenueByGroomer[] }> : revRes.text().then(() => { throw new Error("revenue response not ok"); }),
+        apptRes.ok ? apptRes.json() as Promise<{ byPeriod: ApptPeriod[] }> : apptRes.text().then(() => { throw new Error("appointments response not ok"); }),
+        svcRes.ok ? svcRes.json() as Promise<{ rows: ServiceRow[] }> : svcRes.text().then(() => { throw new Error("services response not ok"); }),
+        clientRes.ok ? clientRes.json() as Promise<ClientReport> : clientRes.text().then(() => { throw new Error("clients response not ok"); }),
       ]);
 
       setSummary(summData);

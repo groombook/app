@@ -149,9 +149,9 @@ export function SettingsPage() {
       return;
     }
 
-    const validTypes = ["image/png", "image/svg+xml", "image/jpeg", "image/webp"];
+    const validTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
     if (!validTypes.includes(file.type)) {
-      setMessage({ type: "error", text: "Logo must be PNG, SVG, JPEG, or WebP." });
+      setMessage({ type: "error", text: "Logo must be PNG, JPEG, GIF, or WebP." });
       return;
     }
 
@@ -393,7 +393,7 @@ issuerUrl: authForm.issuerUrl,
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/png,image/svg+xml,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/gif,image/webp"
               onChange={handleLogoChange}
               style={{ display: "none" }}
             />

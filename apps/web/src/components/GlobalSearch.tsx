@@ -26,6 +26,7 @@ export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -45,15 +46,18 @@ export function GlobalSearch() {
 
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
+      setError(null);
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
         if (res.ok) {
           const data: SearchResults = await res.json();
           setResults(data);
           setOpen(true);
+        } else {
+          setError("Search failed. Please try again.");
         }
-      } catch (err) {
-        console.warn("GlobalSearch: fetch error", err);
+      } catch {
+        setError("Search failed. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -160,7 +164,13 @@ export function GlobalSearch() {
             </div>
           )}
 
-          {!loading && !hasResults && (
+          {!loading && error && (
+            <div style={{ padding: "12px 16px", fontSize: 13, color: "#dc2626" }}>
+              {error}
+            </div>
+          )}
+
+          {!loading && !error && !hasResults && (
             <div style={{ padding: "12px 16px", fontSize: 13, color: "#6b7280" }}>
               No results found
             </div>
