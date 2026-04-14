@@ -33,11 +33,26 @@ import { webhooksRouter } from "./routes/stripe-webhooks.js";
 const app = new Hono();
 
 // Global middleware
+const TRUSTED_ORIGINS = (process.env.CORS_ORIGIN ?? "http://localhost:5173")
+  .split(",")
+  .map((o) => o.trim());
+
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN ?? "http://localhost:5173";
+
 app.use("*", logger());
 app.use(
   "/api/*",
   cors({
-    origin: process.env.CORS_ORIGIN ?? "http://localhost:5173",
+    origin: (origin, ctx) => {
+      if (!origin) {
+        return ALLOWED_ORIGIN;
+      }
+      if (TRUSTED_ORIGINS.includes(origin)) {
+        return origin;
+      }
+      ctx.status(403);
+      return null;
+    },
     credentials: true,
   })
 );
