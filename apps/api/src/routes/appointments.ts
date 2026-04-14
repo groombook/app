@@ -41,6 +41,10 @@ const createAppointmentSchema = z.object({
       frequencyWeeks: z.number().int().min(1).max(52),
       count: z.number().int().min(2).max(52),
     })
+    .refine(
+      (r) => r.frequencyWeeks * r.count <= 52,
+      { message: "Recurrence series must not exceed 1 year" }
+    )
     .optional(),
 });
 
