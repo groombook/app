@@ -163,6 +163,29 @@ appointmentsRouter.post(
           }
         }
 
+        // Check batherStaffId conflicts if set
+        if (apptFields.batherStaffId) {
+          const conflicts = await tx
+            .select({ id: appointments.id })
+            .from(appointments)
+            .where(
+              and(
+                or(
+                  eq(appointments.staffId, apptFields.batherStaffId),
+                  eq(appointments.batherStaffId, apptFields.batherStaffId)
+                ),
+                lt(appointments.startTime, end),
+                gte(appointments.endTime, start),
+                ne(appointments.status, "cancelled"),
+                ne(appointments.status, "no_show"),
+              )
+            )
+            .limit(1);
+          if (conflicts.length > 0) {
+            throw Object.assign(new Error("conflict"), { statusCode: 409 });
+          }
+        }
+
         if (!recurrence) {
           // Single appointment
           const [inserted] = await tx
@@ -448,6 +471,34 @@ appointmentsRouter.patch(
               .where(
                 and(
                   eq(appointments.staffId, staffId),
+                  lt(appointments.startTime, end),
+                  gte(appointments.endTime, start),
+                  ne(appointments.status, "cancelled"),
+                  ne(appointments.status, "no_show"),
+                  ne(appointments.id, id),
+                )
+              )
+              .limit(1);
+            if (conflicts.length > 0) {
+              throw Object.assign(new Error("conflict"), { statusCode: 409 });
+            }
+          }
+
+          // Check batherStaffId conflicts if being updated or already set
+          const batherStaffId =
+            updateFields.batherStaffId !== undefined
+              ? updateFields.batherStaffId
+              : current.batherStaffId;
+          if (batherStaffId) {
+            const conflicts = await tx
+              .select({ id: appointments.id })
+              .from(appointments)
+              .where(
+                and(
+                  or(
+                    eq(appointments.staffId, batherStaffId),
+                    eq(appointments.batherStaffId, batherStaffId)
+                  ),
                   lt(appointments.startTime, end),
                   gte(appointments.endTime, start),
                   ne(appointments.status, "cancelled"),

@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { desc, eq, getDb, groomingVisitLogs } from "@groombook/db";
+import { and, appointments, desc, eq, getDb, groomingVisitLogs, or } from "@groombook/db";
+import type { AppEnv } from "../middleware/rbac.js";
 
-export const groomingLogsRouter = new Hono();
+export const groomingLogsRouter = new Hono<AppEnv>();
 
 const createLogSchema = z.object({
   petId: z.string().uuid(),
@@ -19,7 +20,29 @@ const createLogSchema = z.object({
 groomingLogsRouter.get("/", async (c) => {
   const db = getDb();
   const petId = c.req.query("petId");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
+
   if (!petId) return c.json({ error: "petId is required" }, 400);
+
+  // Groomer: verify they have at least one appointment for this pet
+  if (isGroomer) {
+    const [hasAppt] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.petId, petId),
+          or(
+            eq(appointments.staffId, staffRow.id),
+            eq(appointments.batherStaffId, staffRow.id)
+          )
+        )
+      )
+      .limit(1);
+    if (!hasAppt) return c.json({ error: "Forbidden" }, 403);
+  }
+
   const rows = await db
     .select()
     .from(groomingVisitLogs)
@@ -33,7 +56,46 @@ groomingLogsRouter.post(
   zValidator("json", createLogSchema),
   async (c) => {
     const db = getDb();
-    const { groomedAt, ...rest } = c.req.valid("json");
+    const { groomedAt, appointmentId, ...rest } = c.req.valid("json");
+    const staffRow = c.get("staff");
+    const isGroomer = staffRow?.role === "groomer";
+
+    // Groomer: verify they have at least one appointment for this pet
+    if (isGroomer) {
+      const [hasAppt] = await db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.petId, rest.petId),
+            or(
+              eq(appointments.staffId, staffRow.id),
+              eq(appointments.batherStaffId, staffRow.id)
+            )
+          )
+        )
+        .limit(1);
+      if (!hasAppt) return c.json({ error: "Forbidden" }, 403);
+
+      // If appointmentId is provided, verify groomer is assigned to that specific appointment
+      if (appointmentId) {
+        const [appt] = await db
+          .select({ id: appointments.id })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.id, appointmentId),
+              or(
+                eq(appointments.staffId, staffRow.id),
+                eq(appointments.batherStaffId, staffRow.id)
+              )
+            )
+          )
+          .limit(1);
+        if (!appt) return c.json({ error: "Forbidden" }, 403);
+      }
+    }
+
     const [row] = await db
       .insert(groomingVisitLogs)
       .values({
@@ -47,10 +109,38 @@ groomingLogsRouter.post(
 
 groomingLogsRouter.delete("/:id", async (c) => {
   const db = getDb();
-  const [row] = await db
+  const id = c.req.param("id");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
+
+  // Fetch the log to get the petId
+  const [log] = await db
+    .select()
+    .from(groomingVisitLogs)
+    .where(eq(groomingVisitLogs.id, id));
+  if (!log) return c.json({ error: "Not found" }, 404);
+
+  // Groomer: verify the log's petId links to an appointment where groomer is assigned
+  if (isGroomer) {
+    const [hasAppt] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.petId, log.petId),
+          or(
+            eq(appointments.staffId, staffRow.id),
+            eq(appointments.batherStaffId, staffRow.id)
+          )
+        )
+      )
+      .limit(1);
+    if (!hasAppt) return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db
     .delete(groomingVisitLogs)
-    .where(eq(groomingVisitLogs.id, c.req.param("id")))
-    .returning();
-  if (!row) return c.json({ error: "Not found" }, 404);
+    .where(eq(groomingVisitLogs.id, id));
+
   return c.json({ ok: true });
 });
