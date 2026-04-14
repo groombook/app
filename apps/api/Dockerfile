@@ -12,6 +12,7 @@ RUN pnpm install --frozen-lockfile
 
 # Build
 FROM deps AS builder
+RUN mkdir -p /home/node/.cache/node/corepack
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 RUN pnpm --filter @groombook/types build && \
