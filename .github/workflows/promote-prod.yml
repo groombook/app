@@ -14,7 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: read
     steps:
+      - name: Validate tag format
+        run: |
+          TAG="${{ inputs.tag }}"
+          if ! echo "$TAG" | grep -qE '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[a-f0-9]{7}$'; then
+            echo "::error::Invalid tag format: '$TAG'. Expected format: YYYY.MM.DD-sha7 (e.g. 2026.03.28-f1b85bf)"
+            exit 1
+          fi
+          echo "Tag format valid: $TAG"
+
+      - name: Verify image exists in GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          # Check that the API image exists — if API was pushed, web/migrate were too
+          if ! gh api "/orgs/groombook/packages/container/api/versions" --jq ".[].metadata.container.tags[]" 2>/dev/null | grep -qF "$TAG"; then
+            echo "::error::Image ghcr.io/groombook/api:$TAG not found in GHCR. Verify the tag was built and pushed."
+            exit 1
+          fi
+          echo "Image verified: ghcr.io/groombook/api:$TAG exists"
+
       - name: Generate infra repo token
         id: infra-token
         uses: tibdex/github-app-token@v2
