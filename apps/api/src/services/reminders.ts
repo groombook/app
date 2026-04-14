@@ -6,6 +6,7 @@ import {
   getDb,
   gte,
   lt,
+  sql,
   appointments,
   clients,
   pets,
@@ -64,56 +65,68 @@ export async function runReminderCheck(): Promise<void> {
         )
       );
 
-    for (const appt of upcoming) {
-      // Check if reminder already sent (unique constraint prevents double-send)
-      const existing = await db
-        .select({ id: reminderLogs.id })
-        .from(reminderLogs)
-        .where(
-          and(
-            eq(reminderLogs.appointmentId, appt.id),
-            eq(reminderLogs.reminderType, window.label)
+    const appointmentIds: string[] = upcoming.map((a) => a.id as string);
+
+    if (appointmentIds.length === 0) continue;
+
+    const sentAppointmentIds = new Set(
+      (
+        await db
+          .select({ appointmentId: reminderLogs.appointmentId })
+          .from(reminderLogs)
+          .where(
+            and(
+              eq(reminderLogs.reminderType, window.label),
+              appointmentIds.length === 1
+                ? eq(reminderLogs.appointmentId, appointmentIds[0]!)
+                : sql`${reminderLogs.appointmentId} = ANY(${appointmentIds})`
+            )
           )
+      ).map((r) => r.appointmentId)
+    );
+
+    const joinedRows = await db
+      .select({
+        appointmentId: appointments.id,
+        startTime: appointments.startTime,
+        clientId: appointments.clientId,
+        petId: appointments.petId,
+        serviceId: appointments.serviceId,
+        staffId: appointments.staffId,
+        confirmationToken: appointments.confirmationToken,
+        clientName: clients.name,
+        clientEmail: clients.email,
+        clientEmailOptOut: clients.emailOptOut,
+        petName: pets.name,
+        serviceName: services.name,
+        staffName: staff.name,
+      })
+      .from(appointments)
+      .innerJoin(clients, eq(appointments.clientId, clients.id))
+      .innerJoin(pets, eq(appointments.petId, pets.id))
+      .innerJoin(services, eq(appointments.serviceId, services.id))
+      .leftJoin(staff, eq(appointments.staffId, staff.id))
+      .where(
+        and(
+          gte(appointments.startTime, windowStart),
+          lt(appointments.startTime, windowEnd),
+          eq(appointments.status, "scheduled")
         )
-        .limit(1);
+      );
 
-      if (existing.length > 0) continue; // already sent
+    const appointmentMap = new Map<string, typeof joinedRows[number]>();
+    for (const row of joinedRows) {
+      appointmentMap.set(row.appointmentId, row);
+    }
 
-      // Fetch related records for the email
-      const [client] = await db
-        .select({ name: clients.name, email: clients.email, emailOptOut: clients.emailOptOut })
-        .from(clients)
-        .where(eq(clients.id, appt.clientId))
-        .limit(1);
+    for (const appt of upcoming) {
+      if (sentAppointmentIds.has(appt.id)) continue;
 
-      if (!client || !client.email || client.emailOptOut) continue;
+      const row = appointmentMap.get(appt.id);
+      if (!row) continue;
+      if (!row.clientEmail || row.clientEmailOptOut) continue;
+      if (!row.petName || !row.serviceName) continue;
 
-      const [pet] = await db
-        .select({ name: pets.name })
-        .from(pets)
-        .where(eq(pets.id, appt.petId))
-        .limit(1);
-
-      const [service] = await db
-        .select({ name: services.name })
-        .from(services)
-        .where(eq(services.id, appt.serviceId))
-        .limit(1);
-
-      let groomerName: string | null = null;
-      if (appt.staffId) {
-        const [groomer] = await db
-          .select({ name: staff.name })
-          .from(staff)
-          .where(eq(staff.id, appt.staffId))
-          .limit(1);
-        groomerName = groomer?.name ?? null;
-      }
-
-      if (!pet || !service) continue;
-
-      // Ensure the appointment has a confirmation token before sending the reminder.
-      // Generate one if it doesn't have one yet (e.g. pre-existing appointments).
       let confirmationToken = appt.confirmationToken;
       if (!confirmationToken) {
         confirmationToken = randomBytes(32).toString("hex");
@@ -125,12 +138,12 @@ export async function runReminderCheck(): Promise<void> {
 
       const sent = await sendEmail(
         buildReminderEmail(
-          client.email,
+          row.clientEmail,
           {
-            clientName: client.name,
-            petName: pet.name,
-            serviceName: service.name,
-            groomerName,
+            clientName: row.clientName,
+            petName: row.petName,
+            serviceName: row.serviceName,
+            groomerName: row.staffName ?? null,
             startTime: appt.startTime,
           },
           window.hours,
@@ -139,7 +152,6 @@ export async function runReminderCheck(): Promise<void> {
       );
 
       if (sent) {
-        // Record send — ignore conflicts (race condition between instances)
         await db
           .insert(reminderLogs)
           .values({ appointmentId: appt.id, reminderType: window.label })
