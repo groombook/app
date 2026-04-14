@@ -78,6 +78,7 @@ vi.mock("@groombook/db", () => {
     }),
     staff,
     eq: vi.fn((_col: unknown, _val: unknown) => ({ col: _col, val: _val })),
+    and: vi.fn((..._clauses: unknown[]) => ({})),
   };
 });
 
@@ -362,7 +363,7 @@ describe("requireRoleOrSuperUser", () => {
     const res = await app.request("/test");
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toMatch(/super user privileges required/i);
+    expect(body.error).toMatch(/role.*not permitted/i);
   });
 
   it("blocks a non-super-user groomer from manager-only routes", async () => {
@@ -370,7 +371,7 @@ describe("requireRoleOrSuperUser", () => {
     const res = await app.request("/test");
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.error).toMatch(/super user privileges required/i);
+    expect(body.error).toMatch(/role.*not permitted/i);
   });
 
   it("allows a manager with multiple allowed roles", async () => {

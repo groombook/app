@@ -277,14 +277,24 @@ bookRouter.get("/confirm/:token", async (c) => {
     return c.redirect(`${BASE_URL()}/booking/error`);
   }
 
-  await db
+  const updated = await db
     .update(appointments)
     .set({
       confirmationStatus: "confirmed",
       confirmedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(appointments.id, appt.id));
+    .where(
+      and(
+        eq(appointments.confirmationToken, token),
+        eq(appointments.confirmationStatus, "pending")
+      )
+    )
+    .returning();
+
+  if (updated.length === 0) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
 
   return c.redirect(`${BASE_URL()}/booking/confirmed`);
 });
@@ -314,7 +324,7 @@ bookRouter.get("/cancel/:token", async (c) => {
     return c.redirect(`${BASE_URL()}/booking/error`);
   }
 
-  await db
+  const updated = await db
     .update(appointments)
     .set({
       confirmationStatus: "cancelled",
@@ -322,7 +332,17 @@ bookRouter.get("/cancel/:token", async (c) => {
       confirmationToken: null,
       updatedAt: new Date(),
     })
-    .where(eq(appointments.id, appt.id));
+    .where(
+      and(
+        eq(appointments.confirmationToken, token),
+        eq(appointments.confirmationStatus, "pending")
+      )
+    )
+    .returning();
+
+  if (updated.length === 0) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
 
   return c.redirect(`${BASE_URL()}/booking/cancelled`);
 });
