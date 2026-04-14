@@ -8,6 +8,7 @@ import {
   invoices,
   invoiceLineItems,
   invoiceTipSplits,
+  refunds,
   appointments,
   services,
   clients,
@@ -125,8 +126,8 @@ const tipSplitSchema = z.object({
     })
   ).min(1).refine(
     (splits) => {
-      const total = splits.reduce((sum, s) => sum + s.sharePct, 0);
-      return Math.abs(total - 100) < 0.01;
+      const totalBps = splits.reduce((sum, s) => sum + Math.round(s.sharePct * 100), 0);
+      return totalBps === 10000;
     },
     { message: "Split percentages must sum to 100" }
   ),
@@ -170,12 +171,13 @@ invoicesRouter.post(
       }
     });
 
-    const splits = await db
-      .select()
-      .from(invoiceTipSplits)
-      .where(eq(invoiceTipSplits.invoiceId, id));
+    const [updatedInvoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    const [lineItems, tipSplits] = await Promise.all([
+      db.select().from(invoiceLineItems).where(eq(invoiceLineItems.invoiceId, id)),
+      db.select().from(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id)),
+    ]);
 
-    return c.json(splits, 201);
+    return c.json({ ...updatedInvoice, lineItems, tipSplits }, 201);
   }
 );
 
@@ -300,6 +302,13 @@ invoicesRouter.post("/from-appointment/:appointmentId", async (c) => {
   return c.json({ ...invoice, lineItems: [lineItem] }, 201);
 });
 
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  draft: ["pending", "void"],
+  pending: ["draft", "paid", "void"],
+  paid: ["void"],
+  void: [],
+};
+
 // Update invoice
 invoicesRouter.patch(
   "/:id",
@@ -315,8 +324,14 @@ invoicesRouter.patch(
       .where(eq(invoices.id, id));
     if (!current) return c.json({ error: "Not found" }, 404);
 
-    if (current.status === "void") {
-      return c.json({ error: "Cannot modify a voided invoice" }, 422);
+    if (body.status !== undefined) {
+      const allowed = ALLOWED_TRANSITIONS[current.status] ?? [];
+      if (!allowed.includes(body.status)) {
+        return c.json(
+          { error: `Invalid status transition from ${current.status} to ${body.status}` },
+          422
+        );
+      }
     }
 
     const update: Record<string, unknown> = { ...body, updatedAt: new Date() };
@@ -354,6 +369,7 @@ import { processRefund } from "../services/payment.js";
 
 const refundSchema = z.object({
   amountCents: z.number().int().nonnegative().optional(),
+  idempotencyKey: z.string().max(255).optional(),
 });
 
 invoicesRouter.post(
@@ -379,8 +395,25 @@ invoicesRouter.post(
       return c.json({ error: "No Stripe payment intent found for this invoice" }, 422);
     }
 
+    if (body.idempotencyKey) {
+      const [existing] = await db
+        .select()
+        .from(refunds)
+        .where(eq(refunds.idempotencyKey, body.idempotencyKey));
+      if (existing) {
+        return c.json({ refundId: existing.stripeRefundId });
+      }
+    }
+
     const result = await processRefund(id, body.amountCents);
     if (!result) return c.json({ error: "Refund failed" }, 500);
+
+    await db.insert(refunds).values({
+      invoiceId: id,
+      stripeRefundId: result.refundId,
+      idempotencyKey: body.idempotencyKey ?? null,
+      amountCents: body.amountCents ?? null,
+    });
 
     return c.json({ refundId: result.refundId });
   }
