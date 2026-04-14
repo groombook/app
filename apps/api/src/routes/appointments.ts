@@ -23,6 +23,27 @@ import { buildConfirmationEmail, sendEmail } from "../services/email.js";
 import { notifyWaitlistForAppointment } from "../services/waitlistNotify.js";
 import type { AppEnv } from "../middleware/rbac.js";
 
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number,
+  delayMs: number,
+  context: string
+): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      await fn();
+      return;
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  console.error(`[appointments] ${context}: ${lastError}`);
+}
+
 export const appointmentsRouter = new Hono<AppEnv>();
 
 const createAppointmentSchema = z.object({
@@ -186,11 +207,54 @@ appointmentsRouter.post(
           recurrence.frequencyWeeks * 7 * 24 * 60 * 60 * 1000;
 
         let first: typeof appointments.$inferSelect | undefined;
+        const conflictingInstances: number[] = [];
         for (let i = 0; i < recurrence.count; i++) {
           const instanceStart = new Date(start.getTime() + i * intervalMs);
           const instanceEnd = new Date(
             instanceStart.getTime() + durationMs
           );
+
+          if (apptFields.staffId) {
+            const conflicts = await tx
+              .select({ id: appointments.id })
+              .from(appointments)
+              .where(
+                and(
+                  eq(appointments.staffId, apptFields.staffId),
+                  lt(appointments.startTime, instanceEnd),
+                  gte(appointments.endTime, instanceStart),
+                  ne(appointments.status, "cancelled"),
+                  ne(appointments.status, "no_show"),
+                )
+              )
+              .limit(1);
+            if (conflicts.length > 0) {
+              conflictingInstances.push(i);
+            }
+          }
+
+          if (apptFields.batherStaffId) {
+            const conflicts = await tx
+              .select({ id: appointments.id })
+              .from(appointments)
+              .where(
+                and(
+                  or(
+                    eq(appointments.staffId, apptFields.batherStaffId),
+                    eq(appointments.batherStaffId, apptFields.batherStaffId)
+                  ),
+                  lt(appointments.startTime, instanceEnd),
+                  gte(appointments.endTime, instanceStart),
+                  ne(appointments.status, "cancelled"),
+                  ne(appointments.status, "no_show"),
+                )
+              )
+              .limit(1);
+            if (conflicts.length > 0) {
+              conflictingInstances.push(i);
+            }
+          }
+
           const [inserted] = await tx
             .insert(appointments)
             .values({
@@ -201,7 +265,17 @@ appointmentsRouter.post(
               seriesIndex: i,
             })
             .returning();
+          if (!inserted) throw new Error(`Insert failed for occurrence ${i}`);
           if (i === 0) first = inserted;
+        }
+
+        if (conflictingInstances.length > 0) {
+          throw Object.assign(
+            new Error(
+              `Conflicts detected at occurrence(s): ${conflictingInstances.join(", ")}`
+            ),
+            { statusCode: 409 }
+          );
         }
 
         if (!first) throw new Error("No appointments created");
@@ -221,9 +295,12 @@ appointmentsRouter.post(
     }
 
     // Send confirmation email (fire-and-forget — never fails the request)
-    sendConfirmationEmail(db, firstRow).catch((err) => {
-      console.error("[appointments] Failed to send confirmation email:", err);
-    });
+    withRetry(
+      () => sendConfirmationEmail(db, firstRow),
+      2,
+      1000,
+      `Failed to send confirmation email for appointment ${firstRow.id}`
+    );
 
     return c.json(firstRow, 201);
   }
@@ -352,6 +429,76 @@ appointmentsRouter.patch(
 
           let firstUpdated: typeof appointments.$inferSelect | undefined;
           for (const appt of affected) {
+            const newStart =
+              startDeltaMs !== 0
+                ? new Date(appt.startTime.getTime() + startDeltaMs)
+                : appt.startTime;
+            const newEnd =
+              endDeltaMs !== 0
+                ? new Date(appt.endTime.getTime() + endDeltaMs)
+                : appt.endTime;
+            const newStaffId =
+              updateFields.staffId !== undefined
+                ? updateFields.staffId
+                : appt.staffId;
+            const newBatherStaffId =
+              updateFields.batherStaffId !== undefined
+                ? updateFields.batherStaffId
+                : appt.batherStaffId;
+
+            if (
+              newStaffId &&
+              (startDeltaMs !== 0 ||
+                endDeltaMs !== 0 ||
+                updateFields.staffId !== undefined)
+            ) {
+              const conflicts = await tx
+                .select({ id: appointments.id })
+                .from(appointments)
+                .where(
+                  and(
+                    eq(appointments.staffId, newStaffId),
+                    lt(appointments.startTime, newEnd),
+                    gte(appointments.endTime, newStart),
+                    ne(appointments.status, "cancelled"),
+                    ne(appointments.status, "no_show"),
+                    ne(appointments.id, appt.id),
+                  )
+                )
+                .limit(1);
+              if (conflicts.length > 0) {
+                throw Object.assign(new Error("conflict"), { statusCode: 409 });
+              }
+            }
+
+            if (
+              newBatherStaffId &&
+              (startDeltaMs !== 0 ||
+                endDeltaMs !== 0 ||
+                updateFields.batherStaffId !== undefined)
+            ) {
+              const conflicts = await tx
+                .select({ id: appointments.id })
+                .from(appointments)
+                .where(
+                  and(
+                    or(
+                      eq(appointments.staffId, newBatherStaffId),
+                      eq(appointments.batherStaffId, newBatherStaffId)
+                    ),
+                    lt(appointments.startTime, newEnd),
+                    gte(appointments.endTime, newStart),
+                    ne(appointments.status, "cancelled"),
+                    ne(appointments.status, "no_show"),
+                    ne(appointments.id, appt.id),
+                  )
+                )
+                .limit(1);
+              if (conflicts.length > 0) {
+                throw Object.assign(new Error("conflict"), { statusCode: 409 });
+              }
+            }
+
             const apptUpdate: Record<string, unknown> = {
               updatedAt: new Date(),
             };
@@ -387,6 +534,13 @@ appointmentsRouter.patch(
         if (statusCode === 404) return c.json({ error: "Not found" }, 404);
         if (statusCode === 422)
           return c.json({ error: "endTime must be after startTime" }, 422);
+        if (statusCode === 409)
+          return c.json(
+            {
+              error: "Staff member has a conflicting appointment at this time",
+            },
+            409
+          );
         throw err;
       }
 
@@ -535,9 +689,12 @@ appointmentsRouter.delete("/:id", async (c) => {
 
     const apptDate = current.startTime.toISOString().slice(0, 10);
     const apptTime = current.startTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-    notifyWaitlistForAppointment(id, apptDate, apptTime, current.serviceId).catch((err) => {
-      console.error("[appointments] Failed to notify waitlist:", err);
-    });
+    withRetry(
+      () => notifyWaitlistForAppointment(id, apptDate, apptTime, current.serviceId),
+      2,
+      1000,
+      `Failed to notify waitlist for appointment ${id}`
+    );
 
     return c.json({ ok: true });
   }
@@ -560,9 +717,12 @@ appointmentsRouter.delete("/:id", async (c) => {
     .returning();
   if (!row) return c.json({ error: "Not found" }, 404);
 
-  notifyWaitlistForAppointment(id, apptDate, apptTime, current.serviceId).catch((err) => {
-    console.error("[appointments] Failed to notify waitlist:", err);
-  });
+  withRetry(
+    () => notifyWaitlistForAppointment(id, apptDate, apptTime, current.serviceId),
+    2,
+    1000,
+    `Failed to notify waitlist for appointment ${id}`
+  );
 
   return c.json({ ok: true });
 });
