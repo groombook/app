@@ -183,6 +183,13 @@
       "when": 1775482467192,
       "tag": "0025_rate_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1775568867192,
+      "tag": "0026_stripe_payment",
+      "breakpoints": true
     }
   ]
 }

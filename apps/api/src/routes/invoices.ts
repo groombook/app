@@ -13,8 +13,9 @@ import {
   clients,
   sql,
 } from "@groombook/db";
+import type { AppEnv } from "../middleware/rbac.js";
 
-export const invoicesRouter = new Hono();
+export const invoicesRouter = new Hono<AppEnv>();
 
 const createInvoiceSchema = z.object({
   appointmentId: z.string().uuid().optional(),
@@ -336,5 +337,43 @@ invoicesRouter.patch(
       .where(eq(invoiceLineItems.invoiceId, id));
 
     return c.json({ ...updated, lineItems });
+  }
+);
+
+// ─── Refund ───────────────────────────────────────────────────────────────────
+
+import { processRefund } from "../services/payment.js";
+
+const refundSchema = z.object({
+  amountCents: z.number().int().nonnegative().optional(),
+});
+
+invoicesRouter.post(
+  "/:id/refund",
+  zValidator("json", refundSchema),
+  async (c) => {
+    const db = getDb();
+    const staff = c.get("staff");
+    if (!staff) return c.json({ error: "Forbidden" }, 403);
+    if (staff.role !== "manager" && !staff.isSuperUser) {
+      return c.json({ error: "Manager role required" }, 403);
+    }
+
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    if (!invoice) return c.json({ error: "Not found" }, 404);
+    if (invoice.status !== "paid") {
+      return c.json({ error: "Refund only allowed on paid invoices" }, 422);
+    }
+    if (!invoice.stripePaymentIntentId) {
+      return c.json({ error: "No Stripe payment intent found for this invoice" }, 422);
+    }
+
+    const result = await processRefund(id, body.amountCents);
+    if (!result) return c.json({ error: "Refund failed" }, 500);
+
+    return c.json({ refundId: result.refundId });
   }
 );

@@ -1,0 +1,103 @@
+{
+  "id": "0026_stripe_payment",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "authProviderConfig": {
+      "name": "auth_provider_config",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()", "isNullable": false },
+        "providerId": { "name": "provider_id", "type": "text", "isNullable": false },
+        "displayName": { "name": "display_name", "type": "text", "isNullable": false },
+        "issuerUrl": { "name": "issuer_url", "type": "text", "isNullable": false },
+        "internalBaseUrl": { "name": "internal_base_url", "type": "text", "isNullable": true },
+        "clientId": { "name": "client_id", "type": "text", "isNullable": false },
+        "clientSecret": { "name": "client_secret", "type": "text", "isNullable": false },
+        "scopes": { "name": "scopes", "type": "text", "isNullable": false, "default": "'openid profile email'" },
+        "enabled": { "name": "enabled", "type": "boolean", "isNullable": false, "default": "true" },
+        "createdAt": { "name": "created_at", "type": "timestamp", "isNullable": false, "default": "now()" },
+        "updatedAt": { "name": "updated_at", "type": "timestamp", "isNullable": false, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {}
+    },
+    "businessSettings": {
+      "name": "business_settings",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()", "isNullable": false },
+        "businessName": { "name": "business_name", "type": "text", "isNullable": false, "default": "'GroomBook'" },
+        "logoBase64": { "name": "logo_base64", "type": "text", "isNullable": true },
+        "logoMimeType": { "name": "logo_mime_type", "type": "text", "isNullable": true },
+        "logoKey": { "name": "logo_key", "type": "text", "isNullable": true },
+        "primaryColor": { "name": "primary_color", "type": "text", "isNullable": false, "default": "'#4f8a6f'" },
+        "accentColor": { "name": "accent_color", "type": "text", "isNullable": false, "default": "'#8b7355'" },
+        "createdAt": { "name": "created_at", "type": "timestamp", "isNullable": false, "default": "now()" },
+        "updatedAt": { "name": "updated_at", "type": "timestamp", "isNullable": false, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {}
+    },
+    "clients": {
+      "name": "clients",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()", "isNullable": false },
+        "name": { "name": "name", "type": "text", "isNullable": false },
+        "email": { "name": "email", "type": "text", "isNullable": true },
+        "phone": { "name": "phone", "type": "text", "isNullable": true },
+        "address": { "name": "address", "type": "text", "isNullable": true },
+        "notes": { "name": "notes", "type": "text", "isNullable": true },
+        "emailOptOut": { "name": "email_opt_out", "type": "boolean", "isNullable": false, "default": "false" },
+        "smsOptIn": { "name": "sms_opt_in", "type": "boolean", "isNullable": false, "default": "false" },
+        "smsConsentDate": { "name": "sms_consent_date", "type": "timestamp", "isNullable": true },
+        "smsOptOutDate": { "name": "sms_opt_out_date", "type": "timestamp", "isNullable": true },
+        "smsConsentText": { "name": "sms_consent_text", "type": "text", "isNullable": true },
+        "stripeCustomerId": { "name": "stripe_customer_id", "type": "text", "isNullable": true },
+        "status": { "name": "status", "type": "client_status", "isNullable": false, "default": "'active'" },
+        "disabledAt": { "name": "disabled_at", "type": "timestamp", "isNullable": true },
+        "createdAt": { "name": "created_at", "type": "timestamp", "isNullable": false, "default": "now()" },
+        "updatedAt": { "name": "updated_at", "type": "timestamp", "isNullable": false, "default": "now()" }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": { "idx_clients_stripe_customer_id": { "columns": ["stripe_customer_id"] } }
+    },
+    "invoices": {
+      "name": "invoices",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "default": "gen_random_uuid()", "isNullable": false },
+        "appointmentId": { "name": "appointment_id", "type": "uuid", "isNullable": true },
+        "clientId": { "name": "client_id", "type": "uuid", "isNullable": false },
+        "subtotalCents": { "name": "subtotal_cents", "type": "integer", "isNullable": false },
+        "taxCents": { "name": "tax_cents", "type": "integer", "isNullable": false, "default": "0" },
+        "tipCents": { "name": "tip_cents", "type": "integer", "isNullable": false, "default": "0" },
+        "totalCents": { "name": "total_cents", "type": "integer", "isNullable": false },
+        "status": { "name": "status", "type": "invoice_status", "isNullable": false, "default": "'draft'" },
+        "paymentMethod": { "name": "payment_method", "type": "payment_method", "isNullable": true },
+        "paidAt": { "name": "paid_at", "type": "timestamp", "isNullable": true },
+        "stripePaymentIntentId": { "name": "stripe_payment_intent_id", "type": "text", "isNullable": true },
+        "stripeRefundId": { "name": "stripe_refund_id", "type": "text", "isNullable": true },
+        "paymentFailureReason": { "name": "payment_failure_reason", "type": "text", "isNullable": true },
+        "notes": { "name": "notes", "type": "text", "isNullable": true },
+        "createdAt": { "name": "created_at", "type": "timestamp", "isNullable": false, "default": "now()" },
+        "updatedAt": { "name": "updated_at", "type": "timestamp", "isNullable": false, "default": "now()" }
+      },
+      "indexes": { "idx_invoices_client_id": { "columns": ["client_id"] }, "idx_invoices_status": { "columns": ["status"] }, "idx_invoices_created_at": { "columns": ["created_at"] } },
+      "foreignKeys": { "invoices_appointment_id_fkey": { "columns": ["appointmentId"], "reference": { "table": "appointments", "columns": ["id"] } }, "invoices_client_id_fkey": { "columns": ["clientId"], "reference": { "table": "clients", "columns": ["id"] } } },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": { "idx_invoices_stripe_payment_intent_id": { "columns": ["stripe_payment_intent_id"] } }
+    }
+  },
+  "enums": {
+    "appointment_status": { "name": "appointment_status", "values": ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"] },
+    "client_status": { "name": "client_status", "values": ["active", "disabled"] },
+    "impersonation_session_status": { "name": "impersonation_session_status", "values": ["active", "ended", "expired"] },
+    "invoice_status": { "name": "invoice_status", "values": ["draft", "pending", "paid", "void"] },
+    "payment_method": { "name": "payment_method", "values": ["cash", "card", "check", "other"] },
+    "staff_role": { "name": "staff_role", "values": ["groomer", "receptionist", "manager"] },
+    "waitlist_status": { "name": "waitlist_status", "values": ["active", "notified", "expired", "cancelled"] }
+  },
+  "nativeEnums": {}
+}

@@ -226,7 +226,6 @@ export function CustomerPortal() {
       )}
 
       {showReschedule && rescheduleAppointment && (
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         <RescheduleFlow
           appointment={rescheduleAppointment as any}
           onClose={() => { setShowReschedule(false); setRescheduleAppointment(null); }}

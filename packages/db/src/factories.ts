@@ -71,6 +71,7 @@ export function buildClient(overrides: Partial<ClientRow> = {}): ClientRow {
     address: "1 Main St, Springfield, CA 90000",
     notes: null,
     emailOptOut: false,
+    stripeCustomerId: null,
     status: "active",
     disabledAt: null,
     createdAt: new Date("2025-01-01T00:00:00Z"),
