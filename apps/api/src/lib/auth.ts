@@ -89,7 +89,7 @@ export async function initAuth(): Promise<void> {
       console.warn("[auth] AUTH_DISABLED=true — building placeholder auth instance");
       authInstance = betterAuth({
         database: drizzleAdapter(getDb(), { provider: "pg" }),
-        secret: BETTER_AUTH_SECRET ?? "placeholder-secret-do-not-use-in-prod",
+        secret: BETTER_AUTH_SECRET!,
         baseURL: BETTER_AUTH_URL,
         rateLimit: {
           enabled: true,
@@ -177,9 +177,9 @@ export async function initAuth(): Promise<void> {
     const hasGoogle = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
     const hasGitHub = !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
 
-    // Fetch OIDC discovery document to derive canonical provider URLs.
-    // Replace the host of token/userinfo endpoints with internalBaseUrl when set,
-    // while keeping authorizationUrl public for browser redirects.
+    const issuerUrlObj = new URL(providerConfig.issuerUrl);
+    const issuerHostname = issuerUrlObj.hostname;
+
     const discoveryUrlStr = `${providerConfig.issuerUrl}/.well-known/openid-configuration`;
     let oidcConfig: Record<string, string> = {};
     try {
@@ -203,6 +203,18 @@ export async function initAuth(): Promise<void> {
         const tokenUrl = discovery.token_endpoint;
         const userInfoUrl = discovery.userinfo_endpoint;
         if (authzUrl && tokenUrl && userInfoUrl) {
+          const authzUrlObj = new URL(authzUrl);
+          const tokenUrlObj = new URL(tokenUrl);
+          const userInfoUrlObj = new URL(userInfoUrl);
+          if (
+            authzUrlObj.hostname !== issuerHostname ||
+            tokenUrlObj.hostname !== issuerHostname ||
+            userInfoUrlObj.hostname !== issuerHostname
+          ) {
+            throw new Error(
+              `[FATAL] OIDC discovery URL hostname mismatch: expected '${issuerHostname}' but got '${authzUrlObj.hostname}', '${tokenUrlObj.hostname}', or '${userInfoUrlObj.hostname}'. This may indicate a man-in-the-middle attack.`
+            );
+          }
           oidcConfig = {
             authorizationUrl: authzUrl,
             tokenUrl: providerConfig.internalBaseUrl

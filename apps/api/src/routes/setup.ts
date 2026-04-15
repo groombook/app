@@ -4,6 +4,24 @@ import { z } from "zod/v3";
 import { and, eq, getDb, sql, staff, businessSettings, authProviderConfig, encryptSecret } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 10;
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimitByIp(ip: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, remaining: RATE_LIMIT_MAX - 1 };
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, remaining: 0 };
+  }
+  entry.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count };
+}
+
 export const setupRouter = new Hono<AppEnv>();
 
 // GET /api/setup/status — public (no auth), returns whether setup is needed
@@ -185,52 +203,74 @@ const authProviderTestSchema = z.object({
  * After setup completes, this endpoint permanently returns 403.
  */
 setupRouter.post("/auth-provider", async (c) => {
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const { allowed, remaining } = rateLimitByIp(ip);
+  c.res.headers.set("x-rate-limit-remaining", String(remaining));
+  if (!allowed) {
+    return c.json({ error: "Too many requests. Please try again later." }, 429);
+  }
+
   const db = getDb();
 
-  // Guard: only allow during fresh install (no super user yet)
-  const [superUser] = await db
-    .select({ id: staff.id })
-    .from(staff)
-    .where(eq(staff.isSuperUser, true))
-    .limit(1);
+  let row: typeof authProviderConfig.$inferSelect;
+  try {
+    row = await db.transaction(async (tx) => {
+      const [superUser] = await tx
+        .select({ id: staff.id })
+        .from(staff)
+        .where(eq(staff.isSuperUser, true))
+        .limit(1);
 
-  if (superUser) {
-    // Setup already completed — lock this endpoint permanently
-    return c.json({ error: "Setup has already been completed. This endpoint is no longer available." }, 403);
-  }
+      if (superUser) {
+        throw Object.assign(new Error("setup-complete"), { code: 403 });
+      }
 
-  // Guard: ensure no DB config already exists (should be redundant with status check but defensive)
-  const [existingConfig] = await db
-    .select({ id: authProviderConfig.id })
-    .from(authProviderConfig)
-    .where(eq(authProviderConfig.enabled, true))
-    .limit(1);
+      const [existingConfig] = await tx
+        .select({ id: authProviderConfig.id })
+        .from(authProviderConfig)
+        .where(eq(authProviderConfig.enabled, true))
+        .limit(1);
 
-  if (existingConfig) {
-    return c.json({ error: "Auth provider is already configured." }, 409);
-  }
+      if (existingConfig) {
+        throw Object.assign(new Error("config-exists"), { code: 409 });
+      }
 
-  const body = authProviderBootstrapSchema.parse(await c.req.json());
+      const body = authProviderBootstrapSchema.parse(await c.req.json());
 
-  // Encrypt clientSecret before storing
-  const encryptedSecret = encryptSecret(body.clientSecret);
+      const encryptedSecret = encryptSecret(body.clientSecret);
 
-  const [row] = await db
-    .insert(authProviderConfig)
-    .values({
-      providerId: body.providerId,
-      displayName: body.displayName,
-      issuerUrl: body.issuerUrl,
-      internalBaseUrl: body.internalBaseUrl ?? null,
-      clientId: body.clientId,
-      clientSecret: encryptedSecret,
-      scopes: body.scopes,
-      enabled: true,
-    })
-    .returning();
+      const [configRow] = await tx
+        .insert(authProviderConfig)
+        .values({
+          providerId: body.providerId,
+          displayName: body.displayName,
+          issuerUrl: body.issuerUrl,
+          internalBaseUrl: body.internalBaseUrl ?? null,
+          clientId: body.clientId,
+          clientSecret: encryptedSecret,
+          scopes: body.scopes,
+          enabled: true,
+        })
+        .returning();
 
-  if (!row) {
-    return c.json({ error: "Failed to save auth provider configuration." }, 500);
+      if (!configRow) {
+        throw Object.assign(new Error("insert-failed"), { code: 500 });
+      }
+
+      return configRow;
+    });
+  } catch (err: unknown) {
+    const e = err as Error & { code?: number };
+    if (e.message === "setup-complete") {
+      return c.json({ error: "Setup has already been completed. This endpoint is no longer available." }, e.code as 403);
+    }
+    if (e.message === "config-exists") {
+      return c.json({ error: "Auth provider is already configured." }, e.code as 409);
+    }
+    if (e.message === "insert-failed") {
+      return c.json({ error: "Failed to save auth provider configuration." }, e.code as 500);
+    }
+    throw err;
   }
 
   return c.json({
@@ -254,6 +294,13 @@ setupRouter.post("/auth-provider", async (c) => {
  * Only available when needsSetup is true (no super user = fresh install).
  */
 setupRouter.post("/auth-provider/test", async (c) => {
+  const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const { allowed, remaining } = rateLimitByIp(ip);
+  c.res.headers.set("x-rate-limit-remaining", String(remaining));
+  if (!allowed) {
+    return c.json({ ok: false, error: "Too many requests. Please try again later." }, 429);
+  }
+
   const db = getDb();
 
   // Guard: only allow during fresh install (no super user yet)

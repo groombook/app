@@ -68,6 +68,7 @@ vi.mock("@groombook/db", () => {
     }),
     appointments,
     eq: () => ({}),
+    and: (..._clauses: unknown[]) => ({}),
   };
 });
 

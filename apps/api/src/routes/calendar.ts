@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
   and,
   eq,
@@ -84,7 +84,18 @@ calendarRouter.get("/:staffId.ics", async (c) => {
     .where(eq(staff.id, staffId))
     .limit(1);
 
-  if (!staffMember || staffMember.icalToken !== token) {
+  if (!staffMember || !staffMember.icalToken) {
+    return c.text("Unauthorized", 401);
+  }
+
+  const storedToken = staffMember.icalToken;
+  const incomingToken = token;
+  const storedBuf = Buffer.from(storedToken, "utf8");
+  const incomingBuf = Buffer.from(incomingToken, "utf8");
+  if (
+    storedBuf.length !== incomingBuf.length ||
+    !timingSafeEqual(storedBuf, incomingBuf)
+  ) {
     return c.text("Unauthorized", 401);
   }
 

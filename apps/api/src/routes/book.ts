@@ -268,29 +268,36 @@ bookRouter.get("/confirm/:token", async (c) => {
     return c.redirect(`${BASE_URL()}/booking/error`);
   }
 
-  // Reject if appointment is in the past
   if (appt.startTime < new Date()) {
     return c.redirect(`${BASE_URL()}/booking/error`);
   }
 
-  // Idempotent confirm: if already confirmed, redirect to success
   if (appt.confirmationStatus === "confirmed") {
     return c.redirect(`${BASE_URL()}/booking/confirmed`);
   }
 
-  // Reject if already cancelled
   if (appt.confirmationStatus === "cancelled") {
     return c.redirect(`${BASE_URL()}/booking/error`);
   }
 
-  await db
+  const updated = await db
     .update(appointments)
     .set({
       confirmationStatus: "confirmed",
       confirmedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(appointments.id, appt.id));
+    .where(
+      and(
+        eq(appointments.confirmationToken, token),
+        eq(appointments.confirmationStatus, "pending")
+      )
+    )
+    .returning();
+
+  if (updated.length === 0) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
 
   return c.redirect(`${BASE_URL()}/booking/confirmed`);
 });
@@ -312,19 +319,15 @@ bookRouter.get("/cancel/:token", async (c) => {
     return c.redirect(`${BASE_URL()}/booking/error`);
   }
 
-  // Reject if appointment is in the past
   if (appt.startTime < new Date()) {
     return c.redirect(`${BASE_URL()}/booking/error`);
   }
 
-  // Reject if already cancelled (token was nullified — this path won't normally hit,
-  // but guard against edge cases where token lookup still works)
   if (appt.confirmationStatus === "cancelled") {
     return c.redirect(`${BASE_URL()}/booking/error`);
   }
 
-  // Single-use cancellation: nullify token after use
-  await db
+  const updated = await db
     .update(appointments)
     .set({
       confirmationStatus: "cancelled",
@@ -332,7 +335,17 @@ bookRouter.get("/cancel/:token", async (c) => {
       confirmationToken: null,
       updatedAt: new Date(),
     })
-    .where(eq(appointments.id, appt.id));
+    .where(
+      and(
+        eq(appointments.confirmationToken, token),
+        eq(appointments.confirmationStatus, "pending")
+      )
+    )
+    .returning();
+
+  if (updated.length === 0) {
+    return c.redirect(`${BASE_URL()}/booking/error`);
+  }
 
   return c.redirect(`${BASE_URL()}/booking/cancelled`);
 });
