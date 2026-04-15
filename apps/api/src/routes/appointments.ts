@@ -338,44 +338,35 @@ async function sendConfirmationEmail(
   db: ReturnType<typeof getDb>,
   appt: typeof appointments.$inferSelect
 ): Promise<void> {
-  const [client] = await db
-    .select({ name: clients.name, email: clients.email, emailOptOut: clients.emailOptOut })
-    .from(clients)
-    .where(eq(clients.id, appt.clientId))
+  const [row] = await db
+    .select({
+      clientName: clients.name,
+      clientEmail: clients.email,
+      clientEmailOptOut: clients.emailOptOut,
+      petName: pets.name,
+      serviceName: services.name,
+      groomerName: staff.name,
+    })
+    .from(appointments)
+    .innerJoin(clients, eq(clients.id, appointments.clientId))
+    .innerJoin(pets, eq(pets.id, appointments.petId))
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .leftJoin(staff, eq(staff.id, appointments.staffId))
+    .where(eq(appointments.id, appt.id))
     .limit(1);
 
-  if (!client || !client.email || client.emailOptOut) return;
+  if (!row) return;
+  const { clientName, clientEmail, clientEmailOptOut, petName, serviceName, groomerName } = row;
 
-  const [pet] = await db
-    .select({ name: pets.name })
-    .from(pets)
-    .where(eq(pets.id, appt.petId))
-    .limit(1);
-
-  const [service] = await db
-    .select({ name: services.name })
-    .from(services)
-    .where(eq(services.id, appt.serviceId))
-    .limit(1);
-
-  let groomerName: string | null = null;
-  if (appt.staffId) {
-    const [groomer] = await db
-      .select({ name: staff.name })
-      .from(staff)
-      .where(eq(staff.id, appt.staffId))
-      .limit(1);
-    groomerName = groomer?.name ?? null;
-  }
-
-  if (!pet || !service) return;
+  if (!clientEmail || clientEmailOptOut) return;
+  if (!petName || !serviceName) return;
 
   const sent = await sendEmail(
-    buildConfirmationEmail(client.email, {
-      clientName: client.name,
-      petName: pet.name,
-      serviceName: service.name,
-      groomerName,
+    buildConfirmationEmail(clientEmail, {
+      clientName,
+      petName,
+      serviceName,
+      groomerName: groomerName ?? null,
       startTime: appt.startTime,
     })
   );
