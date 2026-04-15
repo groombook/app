@@ -82,7 +82,7 @@ appointmentGroupsRouter.get("/", async (c) => {
     groupApptMap.get(appt.groupId)!.push(appt);
   }
 
-  let result = groups
+  const result = groups
     .map((g) => ({
       ...g,
       appointments: (groupApptMap.get(g.id) ?? []).sort(
@@ -91,11 +91,12 @@ appointmentGroupsRouter.get("/", async (c) => {
     }))
     .filter((g) => !from || g.appointments.length > 0);
 
-  // Groomer: filter to groups where at least one appointment is assigned to them
   if (isGroomer) {
-    result = result.filter((g) =>
-      g.appointments.some(
-        (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
+    return c.json(
+      result.filter((g) =>
+        g.appointments.some(
+          (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
+        )
       )
     );
   }
@@ -125,8 +126,8 @@ appointmentGroupsRouter.get("/:id", async (c) => {
       serviceId: appointments.serviceId,
       serviceName: services.name,
       staffId: appointments.staffId,
-      staffName: staff.name,
       batherStaffId: appointments.batherStaffId,
+      staffName: staff.name,
       status: appointments.status,
       startTime: appointments.startTime,
       endTime: appointments.endTime,
@@ -140,12 +141,13 @@ appointmentGroupsRouter.get("/:id", async (c) => {
     .where(eq(appointments.groupId, id))
     .orderBy(appointments.startTime);
 
-  // Groomer: verify at least one appointment in the group is assigned to them
-  if (isGroomer) {
-    const hasAccess = groupAppts.some(
+  if (
+    isGroomer &&
+    !groupAppts.some(
       (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
-    );
-    if (!hasAccess) return c.json({ error: "Forbidden" }, 403);
+    )
+  ) {
+    return c.json({ error: "Forbidden" }, 403);
   }
 
   const [client] = await db
@@ -164,13 +166,12 @@ appointmentGroupsRouter.post(
   async (c) => {
     const db = getDb();
     const staffRow = c.get("staff");
-    const isGroomer = staffRow?.role === "groomer";
-
-    // Only managers and receptionists can create group bookings
-    if (isGroomer) {
-      return c.json({ error: "Forbidden: groomers cannot create group bookings" }, 403);
+    if (staffRow?.role === "groomer") {
+      return c.json(
+        { error: "Forbidden: groomers cannot create group bookings" },
+        403
+      );
     }
-
     const body = c.req.valid("json");
     const startTime = new Date(body.startTime);
 
@@ -278,23 +279,24 @@ appointmentGroupsRouter.patch(
     const staffRow = c.get("staff");
     const isGroomer = staffRow?.role === "groomer";
 
-    // Verify group exists
     const [group] = await db
-      .select()
+      .select({ id: appointmentGroups.id })
       .from(appointmentGroups)
       .where(eq(appointmentGroups.id, id));
     if (!group) return c.json({ error: "Not found" }, 404);
 
-    // Groomer: verify at least one appointment in the group is assigned to them
     if (isGroomer) {
       const groupAppts = await db
         .select({ staffId: appointments.staffId, batherStaffId: appointments.batherStaffId })
         .from(appointments)
         .where(eq(appointments.groupId, id));
-      const hasAccess = groupAppts.some(
-        (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
-      );
-      if (!hasAccess) return c.json({ error: "Forbidden" }, 403);
+      if (
+        !groupAppts.some(
+          (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
+        )
+      ) {
+        return c.json({ error: "Forbidden" }, 403);
+      }
     }
 
     const [updated] = await db
@@ -303,6 +305,7 @@ appointmentGroupsRouter.patch(
       .where(eq(appointmentGroups.id, id))
       .returning();
 
+    if (!updated) return c.json({ error: "Not found" }, 404);
     return c.json(updated);
   }
 );
@@ -316,21 +319,23 @@ appointmentGroupsRouter.delete("/:id", async (c) => {
   const isGroomer = staffRow?.role === "groomer";
 
   const [group] = await db
-    .select()
+    .select({ id: appointmentGroups.id })
     .from(appointmentGroups)
     .where(eq(appointmentGroups.id, id));
   if (!group) return c.json({ error: "Not found" }, 404);
 
-  // Groomer: verify at least one appointment in the group is assigned to them
   if (isGroomer) {
     const groupAppts = await db
       .select({ staffId: appointments.staffId, batherStaffId: appointments.batherStaffId })
       .from(appointments)
       .where(eq(appointments.groupId, id));
-    const hasAccess = groupAppts.some(
-      (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
-    );
-    if (!hasAccess) return c.json({ error: "Forbidden" }, 403);
+    if (
+      !groupAppts.some(
+        (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
+      )
+    ) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
   }
 
   await db
