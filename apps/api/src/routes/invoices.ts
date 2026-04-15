@@ -395,26 +395,28 @@ invoicesRouter.post(
       return c.json({ error: "No Stripe payment intent found for this invoice" }, 422);
     }
 
-    if (body.idempotencyKey) {
-      const [existing] = await db
-        .select()
-        .from(refunds)
-        .where(eq(refunds.idempotencyKey, body.idempotencyKey));
-      if (existing) {
-        return c.json({ refundId: existing.stripeRefundId });
+    return await db.transaction(async (tx) => {
+      if (body.idempotencyKey) {
+        const [existing] = await tx
+          .select()
+          .from(refunds)
+          .where(eq(refunds.idempotencyKey, body.idempotencyKey));
+        if (existing) {
+          return c.json({ refundId: existing.stripeRefundId });
+        }
       }
-    }
 
-    const result = await processRefund(id, body.amountCents);
-    if (!result) return c.json({ error: "Refund failed" }, 500);
+      const result = await processRefund(id, body.amountCents);
+      if (!result) return c.json({ error: "Refund failed" }, 500);
 
-    await db.insert(refunds).values({
-      invoiceId: id,
-      stripeRefundId: result.refundId,
-      idempotencyKey: body.idempotencyKey ?? null,
-      amountCents: body.amountCents ?? null,
+      await tx.insert(refunds).values({
+        invoiceId: id,
+        stripeRefundId: result.refundId,
+        idempotencyKey: body.idempotencyKey ?? null,
+        amountCents: body.amountCents ?? null,
+      });
+
+      return c.json({ refundId: result.refundId });
     });
-
-    return c.json({ refundId: result.refundId });
   }
 );
