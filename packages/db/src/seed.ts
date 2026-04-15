@@ -567,7 +567,7 @@ async function seed() {
 
   // ── Staff ──
   const managerStaff = Array.from({ length: cfg.staffCount.manager }, (_, i) =>
-    ({ id: uuid(), name: `Manager ${i + 1}`, email: `manager${i + 1}@groombook.dev`, role: "manager" as const, isSuperUser: false })
+    ({ id: uuid(), name: `Manager ${i + 1}`, email: `manager${i + 1}@groombook.dev`, role: "manager" as const, isSuperUser: profile === "uat" && i === 0 })
   );
   const receptionistStaff = Array.from({ length: cfg.staffCount.receptionist }, (_, i) =>
     ({ id: uuid(), name: `Receptionist ${i + 1}`, email: `receptionist${i + 1}@groombook.dev`, role: "receptionist" as const, isSuperUser: false })

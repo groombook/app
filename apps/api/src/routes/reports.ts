@@ -286,6 +286,10 @@ reportsRouter.get("/clients", async (c) => {
   ninetyDaysAgo.setUTCDate(ninetyDaysAgo.getUTCDate() - 90);
   const ninetyDaysAgoISO = ninetyDaysAgo.toISOString();
 
+  const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") ?? "20", 10) || 20));
+  const offset = (page - 1) * limit;
+
   const churnRisk = await db
     .select({
       clientId: clients.id,
@@ -298,15 +302,34 @@ reportsRouter.get("/clients", async (c) => {
     .having(
       sql`MAX(${appointments.startTime}) < ${ninetyDaysAgoISO}::timestamptz OR MAX(${appointments.startTime}) IS NULL`
     )
-    .orderBy(sql`MAX(${appointments.startTime}) ASC NULLS FIRST`);
+    .orderBy(sql`MAX(${appointments.startTime}) ASC NULLS FIRST`)
+    .limit(limit)
+    .offset(offset);
+
+  const [churnCountRow] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(
+      db
+        .select({ id: clients.id })
+        .from(clients)
+        .leftJoin(appointments, eq(appointments.clientId, clients.id))
+        .groupBy(clients.id)
+        .having(
+          sql`MAX(${appointments.startTime}) < ${ninetyDaysAgoISO}::timestamptz OR MAX(${appointments.startTime}) IS NULL`
+        )
+        .as("churn_count")
+    );
+  const churnRiskTotal = churnCountRow?.total ?? 0;
 
   return c.json({
     from: from.toISOString(),
     to: to.toISOString(),
     newClients,
     activeInPeriodCount: activeInPeriod.length,
-    churnRisk: churnRisk.slice(0, 20), // top 20 at-risk clients
-    churnRiskTotal: churnRisk.length,
+    churnRisk,
+    churnRiskTotal,
+    page,
+    limit,
   });
 });
 
