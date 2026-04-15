@@ -4,6 +4,7 @@ import { z } from "zod/v3";
 import {
   and,
   eq,
+  gte,
   getDb,
   invoices,
   invoiceLineItems,
@@ -377,3 +378,106 @@ invoicesRouter.post(
     return c.json({ refundId: result.refundId });
   }
 );
+
+// ─── Stripe Payment Info ───────────────────────────────────────────────────────
+
+import { getStripeClient } from "../services/payment.js";
+
+invoicesRouter.get("/:id/stripe-payment", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+  if (!invoice) return c.json({ error: "Not found" }, 404);
+
+  if (!invoice.stripePaymentIntentId) {
+    return c.json({ error: "No Stripe payment found for this invoice" }, 404);
+  }
+
+  const stripe = getStripeClient();
+  if (!stripe) return c.json({ error: "Stripe not configured" }, 503);
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.retrieve(invoice.stripePaymentIntentId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cardDetails = (paymentIntent as any).payment_details?.card;
+    const refundStatus = invoice.stripeRefundId
+      ? await stripe.refunds.retrieve(invoice.stripeRefundId).then((r) => r.status).catch(() => null)
+      : null;
+
+    return c.json({
+      paymentIntentId: invoice.stripePaymentIntentId,
+      amountPaidCents: paymentIntent.amount_received,
+      status: paymentIntent.status,
+      cardLast4: cardDetails?.last4 ?? null,
+      cardBrand: cardDetails?.brand ?? null,
+      refundId: invoice.stripeRefundId,
+      refundStatus,
+    });
+  } catch {
+    return c.json({ error: "Failed to retrieve Stripe payment info" }, 500);
+  }
+});
+
+// ─── Payment Stats ─────────────────────────────────────────────────────────────
+
+invoicesRouter.get("/stats", async (c) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const thisMonthInvoices = await db
+    .select()
+    .from(invoices)
+    .where(
+      and(
+        gte(invoices.createdAt, startOfMonth),
+        eq(invoices.status, "paid")
+      )
+    );
+
+  const revenueCents = thisMonthInvoices.reduce((sum, inv) => sum + inv.totalCents, 0);
+
+  const pendingInvoices = await db
+    .select({ totalCents: invoices.totalCents })
+    .from(invoices)
+    .where(eq(invoices.status, "pending"));
+
+  const outstandingCents = pendingInvoices.reduce((sum, inv) => sum + inv.totalCents, 0);
+
+  const refundedInvoices = await db
+    .select()
+    .from(invoices)
+    .where(
+      and(
+        gte(invoices.createdAt, startOfMonth),
+        sql`${invoices.stripeRefundId} IS NOT NULL`
+      )
+    );
+
+  const refundsCents = refundedInvoices.reduce((sum, inv) => sum + inv.totalCents, 0);
+
+  const paymentMethodBreakdown = await db
+    .select({
+      paymentMethod: invoices.paymentMethod,
+      count: sql<number>`count(*)`,
+      totalCents: sql<number>`sum(${invoices.totalCents})`,
+    })
+    .from(invoices)
+    .where(
+      and(
+        gte(invoices.createdAt, startOfMonth),
+        sql`${invoices.paymentMethod} IS NOT NULL`
+      )
+    )
+    .groupBy(invoices.paymentMethod);
+
+  return c.json({
+    revenueCents,
+    outstandingCents,
+    refundsCents,
+    revenueCount: thisMonthInvoices.length,
+    refundCount: refundedInvoices.length,
+    paymentMethodBreakdown,
+  });
+});

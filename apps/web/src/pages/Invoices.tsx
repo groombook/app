@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Invoice, Client, Appointment, Service, Staff, InvoiceTipSplit } from "@groombook/types";
+import type { Invoice, Client, Appointment, Service, Staff, InvoiceTipSplit, StripePaymentInfo, PaymentStats } from "@groombook/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,6 +173,23 @@ function InvoiceDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [tipStr, setTipStr] = useState((invoice.tipCents / 100).toFixed(2));
   const [paymentMethod, setPaymentMethod] = useState<string>(invoice.paymentMethod ?? "cash");
+  const [stripeInfo, setStripeInfo] = useState<StripePaymentInfo | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [showRefundDialog, setShowRefundDialog] = useState(false);
+  const [refundType, setRefundType] = useState<"full" | "partial">("full");
+  const [refundAmountStr, setRefundAmountStr] = useState("");
+  const [refunding, setRefunding] = useState(false);
+
+  useEffect(() => {
+    if (invoice.status === "paid" && invoice.stripePaymentIntentId) {
+      setStripeLoading(true);
+      fetch(`/api/invoices/${invoice.id}/stripe-payment`)
+        .then((r) => r.json())
+        .then((data: StripePaymentInfo) => setStripeInfo(data))
+        .catch(() => { /* non-blocking */ })
+        .finally(() => setStripeLoading(false));
+    }
+  }, [invoice.id, invoice.status, invoice.stripePaymentIntentId]);
 
   // Tip split state: array of {staffId, staffName, pct}
   const linkedAppt = invoice.appointmentId
@@ -271,6 +288,31 @@ function InvoiceDetailModal({
     }
   }
 
+  async function submitRefund() {
+    setRefunding(true);
+    setError(null);
+    const amountCents = refundType === "partial"
+      ? Math.round(parseFloat(refundAmountStr) * 100)
+      : undefined;
+    try {
+      const res = await fetch(`/api/invoices/${invoice.id}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountCents }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      setShowRefundDialog(false);
+      onUpdated();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Refund failed");
+    } finally {
+      setRefunding(false);
+    }
+  }
+
   if (loading) return <Modal onClose={onClose}><p style={{ padding: "1rem" }}>Loading…</p></Modal>;
 
   const tipCentsCalc = Math.round(parseFloat(tipStr) * 100) || 0;
@@ -330,6 +372,18 @@ function InvoiceDetailModal({
         />
         {invoice.paidAt && <SummaryRow label="Paid on" value={fmtDate(invoice.paidAt)} />}
         {invoice.paymentMethod && <SummaryRow label="Payment" value={invoice.paymentMethod} />}
+        {stripeLoading && <SummaryRow label="Stripe" value="Loading…" />}
+        {stripeInfo && (
+          <>
+            {stripeInfo.cardLast4 && (
+              <SummaryRow label="Card" value={`${stripeInfo.cardBrand ?? "Card"} •••• ${stripeInfo.cardLast4}`} />
+            )}
+            <SummaryRow label="Stripe status" value={stripeInfo.status} />
+            {invoice.stripeRefundId && stripeInfo.refundStatus && (
+              <SummaryRow label="Refund status" value={stripeInfo.refundStatus === "succeeded" ? "Refunded" : stripeInfo.refundStatus} />
+            )}
+          </>
+        )}
       </div>
 
       {/* ── Tip Distribution ── */}
@@ -447,8 +501,99 @@ function InvoiceDetailModal({
         </div>
       )}
       {(invoice.status === "paid" || invoice.status === "void") && (
-        <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+          {invoice.status === "paid" && invoice.stripePaymentIntentId && !invoice.stripeRefundId && (
+            <button
+              onClick={() => {
+                setRefundType("full");
+                setRefundAmountStr("");
+                setShowRefundDialog(true);
+              }}
+              style={{ ...btnStyle, color: "#dc2626", borderColor: "#dc2626" }}
+            >
+              Refund
+            </button>
+          )}
           <button onClick={onClose} style={btnStyle}>Close</button>
+        </div>
+      )}
+
+      {showRefundDialog && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 110,
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowRefundDialog(false); }}
+        >
+          <div style={{
+            background: "#fff", borderRadius: 8, padding: "1.5rem",
+            maxWidth: 400, width: "calc(100% - 2rem)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          }}>
+            <h3 style={{ margin: "0 0 1rem" }}>Process Refund</h3>
+            <p style={{ fontSize: 14, color: "#6b7280", marginBottom: "1rem" }}>
+              Invoice total: {fmtMoney(invoice.totalCents)}
+            </p>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: "0.25rem", fontSize: 13 }}>
+                Refund type
+              </label>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  onClick={() => setRefundType("full")}
+                  style={{
+                    ...btnStyle,
+                    backgroundColor: refundType === "full" ? "var(--color-primary)" : "#fff",
+                    color: refundType === "full" ? "#fff" : "#374151",
+                    borderColor: refundType === "full" ? "var(--color-primary)" : "#d1d5db",
+                  }}
+                >
+                  Full refund
+                </button>
+                <button
+                  onClick={() => { setRefundType("partial"); setRefundAmountStr((invoice.totalCents / 100).toFixed(2)); }}
+                  style={{
+                    ...btnStyle,
+                    backgroundColor: refundType === "partial" ? "var(--color-primary)" : "#fff",
+                    color: refundType === "partial" ? "#fff" : "#374151",
+                    borderColor: refundType === "partial" ? "var(--color-primary)" : "#d1d5db",
+                  }}
+                >
+                  Partial refund
+                </button>
+              </div>
+            </div>
+            {refundType === "partial" && (
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: "0.25rem", fontSize: 13 }}>
+                  Refund amount
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ color: "#6b7280" }}>$</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    max={(invoice.totalCents / 100).toFixed(2)}
+                    step="0.01"
+                    value={refundAmountStr}
+                    onChange={(e) => setRefundAmountStr(e.target.value)}
+                    style={{ ...inputStyle, width: 100 }}
+                  />
+                </div>
+              </div>
+            )}
+            {error && <p style={{ color: "red", margin: "0.5rem 0" }}>{error}</p>}
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button onClick={() => setShowRefundDialog(false)} style={btnStyle}>Cancel</button>
+              <button
+                onClick={submitRefund}
+                disabled={refunding || (refundType === "partial" && (!refundAmountStr || parseFloat(refundAmountStr) <= 0))}
+                style={{ ...btnStyle, backgroundColor: "#dc2626", color: "#fff", borderColor: "#dc2626" }}
+              >
+                {refunding ? "Refunding…" : "Refund"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </Modal>
@@ -492,6 +637,8 @@ export function InvoicesPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [detailData, setDetailData] = useState<{ staff: Staff[]; appointments: Appointment[] } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [stats, setStats] = useState<PaymentStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const LIMIT = 50;
 
@@ -512,6 +659,15 @@ export function InvoicesPage() {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Unknown error"))
       .finally(() => setLoading(false));
   }, [statusFilter]);
+
+  useEffect(() => {
+    setStatsLoading(true);
+    fetch("/api/invoices/stats")
+      .then((r) => r.json())
+      .then((data: PaymentStats) => setStats(data))
+      .catch(() => { /* non-blocking */ })
+      .finally(() => setStatsLoading(false));
+  }, []);
 
   function loadCreateData() {
     if (createData) return Promise.resolve();
@@ -572,6 +728,36 @@ export function InvoicesPage() {
           + Create Invoice
         </button>
       </div>
+
+      {!statsLoading && stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.75rem", marginBottom: "1rem" }}>
+          <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", padding: "0.875rem 1rem" }}>
+            <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 500, marginBottom: "0.25rem" }}>Revenue this month</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#065f46" }}>{fmtMoney(stats.revenueCents)}</div>
+            <div style={{ fontSize: 12, color: "#9ca3af" }}>{stats.revenueCount} paid</div>
+          </div>
+          <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", padding: "0.875rem 1rem" }}>
+            <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 500, marginBottom: "0.25rem" }}>Outstanding</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#92400e" }}>{fmtMoney(stats.outstandingCents)}</div>
+          </div>
+          <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", padding: "0.875rem 1rem" }}>
+            <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 500, marginBottom: "0.25rem" }}>Refunds this month</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#991b1b" }}>{fmtMoney(stats.refundsCents)}</div>
+            <div style={{ fontSize: 12, color: "#9ca3af" }}>{stats.refundCount} refunds</div>
+          </div>
+          {stats.paymentMethodBreakdown.length > 0 && (
+            <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", padding: "0.875rem 1rem" }}>
+              <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 500, marginBottom: "0.25rem" }}>By payment method</div>
+              {stats.paymentMethodBreakdown.map((b) => (
+                <div key={b.paymentMethod} style={{ fontSize: 13, display: "flex", justifyContent: "space-between", marginTop: "0.2rem" }}>
+                  <span style={{ textTransform: "capitalize" }}>{b.paymentMethod}</span>
+                  <span style={{ fontWeight: 600 }}>{fmtMoney(b.totalCents)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {invoiceList.length === 0 ? (
         <p style={{ color: "#6b7280" }}>

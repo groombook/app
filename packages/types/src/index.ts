@@ -153,8 +153,36 @@ export interface Invoice {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  stripePaymentIntentId?: string | null;
+  stripeRefundId?: string | null;
+  paymentFailureReason?: string | null;
   lineItems?: InvoiceLineItem[];
   tipSplits?: InvoiceTipSplit[];
+}
+
+export interface StripePaymentInfo {
+  paymentIntentId: string;
+  amountPaidCents: number;
+  status: string;
+  cardLast4: string | null;
+  cardBrand: string | null;
+  refundId: string | null;
+  refundStatus: string | null;
+}
+
+export interface PaymentMethodBreakdown {
+  paymentMethod: PaymentMethod;
+  count: number;
+  totalCents: number;
+}
+
+export interface PaymentStats {
+  revenueCents: number;
+  outstandingCents: number;
+  refundsCents: number;
+  revenueCount: number;
+  refundCount: number;
+  paymentMethodBreakdown: PaymentMethodBreakdown[];
 }
 
 // ─── Impersonation ──────────────────────────────────────────────────────────
