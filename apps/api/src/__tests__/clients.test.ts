@@ -27,12 +27,14 @@ const DISABLED_CLIENT = {
 // ─── Queue-based mock DB ──────────────────────────────────────────────────────
 
 let selectRows: Record<string, unknown>[] = [];
+let appointmentRows: Record<string, unknown>[] = [];
 let insertedValues: Record<string, unknown>[] = [];
 let updatedValues: Record<string, unknown>[] = [];
 let deletedId: string | null = null;
 
 function resetMock() {
   selectRows = [];
+  appointmentRows = [];
   insertedValues = [];
   updatedValues = [];
   deletedId = null;
@@ -58,10 +60,19 @@ vi.mock("@groombook/db", () => {
     { get: (t, p) => (p === "_name" ? "clients" : { table: "clients", column: p }) }
   );
 
+  const appointments = new Proxy(
+    { _name: "appointments" },
+    { get: (t, p) => (p === "_name" ? "appointments" : { table: "appointments", column: p }) }
+  );
+
   return {
     getDb: () => ({
       select: () => ({
-        from: () => makeChainable(selectRows),
+        from: (table: unknown) => {
+          const tableName = (table as { _name?: string })._name;
+          const rows = tableName === "appointments" ? appointmentRows : selectRows;
+          return makeChainable(rows);
+        },
       }),
       insert: () => ({
         values: (vals: Record<string, unknown>) => {
@@ -95,8 +106,10 @@ vi.mock("@groombook/db", () => {
       }),
     }),
     clients,
+    appointments,
     eq: vi.fn(),
     and: vi.fn(),
+    or: vi.fn(),
   };
 });
 

@@ -135,9 +135,24 @@ clientsRouter.delete("/:id", async (c) => {
   }
 
   const db = getDb();
+  const clientId = c.req.param("id");
+
+  const [existingAppt] = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .where(eq(appointments.clientId, clientId))
+    .limit(1);
+
+  if (existingAppt) {
+    return c.json(
+      { error: "Cannot delete client with existing appointments. Cancel or reassign appointments first." },
+      409
+    );
+  }
+
   const [row] = await db
     .delete(clients)
-    .where(eq(clients.id, c.req.param("id")))
+    .where(eq(clients.id, clientId))
     .returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json({ ok: true });
