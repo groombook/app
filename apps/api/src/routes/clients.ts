@@ -8,7 +8,7 @@ export const clientsRouter = new Hono<AppEnv>();
 
 const createClientSchema = z.object({
   name: z.string().min(1).max(200),
-  email: z.string().email().optional(),
+  email: z.string().email(),
   phone: z.string().max(50).optional(),
   address: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
