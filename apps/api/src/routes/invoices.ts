@@ -44,52 +44,60 @@ const updateInvoiceSchema = z.object({
 });
 
 // List invoices
-invoicesRouter.get("/", async (c) => {
-  const db = getDb();
-  const clientId = c.req.query("clientId");
-  const appointmentId = c.req.query("appointmentId");
-  const status = c.req.query("status");
-  const limit = Math.min(parseInt(c.req.query("limit") || "50", 10), 200);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
-
-  const conditions = [];
-  if (clientId) conditions.push(eq(invoices.clientId, clientId));
-  if (appointmentId) conditions.push(eq(invoices.appointmentId, appointmentId));
-  if (status) conditions.push(eq(invoices.status, status as "draft" | "pending" | "paid" | "void"));
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const [totalResult] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(invoices)
-    .where(whereClause);
-
-  const rows = await db
-    .select({
-      id: invoices.id,
-      appointmentId: invoices.appointmentId,
-      clientId: invoices.clientId,
-      clientName: clients.name,
-      subtotalCents: invoices.subtotalCents,
-      taxCents: invoices.taxCents,
-      tipCents: invoices.tipCents,
-      totalCents: invoices.totalCents,
-      status: invoices.status,
-      paymentMethod: invoices.paymentMethod,
-      paidAt: invoices.paidAt,
-      notes: invoices.notes,
-      createdAt: invoices.createdAt,
-      updatedAt: invoices.updatedAt,
-    })
-    .from(invoices)
-    .leftJoin(clients, eq(invoices.clientId, clients.id))
-    .where(whereClause)
-    .orderBy(invoices.createdAt)
-    .limit(limit)
-    .offset(offset);
-
-  return c.json({ data: rows, total: totalResult?.count ?? 0 });
+const listInvoicesQuerySchema = z.object({
+  clientId: z.string().uuid().optional(),
+  appointmentId: z.string().uuid().optional(),
+  status: z.enum(["draft", "pending", "paid", "void"]).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
 });
+
+invoicesRouter.get(
+  "/",
+  zValidator("query", listInvoicesQuerySchema),
+  async (c) => {
+    const db = getDb();
+    const { clientId, appointmentId, status, limit, offset } = c.req.valid("query");
+
+    const conditions = [];
+    if (clientId) conditions.push(eq(invoices.clientId, clientId));
+    if (appointmentId) conditions.push(eq(invoices.appointmentId, appointmentId));
+    if (status) conditions.push(eq(invoices.status, status as "draft" | "pending" | "paid" | "void"));
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [totalResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(invoices)
+      .where(whereClause);
+
+    const rows = await db
+      .select({
+        id: invoices.id,
+        appointmentId: invoices.appointmentId,
+        clientId: invoices.clientId,
+        clientName: clients.name,
+        subtotalCents: invoices.subtotalCents,
+        taxCents: invoices.taxCents,
+        tipCents: invoices.tipCents,
+        totalCents: invoices.totalCents,
+        status: invoices.status,
+        paymentMethod: invoices.paymentMethod,
+        paidAt: invoices.paidAt,
+        notes: invoices.notes,
+        createdAt: invoices.createdAt,
+        updatedAt: invoices.updatedAt,
+      })
+      .from(invoices)
+      .leftJoin(clients, eq(invoices.clientId, clients.id))
+      .where(whereClause)
+      .orderBy(invoices.createdAt)
+      .limit(limit)
+      .offset(offset);
+
+    return c.json({ data: rows, total: totalResult?.count ?? 0 });
+  }
+);
 
 // Get single invoice with line items and tip splits
 invoicesRouter.get("/:id", async (c) => {

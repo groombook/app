@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.4'
 
       - uses: actions/setup-node@v4
         with:
@@ -42,6 +44,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.4'
 
       - uses: actions/setup-node@v4
         with:
@@ -62,6 +66,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.4'
 
       - uses: actions/setup-node@v4
         with:
@@ -101,6 +107,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.4'
 
       - uses: actions/setup-node@v4
         with:
@@ -238,7 +246,6 @@ jobs:
           echo "Deploying images tagged $TAG to groombook-dev..."
 
           # Run migration with PR image
-          kubectl delete job migrate-schema -n groombook-dev --ignore-not-found
           kubectl delete job "migrate-pr-$PR_NUM" -n groombook-dev --ignore-not-found
           cat <<EOF | kubectl apply -n groombook-dev -f -
           apiVersion: batch/v1
@@ -303,6 +310,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.4'
 
       - uses: actions/setup-node@v4
         with:
@@ -409,11 +418,17 @@ jobs:
 
           git push -u origin "chore/update-image-tags-${TAG}"
 
-          # Create PR and merge immediately (no required checks on groombook/infra)
-          PR_URL=$(gh pr create \
-            --repo groombook/infra \
-            --base main \
-            --head "chore/update-image-tags-${TAG}" \
-            --title "chore: deploy ${TAG} to dev" \
-            --body "[GRO-178](/GRO/issues/GRO-178) — automated image tag update from main merge")
-          gh pr merge "$PR_URL" --merge
+          # Check if PR already exists for this branch
+          EXISTING_PR=$(gh pr list --repo groombook/infra --head "chore/update-image-tags-${TAG}" --state open --json number -q '.[0].number' || true)
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for this tag, merging existing PR"
+            gh pr merge "$EXISTING_PR" --repo groombook/infra --merge
+          else
+            PR_URL=$(gh pr create \
+              --repo groombook/infra \
+              --base main \
+              --head "chore/update-image-tags-${TAG}" \
+              --title "chore: deploy ${TAG} to dev" \
+              --body "[GRO-178](/GRO/issues/GRO-178) — automated image tag update from main merge")
+            gh pr merge "$PR_URL" --merge
+          fi

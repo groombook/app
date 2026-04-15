@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { desc, eq, getDb, groomingVisitLogs } from "@groombook/db";
+import { and, desc, eq, getDb, groomingVisitLogs, appointments, or } from "@groombook/db";
+import type { AppEnv } from "../middleware/rbac.js";
 
-export const groomingLogsRouter = new Hono();
+export const groomingLogsRouter = new Hono<AppEnv>();
 
 const createLogSchema = z.object({
   petId: z.string().uuid(),
@@ -20,6 +21,26 @@ groomingLogsRouter.get("/", async (c) => {
   const db = getDb();
   const petId = c.req.query("petId");
   if (!petId) return c.json({ error: "petId is required" }, 400);
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
+
+  if (isGroomer) {
+    const [appt] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.petId, petId),
+          or(
+            eq(appointments.staffId, staffRow.id),
+            eq(appointments.batherStaffId, staffRow.id)
+          )
+        )
+      )
+      .limit(1);
+    if (!appt) return c.json({ error: "Forbidden" }, 403);
+  }
+
   const rows = await db
     .select()
     .from(groomingVisitLogs)
@@ -33,11 +54,50 @@ groomingLogsRouter.post(
   zValidator("json", createLogSchema),
   async (c) => {
     const db = getDb();
-    const { groomedAt, ...rest } = c.req.valid("json");
+    const { groomedAt, petId, appointmentId, ...rest } = c.req.valid("json");
+    const staffRow = c.get("staff");
+    const isGroomer = staffRow?.role === "groomer";
+
+    if (isGroomer) {
+      if (appointmentId) {
+        const [appt] = await db
+          .select({ id: appointments.id })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.id, appointmentId),
+              or(
+                eq(appointments.staffId, staffRow.id),
+                eq(appointments.batherStaffId, staffRow.id)
+              )
+            )
+          )
+          .limit(1);
+        if (!appt) return c.json({ error: "Forbidden" }, 403);
+      } else {
+        const [appt] = await db
+          .select({ id: appointments.id })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.petId, petId),
+              or(
+                eq(appointments.staffId, staffRow.id),
+                eq(appointments.batherStaffId, staffRow.id)
+              )
+            )
+          )
+          .limit(1);
+        if (!appt) return c.json({ error: "Forbidden" }, 403);
+      }
+    }
+
     const [row] = await db
       .insert(groomingVisitLogs)
       .values({
         ...rest,
+        petId,
+        appointmentId: appointmentId ?? null,
         groomedAt: groomedAt ? new Date(groomedAt) : new Date(),
       })
       .returning();
@@ -47,10 +107,37 @@ groomingLogsRouter.post(
 
 groomingLogsRouter.delete("/:id", async (c) => {
   const db = getDb();
-  const [row] = await db
+  const id = c.req.param("id");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
+
+  const [log] = await db
+    .select()
+    .from(groomingVisitLogs)
+    .where(eq(groomingVisitLogs.id, id))
+    .limit(1);
+  if (!log) return c.json({ error: "Not found" }, 404);
+
+  if (isGroomer) {
+    const [appt] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.petId, log.petId),
+          or(
+            eq(appointments.staffId, staffRow.id),
+            eq(appointments.batherStaffId, staffRow.id)
+          )
+        )
+      )
+      .limit(1);
+    if (!appt) return c.json({ error: "Forbidden" }, 403);
+  }
+
+  await db
     .delete(groomingVisitLogs)
-    .where(eq(groomingVisitLogs.id, c.req.param("id")))
+    .where(eq(groomingVisitLogs.id, id))
     .returning();
-  if (!row) return c.json({ error: "Not found" }, 404);
   return c.json({ ok: true });
 });
