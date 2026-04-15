@@ -9,7 +9,7 @@ const createServiceSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   basePriceCents: z.number().int().positive(),
-  durationMinutes: z.number().int().positive(),
+  durationMinutes: z.number().int().positive().max(480),
   active: z.boolean().default(true),
 });
 
