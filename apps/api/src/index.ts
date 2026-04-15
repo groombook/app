@@ -25,7 +25,6 @@ import { setupRouter } from "./routes/setup.js";
 import { getDb, businessSettings, eq, staff } from "@groombook/db";
 import { authMiddleware } from "./middleware/auth.js";
 import { resolveStaffMiddleware, requireRole, requireRoleOrSuperUser, requireSuperUser } from "./middleware/rbac.js";
-import { csrfMiddleware } from "./middleware/csrf.js";
 import { devRouter } from "./routes/dev.js";
 import { adminSeedRouter } from "./routes/admin/seed.js";
 import { startReminderScheduler } from "./services/reminders.js";
@@ -106,7 +105,6 @@ app.get("/api/auth/providers", async (c) => {
 const api = app.basePath("/api");
 api.use("*", authMiddleware);
 api.use("*", resolveStaffMiddleware);
-api.use("*", csrfMiddleware);
 
 // Better-Auth handler — mounted as sub-app to handle all /api/auth/* routes
 // authMiddleware and resolveStaffMiddleware both skip /api/auth/ paths
