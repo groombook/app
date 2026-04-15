@@ -300,6 +300,25 @@ export const invoiceTipSplits = pgTable(
   (t) => [index("idx_invoice_tip_splits_invoice_id").on(t.invoiceId)]
 );
 
+// Refund records with idempotency key support
+export const refunds = pgTable(
+  "refunds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "restrict" }),
+    stripeRefundId: text("stripe_refund_id").notNull(),
+    idempotencyKey: text("idempotency_key").unique(),
+    amountCents: integer("amount_cents"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_refunds_invoice_id").on(t.invoiceId),
+    index("idx_refunds_idempotency_key").on(t.idempotencyKey),
+  ]
+);
+
 // Tracks which reminder emails have been sent per appointment (prevents duplicates).
 // reminder_type values: "confirmation", "24h", "2h"
 export const reminderLogs = pgTable(

@@ -202,9 +202,24 @@ api.route("/search", searchRouter);
 const port = Number(process.env.PORT ?? 3000);
 await initAuth();
 console.log(`API server listening on port ${port}`);
-serve({ fetch: app.fetch, port });
+const server = serve({ fetch: app.fetch, port });
 
 // Start background reminder scheduler (runs every minute to check for upcoming appointments)
 startReminderScheduler();
+
+function shutdown() {
+  console.log("Shutting down gracefully...");
+  server.close(() => {
+    console.log("HTTP server closed");
+    process.exit(0);
+  });
+  setTimeout(() => {
+    console.error("Forced shutdown after timeout");
+    process.exit(1);
+  }, 10_000);
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
 export default app;

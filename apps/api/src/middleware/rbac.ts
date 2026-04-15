@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import { eq, getDb, staff } from "@groombook/db";
+import { and, eq, getDb, sql, staff } from "@groombook/db";
 
 export type StaffRole = "groomer" | "receptionist" | "manager";
 export type StaffRow = typeof staff.$inferSelect;
@@ -89,14 +89,31 @@ export const resolveStaffMiddleware: MiddlewareHandler<AppEnv> = async (
     .select()
     .from(staff)
     .where(eq(staff.oidcSub, jwt.sub));
-  if (!fallbackRow) {
-    return c.json(
-      { error: "Forbidden: no staff record found for authenticated user" },
-      403
-    );
+  if (fallbackRow) {
+    c.set("staff", fallbackRow);
+    await next();
+    return;
   }
-  c.set("staff", fallbackRow);
-  await next();
+  // Auto-link by email: staff record exists with matching email but no userId
+  if (jwt.email) {
+    const [byEmail] = await db
+      .select()
+      .from(staff)
+      .where(and(eq(staff.email, jwt.email), sql`${staff.userId} IS NULL`));
+    if (byEmail) {
+      await db
+        .update(staff)
+        .set({ userId: jwt.sub, updatedAt: new Date() })
+        .where(eq(staff.id, byEmail.id));
+      c.set("staff", { ...byEmail, userId: jwt.sub });
+      await next();
+      return;
+    }
+  }
+  return c.json(
+    { error: "Forbidden: no staff record found for authenticated user" },
+    403
+  );
 };
 
 /**

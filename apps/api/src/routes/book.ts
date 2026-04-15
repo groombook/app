@@ -102,7 +102,10 @@ bookRouter.get("/availability", async (c) => {
 
 const bookingSchema = z.object({
   serviceId: z.string().uuid(),
-  startTime: z.string().datetime(),
+  startTime: z.string().datetime().refine(
+    (dt) => new Date(dt) > new Date(),
+    { message: "Appointment must be in the future" }
+  ),
   clientName: z.string().min(1).max(200),
   clientEmail: z.string().email(),
   clientPhone: z.string().max(50).optional(),

@@ -8,6 +8,7 @@ import {
   invoices,
   invoiceLineItems,
   invoiceTipSplits,
+  refunds,
   appointments,
   services,
   clients,
@@ -44,52 +45,60 @@ const updateInvoiceSchema = z.object({
 });
 
 // List invoices
-invoicesRouter.get("/", async (c) => {
-  const db = getDb();
-  const clientId = c.req.query("clientId");
-  const appointmentId = c.req.query("appointmentId");
-  const status = c.req.query("status");
-  const limit = Math.min(parseInt(c.req.query("limit") || "50", 10), 200);
-  const offset = parseInt(c.req.query("offset") || "0", 10);
-
-  const conditions = [];
-  if (clientId) conditions.push(eq(invoices.clientId, clientId));
-  if (appointmentId) conditions.push(eq(invoices.appointmentId, appointmentId));
-  if (status) conditions.push(eq(invoices.status, status as "draft" | "pending" | "paid" | "void"));
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const [totalResult] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(invoices)
-    .where(whereClause);
-
-  const rows = await db
-    .select({
-      id: invoices.id,
-      appointmentId: invoices.appointmentId,
-      clientId: invoices.clientId,
-      clientName: clients.name,
-      subtotalCents: invoices.subtotalCents,
-      taxCents: invoices.taxCents,
-      tipCents: invoices.tipCents,
-      totalCents: invoices.totalCents,
-      status: invoices.status,
-      paymentMethod: invoices.paymentMethod,
-      paidAt: invoices.paidAt,
-      notes: invoices.notes,
-      createdAt: invoices.createdAt,
-      updatedAt: invoices.updatedAt,
-    })
-    .from(invoices)
-    .leftJoin(clients, eq(invoices.clientId, clients.id))
-    .where(whereClause)
-    .orderBy(invoices.createdAt)
-    .limit(limit)
-    .offset(offset);
-
-  return c.json({ data: rows, total: totalResult?.count ?? 0 });
+const listInvoicesQuerySchema = z.object({
+  clientId: z.string().uuid().optional(),
+  appointmentId: z.string().uuid().optional(),
+  status: z.enum(["draft", "pending", "paid", "void"]).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
 });
+
+invoicesRouter.get(
+  "/",
+  zValidator("query", listInvoicesQuerySchema),
+  async (c) => {
+    const db = getDb();
+    const { clientId, appointmentId, status, limit, offset } = c.req.valid("query");
+
+    const conditions = [];
+    if (clientId) conditions.push(eq(invoices.clientId, clientId));
+    if (appointmentId) conditions.push(eq(invoices.appointmentId, appointmentId));
+    if (status) conditions.push(eq(invoices.status, status as "draft" | "pending" | "paid" | "void"));
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [totalResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(invoices)
+      .where(whereClause);
+
+    const rows = await db
+      .select({
+        id: invoices.id,
+        appointmentId: invoices.appointmentId,
+        clientId: invoices.clientId,
+        clientName: clients.name,
+        subtotalCents: invoices.subtotalCents,
+        taxCents: invoices.taxCents,
+        tipCents: invoices.tipCents,
+        totalCents: invoices.totalCents,
+        status: invoices.status,
+        paymentMethod: invoices.paymentMethod,
+        paidAt: invoices.paidAt,
+        notes: invoices.notes,
+        createdAt: invoices.createdAt,
+        updatedAt: invoices.updatedAt,
+      })
+      .from(invoices)
+      .leftJoin(clients, eq(invoices.clientId, clients.id))
+      .where(whereClause)
+      .orderBy(invoices.createdAt)
+      .limit(limit)
+      .offset(offset);
+
+    return c.json({ data: rows, total: totalResult?.count ?? 0 });
+  }
+);
 
 // Get single invoice with line items and tip splits
 invoicesRouter.get("/:id", async (c) => {
@@ -117,8 +126,8 @@ const tipSplitSchema = z.object({
     })
   ).min(1).refine(
     (splits) => {
-      const total = splits.reduce((sum, s) => sum + s.sharePct, 0);
-      return Math.abs(total - 100) < 0.01;
+      const totalBps = splits.reduce((sum, s) => sum + Math.round(s.sharePct * 100), 0);
+      return totalBps === 10000;
     },
     { message: "Split percentages must sum to 100" }
   ),
@@ -162,12 +171,13 @@ invoicesRouter.post(
       }
     });
 
-    const splits = await db
-      .select()
-      .from(invoiceTipSplits)
-      .where(eq(invoiceTipSplits.invoiceId, id));
+    const [updatedInvoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    const [lineItems, tipSplits] = await Promise.all([
+      db.select().from(invoiceLineItems).where(eq(invoiceLineItems.invoiceId, id)),
+      db.select().from(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id)),
+    ]);
 
-    return c.json(splits, 201);
+    return c.json({ ...updatedInvoice, lineItems, tipSplits }, 201);
   }
 );
 
@@ -292,6 +302,13 @@ invoicesRouter.post("/from-appointment/:appointmentId", async (c) => {
   return c.json({ ...invoice, lineItems: [lineItem] }, 201);
 });
 
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  draft: ["pending", "void"],
+  pending: ["draft", "paid", "void"],
+  paid: ["void"],
+  void: [],
+};
+
 // Update invoice
 invoicesRouter.patch(
   "/:id",
@@ -307,8 +324,14 @@ invoicesRouter.patch(
       .where(eq(invoices.id, id));
     if (!current) return c.json({ error: "Not found" }, 404);
 
-    if (current.status === "void") {
-      return c.json({ error: "Cannot modify a voided invoice" }, 422);
+    if (body.status !== undefined) {
+      const allowed = ALLOWED_TRANSITIONS[current.status] ?? [];
+      if (!allowed.includes(body.status)) {
+        return c.json(
+          { error: `Invalid status transition from ${current.status} to ${body.status}` },
+          422
+        );
+      }
     }
 
     const update: Record<string, unknown> = { ...body, updatedAt: new Date() };
@@ -346,6 +369,7 @@ import { processRefund } from "../services/payment.js";
 
 const refundSchema = z.object({
   amountCents: z.number().int().nonnegative().optional(),
+  idempotencyKey: z.string().max(255).optional(),
 });
 
 invoicesRouter.post(
@@ -371,9 +395,28 @@ invoicesRouter.post(
       return c.json({ error: "No Stripe payment intent found for this invoice" }, 422);
     }
 
-    const result = await processRefund(id, body.amountCents);
-    if (!result) return c.json({ error: "Refund failed" }, 500);
+    return await db.transaction(async (tx) => {
+      if (body.idempotencyKey) {
+        const [existing] = await tx
+          .select()
+          .from(refunds)
+          .where(eq(refunds.idempotencyKey, body.idempotencyKey));
+        if (existing) {
+          return c.json({ refundId: existing.stripeRefundId });
+        }
+      }
 
-    return c.json({ refundId: result.refundId });
+      const result = await processRefund(id, body.amountCents);
+      if (!result) return c.json({ error: "Refund failed" }, 500);
+
+      await tx.insert(refunds).values({
+        invoiceId: id,
+        stripeRefundId: result.refundId,
+        idempotencyKey: body.idempotencyKey ?? null,
+        amountCents: body.amountCents ?? null,
+      });
+
+      return c.json({ refundId: result.refundId });
+    });
   }
 );
