@@ -110,6 +110,10 @@ export const clients = pgTable("clients", {
   address: text("address"),
   notes: text("notes"),
   emailOptOut: boolean("email_opt_out").notNull().default(false),
+  smsOptIn: boolean("sms_opt_in").notNull().default(false),
+  smsConsentDate: timestamp("sms_consent_date"),
+  smsOptOutDate: timestamp("sms_opt_out_date"),
+  smsConsentText: text("sms_consent_text"),
   stripeCustomerId: text("stripe_customer_id"),
   status: clientStatusEnum("status").notNull().default("active"),
   disabledAt: timestamp("disabled_at"),
@@ -321,6 +325,7 @@ export const refunds = pgTable(
 
 // Tracks which reminder emails have been sent per appointment (prevents duplicates).
 // reminder_type values: "confirmation", "24h", "2h"
+// channel values: "email", "sms"
 export const reminderLogs = pgTable(
   "reminder_logs",
   {
@@ -330,9 +335,11 @@ export const reminderLogs = pgTable(
       .references(() => appointments.id, { onDelete: "cascade" }),
     // "confirmation" | "24h" | "2h"
     reminderType: text("reminder_type").notNull(),
+    // "email" | "sms"
+    channel: text("channel").notNull().default("email"),
     sentAt: timestamp("sent_at").notNull().defaultNow(),
   },
-  (t) => [unique().on(t.appointmentId, t.reminderType)]
+  (t) => [unique().on(t.appointmentId, t.reminderType, t.channel)]
 );
 
 // ─── Impersonation ──────────────────────────────────────────────────────────
