@@ -102,47 +102,55 @@ export const verification = pgTable("verification", {
 
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
-export const clients = pgTable("clients", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  email: text("email"),
-  phone: text("phone"),
-  address: text("address"),
-  notes: text("notes"),
-  emailOptOut: boolean("email_opt_out").notNull().default(false),
-  smsOptIn: boolean("sms_opt_in").notNull().default(false),
-  smsConsentDate: timestamp("sms_consent_date"),
-  smsOptOutDate: timestamp("sms_opt_out_date"),
-  smsConsentText: text("sms_consent_text"),
-  stripeCustomerId: text("stripe_customer_id"),
-  status: clientStatusEnum("status").notNull().default("active"),
-  disabledAt: timestamp("disabled_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const clients = pgTable(
+  "clients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone"),
+    address: text("address"),
+    notes: text("notes"),
+    emailOptOut: boolean("email_opt_out").notNull().default(false),
+    smsOptIn: boolean("sms_opt_in").notNull().default(false),
+    smsConsentDate: timestamp("sms_consent_date"),
+    smsOptOutDate: timestamp("sms_opt_out_date"),
+    smsConsentText: text("sms_consent_text"),
+    stripeCustomerId: text("stripe_customer_id"),
+    status: clientStatusEnum("status").notNull().default("active"),
+    disabledAt: timestamp("disabled_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("idx_clients_email").on(t.email)]
+);
 
-export const pets = pgTable("pets", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  clientId: uuid("client_id")
-    .notNull()
-    .references(() => clients.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  species: text("species").notNull(),
-  breed: text("breed"),
-  weightKg: numeric("weight_kg", { precision: 5, scale: 2 }),
-  dateOfBirth: timestamp("date_of_birth"),
-  healthAlerts: text("health_alerts"),
-  groomingNotes: text("grooming_notes"),
-  cutStyle: text("cut_style"),
-  shampooPreference: text("shampoo_preference"),
-  specialCareNotes: text("special_care_notes"),
-  customFields: jsonb("custom_fields").$type<Record<string, string>>().notNull().default({}),
-  photoKey: text("photo_key"),
-  photoUploadedAt: timestamp("photo_uploaded_at"),
-  image: text("image"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const pets = pgTable(
+  "pets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    species: text("species").notNull(),
+    breed: text("breed"),
+    weightKg: numeric("weight_kg", { precision: 5, scale: 2 }),
+    dateOfBirth: timestamp("date_of_birth"),
+    healthAlerts: text("health_alerts"),
+    groomingNotes: text("grooming_notes"),
+    cutStyle: text("cut_style"),
+    shampooPreference: text("shampoo_preference"),
+    specialCareNotes: text("special_care_notes"),
+    customFields: jsonb("custom_fields").$type<Record<string, string>>().notNull().default({}),
+    photoKey: text("photo_key"),
+    photoUploadedAt: timestamp("photo_uploaded_at"),
+    image: text("image"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("idx_pets_client_id").on(t.clientId)]
+);
 
 export const services = pgTable("services", {
   id: uuid("id").primaryKey().defaultRandom(),
