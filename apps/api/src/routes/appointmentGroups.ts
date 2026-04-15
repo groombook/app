@@ -16,8 +16,9 @@ import {
   services,
   staff,
 } from "@groombook/db";
+import type { AppEnv } from "../middleware/rbac.js";
 
-export const appointmentGroupsRouter = new Hono();
+export const appointmentGroupsRouter = new Hono<AppEnv>();
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ appointmentGroupsRouter.get("/", async (c) => {
   const clientId = c.req.query("clientId");
   const from = c.req.query("from");
   const to = c.req.query("to");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
 
   const groupConditions = clientId
     ? [eq(appointmentGroups.clientId, clientId)]
@@ -88,6 +91,16 @@ appointmentGroupsRouter.get("/", async (c) => {
     }))
     .filter((g) => !from || g.appointments.length > 0);
 
+  if (isGroomer) {
+    return c.json(
+      result.filter((g) =>
+        g.appointments.some(
+          (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
+        )
+      )
+    );
+  }
+
   return c.json(result);
 });
 
@@ -96,6 +109,8 @@ appointmentGroupsRouter.get("/", async (c) => {
 appointmentGroupsRouter.get("/:id", async (c) => {
   const db = getDb();
   const id = c.req.param("id");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
 
   const [group] = await db
     .select()
@@ -111,6 +126,7 @@ appointmentGroupsRouter.get("/:id", async (c) => {
       serviceId: appointments.serviceId,
       serviceName: services.name,
       staffId: appointments.staffId,
+      batherStaffId: appointments.batherStaffId,
       staffName: staff.name,
       status: appointments.status,
       startTime: appointments.startTime,
@@ -124,6 +140,15 @@ appointmentGroupsRouter.get("/:id", async (c) => {
     .leftJoin(staff, eq(appointments.staffId, staff.id))
     .where(eq(appointments.groupId, id))
     .orderBy(appointments.startTime);
+
+  if (
+    isGroomer &&
+    !groupAppts.some(
+      (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
+    )
+  ) {
+    return c.json({ error: "Forbidden" }, 403);
+  }
 
   const [client] = await db
     .select({ name: clients.name, email: clients.email })
@@ -140,6 +165,13 @@ appointmentGroupsRouter.post(
   zValidator("json", createGroupSchema),
   async (c) => {
     const db = getDb();
+    const staffRow = c.get("staff");
+    if (staffRow?.role === "groomer") {
+      return c.json(
+        { error: "Forbidden: groomers cannot create group bookings" },
+        403
+      );
+    }
     const body = c.req.valid("json");
     const startTime = new Date(body.startTime);
 
@@ -244,6 +276,28 @@ appointmentGroupsRouter.patch(
     const db = getDb();
     const id = c.req.param("id");
     const body = c.req.valid("json");
+    const staffRow = c.get("staff");
+    const isGroomer = staffRow?.role === "groomer";
+
+    const [group] = await db
+      .select({ id: appointmentGroups.id })
+      .from(appointmentGroups)
+      .where(eq(appointmentGroups.id, id));
+    if (!group) return c.json({ error: "Not found" }, 404);
+
+    if (isGroomer) {
+      const groupAppts = await db
+        .select({ staffId: appointments.staffId, batherStaffId: appointments.batherStaffId })
+        .from(appointments)
+        .where(eq(appointments.groupId, id));
+      if (
+        !groupAppts.some(
+          (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
+        )
+      ) {
+        return c.json({ error: "Forbidden" }, 403);
+      }
+    }
 
     const [updated] = await db
       .update(appointmentGroups)
@@ -261,12 +315,28 @@ appointmentGroupsRouter.patch(
 appointmentGroupsRouter.delete("/:id", async (c) => {
   const db = getDb();
   const id = c.req.param("id");
+  const staffRow = c.get("staff");
+  const isGroomer = staffRow?.role === "groomer";
 
   const [group] = await db
     .select({ id: appointmentGroups.id })
     .from(appointmentGroups)
     .where(eq(appointmentGroups.id, id));
   if (!group) return c.json({ error: "Not found" }, 404);
+
+  if (isGroomer) {
+    const groupAppts = await db
+      .select({ staffId: appointments.staffId, batherStaffId: appointments.batherStaffId })
+      .from(appointments)
+      .where(eq(appointments.groupId, id));
+    if (
+      !groupAppts.some(
+        (a) => a.staffId === staffRow.id || a.batherStaffId === staffRow.id
+      )
+    ) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+  }
 
   await db
     .update(appointments)

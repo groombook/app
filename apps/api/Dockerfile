@@ -12,6 +12,7 @@ RUN pnpm install --frozen-lockfile
 
 # Build
 FROM deps AS builder
+RUN mkdir -p /home/node/.cache/node/corepack
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 RUN pnpm --filter @groombook/types build && \
@@ -34,6 +35,9 @@ COPY --from=builder /app/packages/types/dist packages/types/dist
 RUN pnpm install --frozen-lockfile --prod
 
 EXPOSE 3000
+RUN apk add --no-cache curl
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
 CMD ["node", "apps/api/dist/index.js"]
 
 # Migrate stage — runs drizzle-kit migrate against the database

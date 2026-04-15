@@ -163,6 +163,28 @@ appointmentsRouter.post(
           }
         }
 
+        if (apptFields.batherStaffId) {
+          const bathConflicts = await tx
+            .select({ id: appointments.id })
+            .from(appointments)
+            .where(
+              and(
+                or(
+                  eq(appointments.staffId, apptFields.batherStaffId),
+                  eq(appointments.batherStaffId, apptFields.batherStaffId)
+                ),
+                lt(appointments.startTime, end),
+                gte(appointments.endTime, start),
+                ne(appointments.status, "cancelled"),
+                ne(appointments.status, "no_show"),
+              )
+            )
+            .limit(1);
+          if (bathConflicts.length > 0) {
+            throw Object.assign(new Error("conflict"), { statusCode: 409 });
+          }
+        }
+
         if (!recurrence) {
           // Single appointment
           const [inserted] = await tx
@@ -398,7 +420,8 @@ appointmentsRouter.patch(
     const needsConflictCheck =
       updateFields.startTime !== undefined ||
       updateFields.endTime !== undefined ||
-      updateFields.staffId !== undefined;
+      updateFields.staffId !== undefined ||
+      updateFields.batherStaffId !== undefined;
 
     const update: Record<string, unknown> = {
       ...updateFields,
@@ -434,6 +457,11 @@ appointmentsRouter.patch(
             updateFields.staffId !== undefined
               ? updateFields.staffId
               : current.staffId;
+          // Use provided batherStaffId (may be null to unassign); fall back to existing
+          const batherStaffId =
+            updateFields.batherStaffId !== undefined
+              ? updateFields.batherStaffId
+              : current.batherStaffId;
 
           if (end <= start) {
             throw Object.assign(new Error("end before start"), {
@@ -457,6 +485,29 @@ appointmentsRouter.patch(
               )
               .limit(1);
             if (conflicts.length > 0) {
+              throw Object.assign(new Error("conflict"), { statusCode: 409 });
+            }
+          }
+
+          if (batherStaffId) {
+            const bathConflicts = await tx
+              .select({ id: appointments.id })
+              .from(appointments)
+              .where(
+                and(
+                  or(
+                    eq(appointments.staffId, batherStaffId),
+                    eq(appointments.batherStaffId, batherStaffId)
+                  ),
+                  lt(appointments.startTime, end),
+                  gte(appointments.endTime, start),
+                  ne(appointments.status, "cancelled"),
+                  ne(appointments.status, "no_show"),
+                  ne(appointments.id, id),
+                )
+              )
+              .limit(1);
+            if (bathConflicts.length > 0) {
               throw Object.assign(new Error("conflict"), { statusCode: 409 });
             }
           }
