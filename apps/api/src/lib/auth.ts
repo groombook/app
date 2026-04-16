@@ -204,15 +204,11 @@ export async function initAuth(): Promise<void> {
         const userInfoUrl = discovery.userinfo_endpoint;
         if (authzUrl && tokenUrl && userInfoUrl) {
           const authzUrlObj = new URL(authzUrl);
-          const tokenUrlObj = new URL(tokenUrl);
-          const userInfoUrlObj = new URL(userInfoUrl);
-          if (
-            authzUrlObj.hostname !== issuerHostname ||
-            tokenUrlObj.hostname !== issuerHostname ||
-            userInfoUrlObj.hostname !== issuerHostname
-          ) {
+          // Only validate authorizationUrl hostname against issuer — token/userinfo
+          // may legitimately use internal hostnames (OIDC_INTERNAL_BASE) for server-to-server calls.
+          if (authzUrlObj.hostname !== issuerHostname) {
             throw new Error(
-              `[FATAL] OIDC discovery URL hostname mismatch: expected '${issuerHostname}' but got '${authzUrlObj.hostname}', '${tokenUrlObj.hostname}', or '${userInfoUrlObj.hostname}'. This may indicate a man-in-the-middle attack.`
+              `[FATAL] OIDC discovery URL hostname mismatch: expected '${issuerHostname}' but got '${authzUrlObj.hostname}'. This may indicate a man-in-the-middle attack.`
             );
           }
           oidcConfig = {
