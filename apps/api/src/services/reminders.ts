@@ -5,8 +5,8 @@ import {
   eq,
   getDb,
   gte,
+  inArray,
   lt,
-  sql,
   appointments,
   clients,
   pets,
@@ -77,9 +77,7 @@ export async function runReminderCheck(): Promise<void> {
           .where(
             and(
               eq(reminderLogs.reminderType, window.label),
-              appointmentIds.length === 1
-                ? eq(reminderLogs.appointmentId, appointmentIds[0]!)
-                : sql`${reminderLogs.appointmentId} = ANY(${appointmentIds})`
+              inArray(reminderLogs.appointmentId, appointmentIds)
             )
           )
       ).map((r) => r.appointmentId)
