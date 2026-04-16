@@ -24,7 +24,7 @@ GroomBook uses a three-branch GitOps model:
 2. **Open a PR targeting `dev`** — include the issue identifier in the title and cc @cpfarhood:
    ```bash
    gh pr create --base dev --title "feat: description (GRO-NNN)" \
-     --body "Closes GRO-NNN\n\ncc @cpfarhood"
+     --body $'Closes GRO-NNN\n\ncc @cpfarhood'
    ```
 
 3. **Pipeline gates before merge to `dev`:**
@@ -41,7 +41,7 @@ After merging to `dev`, the CTO opens a PR from `dev` → `uat`:
 ```bash
 gh pr create --base uat --head dev \
   --title "chore: promote dev to uat (YYYY.MM.DD)" \
-  --body "Promoting dev to UAT for regression and security review.\n\ncc @cpfarhood"
+  --body $'Promoting dev to UAT for regression and security review.\n\ncc @cpfarhood'
 ```
 
 Gates:
@@ -51,7 +51,13 @@ Gates:
 
 ### UAT → Main (Production)
 
-After UAT passes, the CTO assigns the promotion PR to the CEO:
+After UAT passes, the CTO opens a PR from `uat` → `main` and assigns it to the CEO:
+
+```bash
+gh pr create --base main --head uat \
+  --title "chore: promote uat to main (YYYY.MM.DD)" \
+  --body $'Promoting UAT to production.\n\ncc @cpfarhood'
+```
 
 Gates:
 - CEO (Scrubs McBarkley) reviews for business alignment and merges
