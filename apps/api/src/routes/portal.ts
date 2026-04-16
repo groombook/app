@@ -1,33 +1,22 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { and, eq, inArray } from "@groombook/db";
+import { eq, inArray } from "@groombook/db";
 import { getDb, appointments, impersonationSessions, waitlistEntries, clients, pets, services, staff, invoices, invoiceLineItems } from "@groombook/db";
-import type { AppEnv } from "../middleware/rbac.js";
+import { validatePortalSession } from "../middleware/portalSession.js";
+import { portalAudit } from "../middleware/portalAudit.js";
+import type { PortalEnv } from "../middleware/portalSession.js";
 
-export const portalRouter = new Hono<AppEnv>();
+export const portalRouter = new Hono<PortalEnv>();
 
-// ─── Session helper ───────────────────────────────────────────────────────────
-
-async function getClientIdFromSession(sessionId: string | null | undefined): Promise<string | null> {
-  if (!sessionId) return null;
-  const db = getDb();
-  const [session] = await db
-    .select()
-    .from(impersonationSessions)
-    .where(and(eq(impersonationSessions.id, sessionId), eq(impersonationSessions.status, "active")))
-    .limit(1);
-  if (!session || session.expiresAt <= new Date()) return null;
-  return session.clientId;
-}
+// Apply middleware to all portal routes
+portalRouter.use("/*", validatePortalSession, portalAudit);
 
 // ─── GET routes ──────────────────────────────────────────────────────────────
 
 portalRouter.get("/me", async (c) => {
   const db = getDb();
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+  const clientId = c.get("portalClientId");
 
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
   if (!client) return c.json({ error: "Not found" }, 404);
@@ -49,9 +38,7 @@ portalRouter.get("/services", async (c) => {
 
 portalRouter.get("/appointments", async (c) => {
   const db = getDb();
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+  const clientId = c.get("portalClientId");
 
   const now = new Date();
   const allAppts = await db
@@ -101,9 +88,7 @@ portalRouter.get("/appointments", async (c) => {
 
 portalRouter.get("/pets", async (c) => {
   const db = getDb();
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+  const clientId = c.get("portalClientId");
 
   const clientPets = await db.select().from(pets).where(eq(pets.clientId, clientId));
   return c.json(clientPets.map(p => ({ id: p.id, name: p.name, breed: p.breed, weightKg: p.weightKg, dateOfBirth: p.dateOfBirth, photoKey: p.photoKey, groomingNotes: p.groomingNotes })));
@@ -111,9 +96,7 @@ portalRouter.get("/pets", async (c) => {
 
 portalRouter.get("/invoices", async (c) => {
   const db = getDb();
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+  const clientId = c.get("portalClientId");
 
   const clientInvoices = await db.select().from(invoices).where(eq(invoices.clientId, clientId));
   const invoiceIds = clientInvoices.map(i => i.id);
@@ -148,12 +131,7 @@ portalRouter.patch(
     const db = getDb();
     const id = c.req.param("id");
     const body = c.req.valid("json");
-
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-    const clientId = await getClientIdFromSession(sessionId);
-    if (!clientId) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+    const clientId = c.get("portalClientId");
 
     const [appt] = await db
       .select()
@@ -196,12 +174,7 @@ portalRouter.patch(
 portalRouter.post("/appointments/:id/confirm", async (c) => {
   const db = getDb();
   const id = c.req.param("id");
-
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const clientId = c.get("portalClientId");
 
   const [appt] = await db
     .select()
@@ -250,12 +223,7 @@ portalRouter.post("/appointments/:id/confirm", async (c) => {
 portalRouter.post("/appointments/:id/cancel", async (c) => {
   const db = getDb();
   const id = c.req.param("id");
-
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const clientId = c.get("portalClientId");
 
   const [appt] = await db
     .select()
@@ -319,28 +287,7 @@ portalRouter.post(
   async (c) => {
     const db = getDb();
     const body = c.req.valid("json");
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-
-    let clientId: string | null = null;
-    if (sessionId) {
-      const [session] = await db
-        .select()
-        .from(impersonationSessions)
-        .where(
-          and(
-            eq(impersonationSessions.id, sessionId),
-            eq(impersonationSessions.status, "active")
-          )
-        )
-        .limit(1);
-      if (session && session.expiresAt > new Date()) {
-        clientId = session.clientId;
-      }
-    }
-
-    if (!clientId) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+    const clientId = c.get("portalClientId");
 
     const [entry] = await db
       .insert(waitlistEntries)
@@ -364,26 +311,7 @@ portalRouter.patch(
     const db = getDb();
     const id = c.req.param("id");
     const body = c.req.valid("json");
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-
-    if (!sessionId) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const [session] = await db
-      .select()
-      .from(impersonationSessions)
-      .where(
-        and(
-          eq(impersonationSessions.id, sessionId),
-          eq(impersonationSessions.status, "active")
-        )
-      )
-      .limit(1);
-
-    if (!session || session.expiresAt <= new Date()) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+    const clientId = c.get("portalClientId");
 
     const [existing] = await db
       .select()
@@ -392,7 +320,7 @@ portalRouter.patch(
       .limit(1);
 
     if (!existing) return c.json({ error: "Not found" }, 404);
-    if (existing.clientId !== session.clientId) {
+    if (existing.clientId !== clientId) {
       return c.json({ error: "Forbidden" }, 403);
     }
 
@@ -414,26 +342,7 @@ portalRouter.patch(
 portalRouter.delete("/waitlist/:id", async (c) => {
   const db = getDb();
   const id = c.req.param("id");
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-
-  if (!sessionId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
-  const [session] = await db
-    .select()
-    .from(impersonationSessions)
-    .where(
-      and(
-        eq(impersonationSessions.id, sessionId),
-        eq(impersonationSessions.status, "active")
-      )
-    )
-    .limit(1);
-
-  if (!session || session.expiresAt <= new Date()) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
+  const clientId = c.get("portalClientId");
 
   const [entry] = await db
     .select()
@@ -442,7 +351,7 @@ portalRouter.delete("/waitlist/:id", async (c) => {
     .limit(1);
 
   if (!entry) return c.json({ error: "Not found" }, 404);
-  if (entry.clientId !== session.clientId) {
+  if (entry.clientId !== clientId) {
     return c.json({ error: "Forbidden" }, 403);
   }
 
@@ -475,9 +384,7 @@ portalRouter.post(
   async (c) => {
     const db = getDb();
     const body = c.req.valid("json");
-    const sessionId = c.req.header("X-Impersonation-Session-Id");
-    const clientId = await getClientIdFromSession(sessionId);
-    if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+    const clientId = c.get("portalClientId");
 
     const invoiceRows = await db
       .select()
@@ -514,9 +421,7 @@ portalRouter.post(
 );
 
 portalRouter.get("/payment-methods", async (c) => {
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+  const clientId = c.get("portalClientId");
 
   const methods = await listPaymentMethods(clientId);
   if (methods === null) return c.json({ error: "Payment service unavailable" }, 503);
@@ -524,9 +429,7 @@ portalRouter.get("/payment-methods", async (c) => {
 });
 
 portalRouter.post("/payment-methods", async (c) => {
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+  const clientId = c.get("portalClientId");
 
   const stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY ?? "";
   const customerId = await getOrCreateStripeCustomer(clientId);
@@ -539,9 +442,7 @@ portalRouter.post("/payment-methods", async (c) => {
 });
 
 portalRouter.delete("/payment-methods/:id", async (c) => {
-  const sessionId = c.req.header("X-Impersonation-Session-Id");
-  const clientId = await getClientIdFromSession(sessionId);
-  if (!clientId) return c.json({ error: "Unauthorized" }, 401);
+  const clientId = c.get("portalClientId");
 
   const paymentMethodId = c.req.param("id");
 
