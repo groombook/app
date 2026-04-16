@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * Playwright configuration for GroomBook Web E2E tests.
  *
- * Targets the deployed dev environment at groombook.dev.farh.net.
+ * Targets the deployed dev environment at dev.groombook.dev.
  * Uses the dev login selector (/login) for authentication — no hardcoded credentials.
  *
  * Run locally:
@@ -19,7 +19,7 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
 
   use: {
-    baseURL: "https://groombook.dev.farh.net",
+    baseURL: "https://dev.groombook.dev",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     serviceWorkers: "block",
