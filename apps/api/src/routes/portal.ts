@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { and, eq, inArray } from "@groombook/db";
+import { eq, inArray } from "@groombook/db";
 import { getDb, appointments, impersonationSessions, waitlistEntries, clients, pets, services, staff, invoices, invoiceLineItems } from "@groombook/db";
 import { validatePortalSession } from "../middleware/portalSession.js";
 import { portalAudit } from "../middleware/portalAudit.js";
@@ -312,7 +312,6 @@ portalRouter.patch(
     const id = c.req.param("id");
     const body = c.req.valid("json");
     const clientId = c.get("portalClientId");
-    const sessionId = c.get("portalSessionId");
 
     const [existing] = await db
       .select()
