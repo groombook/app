@@ -398,6 +398,8 @@ async function seedKnownUsers() {
         id: ADMIN_STAFF_ID,
         name: adminName,
         email: adminEmail,
+        oidcSub: adminEmail,
+        userId: adminEmail,
         role: "manager",
         isSuperUser: true,
         active: true,
@@ -424,6 +426,7 @@ async function seedKnownUsers() {
         name: "UAT Super User",
         email: "uat-super@groombook.dev",
         oidcSub: uatSuperOidcSub,
+        userId: uatSuperOidcSub,
         role: "manager",
         isSuperUser: true,
         active: true,
@@ -450,11 +453,43 @@ async function seedKnownUsers() {
         name: "UAT Staff Groomer",
         email: "uat-groomer@groombook.dev",
         oidcSub: uatStaffOidcSub,
+        userId: uatStaffOidcSub,
         role: "groomer",
         isSuperUser: false,
         active: true,
       });
       console.log(`✓ Created staff 'UAT Staff Groomer' (oidcSub: ${uatStaffOidcSub})`);
+    }
+  }
+
+  // ── Staff: UAT Groomer Personas (SEED_UAT_GROOMER_EMAILS + SEED_UAT_GROOMER_NAMES) ──
+  const groomerEmails = process.env.SEED_UAT_GROOMER_EMAILS?.split(",").map((e) => e.trim()).filter(Boolean) ?? [];
+  const groomerNames = process.env.SEED_UAT_GROOMER_NAMES?.split(",").map((n) => n.trim()).filter(Boolean) ?? [];
+  const groomerCount = Math.min(groomerEmails.length, groomerNames.length);
+  for (let i = 0; i < groomerCount; i++) {
+    const email = groomerEmails[i]!;
+    const name = groomerNames[i]!;
+    // Use deterministic IDs in the 00000000-0000-0000-0000-000000000005+ range
+    const staffId = `00000000-0000-0000-0000-${String(5 + i).padStart(12, "0")}`;
+    const [existingGroomer] = await db
+      .select()
+      .from(schema.staff)
+      .where(eq(schema.staff.email, email))
+      .limit(1);
+
+    if (existingGroomer) {
+      console.log(`✓ Staff groomer '${existingGroomer.name}' already exists — skipping`);
+    } else {
+      await db.insert(schema.staff).values({
+        id: staffId,
+        name,
+        email,
+        oidcSub: email,
+        role: "groomer",
+        isSuperUser: false,
+        active: true,
+      });
+      console.log(`✓ Created staff groomer '${name}' (${email})`);
     }
   }
 
@@ -612,6 +647,8 @@ async function seed() {
         id: ADMIN_STAFF_ID,
         name: adminName,
         email: adminEmail,
+        oidcSub: adminEmail,
+        userId: adminEmail,
         role: "manager",
         isSuperUser: true,
         active: true,
@@ -621,6 +658,31 @@ async function seed() {
         set: { id: ADMIN_STAFF_ID, name: adminName, role: "manager", isSuperUser: true, active: true },
       });
     console.log(`✓ Upserted admin staff '${adminName}' (${adminEmail})`);
+  }
+
+  // ── UAT Groomer Personas (SEED_UAT_GROOMER_EMAILS + SEED_UAT_GROOMER_NAMES) ──
+  const groomerEmails = process.env.SEED_UAT_GROOMER_EMAILS?.split(",").map((e) => e.trim()).filter(Boolean) ?? [];
+  const groomerNames = process.env.SEED_UAT_GROOMER_NAMES?.split(",").map((n) => n.trim()).filter(Boolean) ?? [];
+  const groomerCount = Math.min(groomerEmails.length, groomerNames.length);
+  for (let i = 0; i < groomerCount; i++) {
+    const email = groomerEmails[i]!;
+    const name = groomerNames[i]!;
+    const staffId = `00000000-0000-0000-0000-${String(5 + i).padStart(12, "0")}`;
+    await db.insert(schema.staff)
+      .values({
+        id: staffId,
+        name,
+        email,
+        oidcSub: email,
+        role: "groomer",
+        isSuperUser: false,
+        active: true,
+      })
+      .onConflictDoUpdate({
+        target: schema.staff.email,
+        set: { id: staffId, name, role: "groomer", isSuperUser: false, active: true },
+      });
+    console.log(`✓ Upserted groomer '${name}' (${email})`);
   }
 
   // ── Services ──

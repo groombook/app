@@ -8,10 +8,12 @@ export const clientsRouter = new Hono<AppEnv>();
 
 const createClientSchema = z.object({
   name: z.string().min(1).max(200),
-  email: z.string().email().optional(),
+  email: z.string().email(),
   phone: z.string().max(50).optional(),
   address: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
+  smsOptIn: z.boolean().optional(),
+  smsConsentText: z.string().max(1000).optional(),
 });
 
 
@@ -95,6 +97,7 @@ clientsRouter.post("/", zValidator("json", createClientSchema), async (c) => {
 // Update a client (including status changes)
 const patchClientSchema = createClientSchema.partial().extend({
   status: z.enum(["active", "disabled"]).optional(),
+  smsOptOut: z.boolean().optional(),
 });
 
 clientsRouter.patch(
@@ -107,12 +110,18 @@ clientsRouter.patch(
 
     const setValues: Record<string, unknown> = { ...body, updatedAt: now };
 
-    // When disabling, set disabledAt; when re-enabling, clear it
     if (body.status === "disabled") {
       setValues.disabledAt = now;
     } else if (body.status === "active") {
       setValues.disabledAt = null;
     }
+
+    if (body.smsOptOut === true) {
+      setValues.smsOptIn = false;
+      setValues.smsOptOutDate = now;
+      delete setValues.smsOptOut;
+    }
+    delete setValues.smsOptOut;
 
     const [row] = await db
       .update(clients)

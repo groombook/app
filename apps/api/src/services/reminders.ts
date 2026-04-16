@@ -18,9 +18,10 @@ import {
   buildReminderEmail,
   sendEmail,
 } from "./email.js";
+import { smsSend } from "./sms.js";
 
-// How many hours before the appointment to send each reminder.
-// Override via env: REMINDER_HOURS_EARLY (default 24) and REMINDER_HOURS_LATE (default 2).
+const TCPA_OPT_OUT = "Reply STOP to opt out. Msg & data rates may apply.";
+
 function getReminderWindows(): { label: string; hours: number }[] {
   const early = Number(process.env.REMINDER_HOURS_EARLY ?? 24);
   const late = Number(process.env.REMINDER_HOURS_LATE ?? 2);
@@ -30,20 +31,14 @@ function getReminderWindows(): { label: string; hours: number }[] {
   ];
 }
 
-// Checks for upcoming appointments that need reminders and sends them.
-// Runs every minute — idempotent via reminder_logs unique constraint.
 export async function runReminderCheck(): Promise<void> {
   const db = getDb();
   const now = new Date();
 
   for (const window of getReminderWindows()) {
-    // Target window: appointments starting between (hours - 1) and hours from now.
-    // Running every minute means we check a 1-minute slice; the 1-hour window
-    // ensures we catch appointments that started between heartbeats.
     const windowStart = new Date(now.getTime() + (window.hours - 1) * 3600_000);
     const windowEnd = new Date(now.getTime() + window.hours * 3600_000);
 
-    // Find upcoming appointments in this time window that haven't been cancelled/completed
     const upcoming = await db
       .select({
         id: appointments.id,
@@ -65,23 +60,38 @@ export async function runReminderCheck(): Promise<void> {
       );
 
     for (const appt of upcoming) {
-      // Check if reminder already sent (unique constraint prevents double-send)
-      const existing = await db
+      const [emailLog] = await db
         .select({ id: reminderLogs.id })
         .from(reminderLogs)
         .where(
           and(
             eq(reminderLogs.appointmentId, appt.id),
-            eq(reminderLogs.reminderType, window.label)
+            eq(reminderLogs.reminderType, window.label),
+            eq(reminderLogs.channel, "email")
           )
         )
         .limit(1);
 
-      if (existing.length > 0) continue; // already sent
+      const [smsLog] = await db
+        .select({ id: reminderLogs.id })
+        .from(reminderLogs)
+        .where(
+          and(
+            eq(reminderLogs.appointmentId, appt.id),
+            eq(reminderLogs.reminderType, window.label),
+            eq(reminderLogs.channel, "sms")
+          )
+        )
+        .limit(1);
 
-      // Fetch related records for the email
       const [client] = await db
-        .select({ name: clients.name, email: clients.email, emailOptOut: clients.emailOptOut })
+        .select({
+          name: clients.name,
+          email: clients.email,
+          emailOptOut: clients.emailOptOut,
+          smsOptIn: clients.smsOptIn,
+          phone: clients.phone,
+        })
         .from(clients)
         .where(eq(clients.id, appt.clientId))
         .limit(1);
@@ -112,8 +122,6 @@ export async function runReminderCheck(): Promise<void> {
 
       if (!pet || !service) continue;
 
-      // Ensure the appointment has a confirmation token before sending the reminder.
-      // Generate one if it doesn't have one yet (e.g. pre-existing appointments).
       let confirmationToken = appt.confirmationToken;
       if (!confirmationToken) {
         confirmationToken = randomBytes(32).toString("hex");
@@ -123,35 +131,59 @@ export async function runReminderCheck(): Promise<void> {
           .where(eq(appointments.id, appt.id));
       }
 
-      const sent = await sendEmail(
-        buildReminderEmail(
-          client.email,
-          {
-            clientName: client.name,
-            petName: pet.name,
-            serviceName: service.name,
-            groomerName,
-            startTime: appt.startTime,
-          },
-          window.hours,
-          confirmationToken
-        )
-      );
+      if (!emailLog) {
+        const sent = await sendEmail(
+          buildReminderEmail(
+            client.email,
+            {
+              clientName: client.name,
+              petName: pet.name,
+              serviceName: service.name,
+              groomerName,
+              startTime: appt.startTime,
+            },
+            window.hours,
+            confirmationToken
+          )
+        );
 
-      if (sent) {
-        // Record send — ignore conflicts (race condition between instances)
-        await db
-          .insert(reminderLogs)
-          .values({ appointmentId: appt.id, reminderType: window.label })
-          .onConflictDoNothing();
+        if (sent) {
+          await db
+            .insert(reminderLogs)
+            .values({ appointmentId: appt.id, reminderType: window.label, channel: "email" })
+            .onConflictDoNothing();
+        }
+      }
+
+      if (!smsLog && client.smsOptIn && client.phone) {
+        const apiUrl = process.env.API_URL ?? "http://localhost:3000";
+        const confirmUrl = `${apiUrl}/api/book/confirm/${confirmationToken}`;
+        const cancelUrl = `${apiUrl}/api/book/cancel/${confirmationToken}`;
+        const when = window.hours >= 24 ? "tomorrow" : `in ${window.hours} hours`;
+        const smsBody = [
+          `Hi ${client.name}, just a reminder: ${pet.name}'s grooming appointment is ${when}.`,
+          `Service: ${service.name}${groomerName ? ` with ${groomerName}` : ""}`,
+          `Confirm: ${confirmUrl}`,
+          `Cancel: ${cancelUrl}`,
+          TCPA_OPT_OUT,
+        ].join(". ");
+        try {
+          const smsOk = await smsSend(client.phone, smsBody);
+          if (smsOk) {
+            await db
+              .insert(reminderLogs)
+              .values({ appointmentId: appt.id, reminderType: window.label, channel: "sms" })
+              .onConflictDoNothing();
+          }
+        } catch (err) {
+          console.error("[reminders] SMS send failed:", err);
+        }
       }
     }
   }
 }
 
-// Starts the cron scheduler. Call once at server startup.
 export function startReminderScheduler(): void {
-  // Run every minute
   cron.schedule("* * * * *", () => {
     runReminderCheck().catch((err) => {
       console.error("[reminders] Error during reminder check:", err);
@@ -163,8 +195,6 @@ export function startReminderScheduler(): void {
   console.log("[reminders] Reminder scheduler started");
 }
 
-// Deletes expired sessions from the database.
-// Runs every minute alongside reminder checks.
 export async function runSessionCleanup(): Promise<void> {
   const db = getDb();
   const now = new Date();
