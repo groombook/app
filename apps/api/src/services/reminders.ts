@@ -6,6 +6,7 @@ import {
   getDb,
   gte,
   lt,
+  sql,
   appointments,
   clients,
   pets,
@@ -31,6 +32,8 @@ function getReminderWindows(): { label: string; hours: number }[] {
   ];
 }
 
+// Checks for upcoming appointments that need reminders and sends them.
+// Runs every minute — idempotent via reminder_logs unique constraint.
 export async function runReminderCheck(): Promise<void> {
   const db = getDb();
   const now = new Date();
@@ -59,69 +62,74 @@ export async function runReminderCheck(): Promise<void> {
         )
       );
 
+    const appointmentIds: string[] = upcoming.map((a) => a.id as string);
+
+    if (appointmentIds.length === 0) continue;
+
+    // Batch-fetch already-sent appointment IDs (both EMAIL and SMS channels)
+    const sentAppointmentIds = new Set(
+      (
+        await db
+          .select({ appointmentId: reminderLogs.appointmentId })
+          .from(reminderLogs)
+          .where(
+            and(
+              eq(reminderLogs.reminderType, window.label),
+              appointmentIds.length === 1
+                ? eq(reminderLogs.appointmentId, appointmentIds[0]!)
+                : sql`${reminderLogs.appointmentId} = ANY(${appointmentIds})`
+            )
+          )
+      ).map((r) => r.appointmentId)
+    );
+
+    // Batch-fetch all appointment data with related joins in a single query
+    const joinedRows = await db
+      .select({
+        appointmentId: appointments.id,
+        startTime: appointments.startTime,
+        clientId: appointments.clientId,
+        petId: appointments.petId,
+        serviceId: appointments.serviceId,
+        staffId: appointments.staffId,
+        confirmationToken: appointments.confirmationToken,
+        clientName: clients.name,
+        clientEmail: clients.email,
+        clientEmailOptOut: clients.emailOptOut,
+        clientPhone: clients.phone,
+        clientSmsOptIn: clients.smsOptIn,
+        petName: pets.name,
+        serviceName: services.name,
+        staffName: staff.name,
+      })
+      .from(appointments)
+      .innerJoin(clients, eq(appointments.clientId, clients.id))
+      .innerJoin(pets, eq(appointments.petId, pets.id))
+      .innerJoin(services, eq(appointments.serviceId, services.id))
+      .leftJoin(staff, eq(appointments.staffId, staff.id))
+      .where(
+        and(
+          sql`${appointments.id} = ANY(${appointmentIds})`,
+          gte(appointments.startTime, windowStart),
+          lt(appointments.startTime, windowEnd),
+          eq(appointments.status, "scheduled")
+        )
+      );
+
+    const appointmentMap = new Map<string, typeof joinedRows[number]>();
+    for (const row of joinedRows) {
+      appointmentMap.set(row.appointmentId, row);
+    }
+
     for (const appt of upcoming) {
-      const [emailLog] = await db
-        .select({ id: reminderLogs.id })
-        .from(reminderLogs)
-        .where(
-          and(
-            eq(reminderLogs.appointmentId, appt.id),
-            eq(reminderLogs.reminderType, window.label),
-            eq(reminderLogs.channel, "email")
-          )
-        )
-        .limit(1);
+      // Already sent a reminder for this appointment in this window
+      if (sentAppointmentIds.has(appt.id)) continue;
 
-      const [smsLog] = await db
-        .select({ id: reminderLogs.id })
-        .from(reminderLogs)
-        .where(
-          and(
-            eq(reminderLogs.appointmentId, appt.id),
-            eq(reminderLogs.reminderType, window.label),
-            eq(reminderLogs.channel, "sms")
-          )
-        )
-        .limit(1);
+      const row = appointmentMap.get(appt.id);
+      if (!row) continue;
+      if (!row.petName || !row.serviceName) continue;
 
-      const [client] = await db
-        .select({
-          name: clients.name,
-          email: clients.email,
-          emailOptOut: clients.emailOptOut,
-          smsOptIn: clients.smsOptIn,
-          phone: clients.phone,
-        })
-        .from(clients)
-        .where(eq(clients.id, appt.clientId))
-        .limit(1);
-
-      if (!client || !client.email || client.emailOptOut) continue;
-
-      const [pet] = await db
-        .select({ name: pets.name })
-        .from(pets)
-        .where(eq(pets.id, appt.petId))
-        .limit(1);
-
-      const [service] = await db
-        .select({ name: services.name })
-        .from(services)
-        .where(eq(services.id, appt.serviceId))
-        .limit(1);
-
-      let groomerName: string | null = null;
-      if (appt.staffId) {
-        const [groomer] = await db
-          .select({ name: staff.name })
-          .from(staff)
-          .where(eq(staff.id, appt.staffId))
-          .limit(1);
-        groomerName = groomer?.name ?? null;
-      }
-
-      if (!pet || !service) continue;
-
+      // Generate confirmation token if missing
       let confirmationToken = appt.confirmationToken;
       if (!confirmationToken) {
         confirmationToken = randomBytes(32).toString("hex");
@@ -131,22 +139,22 @@ export async function runReminderCheck(): Promise<void> {
           .where(eq(appointments.id, appt.id));
       }
 
-      if (!emailLog) {
+      const clientName = row.clientName;
+      const petName = row.petName;
+      const serviceName = row.serviceName;
+      const groomerName = row.staffName ?? null;
+      const startTime = appt.startTime;
+
+      // EMAIL reminder
+      if (row.clientEmail && !row.clientEmailOptOut) {
         const sent = await sendEmail(
           buildReminderEmail(
-            client.email,
-            {
-              clientName: client.name,
-              petName: pet.name,
-              serviceName: service.name,
-              groomerName,
-              startTime: appt.startTime,
-            },
+            row.clientEmail,
+            { clientName, petName, serviceName, groomerName, startTime },
             window.hours,
             confirmationToken
           )
         );
-
         if (sent) {
           await db
             .insert(reminderLogs)
@@ -155,20 +163,21 @@ export async function runReminderCheck(): Promise<void> {
         }
       }
 
-      if (!smsLog && client.smsOptIn && client.phone) {
+      // SMS reminder
+      if (row.clientPhone && row.clientSmsOptIn) {
         const apiUrl = process.env.API_URL ?? "http://localhost:3000";
         const confirmUrl = `${apiUrl}/api/book/confirm/${confirmationToken}`;
         const cancelUrl = `${apiUrl}/api/book/cancel/${confirmationToken}`;
         const when = window.hours >= 24 ? "tomorrow" : `in ${window.hours} hours`;
         const smsBody = [
-          `Hi ${client.name}, just a reminder: ${pet.name}'s grooming appointment is ${when}.`,
-          `Service: ${service.name}${groomerName ? ` with ${groomerName}` : ""}`,
+          `Hi ${clientName}, just a reminder: ${petName}'s grooming appointment is ${when}.`,
+          `Service: ${serviceName}${groomerName ? ` with ${groomerName}` : ""}`,
           `Confirm: ${confirmUrl}`,
           `Cancel: ${cancelUrl}`,
           TCPA_OPT_OUT,
         ].join(". ");
         try {
-          const smsOk = await smsSend(client.phone, smsBody);
+          const smsOk = await smsSend(row.clientPhone, smsBody);
           if (smsOk) {
             await db
               .insert(reminderLogs)
