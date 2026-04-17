@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { CreditCard, DollarSign, Package, Zap } from "lucide-react";
@@ -130,7 +130,7 @@ function BillingPaymentsInner({ sessionId, readOnly }: BillingPaymentsProps) {
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {([
           { id: "invoices" as const, label: "Invoices", icon: DollarSign },
           { id: "payment" as const, label: "Payment Methods", icon: CreditCard },
@@ -356,6 +356,48 @@ function PaymentModal({ sessionId, pending, onClose, onSuccess }: PaymentModalPr
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const completeModalRef = useRef<HTMLDivElement>(null);
+  const paymentModalRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap + Escape-to-close for both inline modals
+  useEffect(() => {
+    const modalRef = isComplete ? completeModalRef.current : paymentModalRef.current;
+    if (!modalRef) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement;
+    const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusableElements = modalRef.querySelectorAll<HTMLElement>(focusableSelectors);
+    const firstFocusable = focusableElements[0];
+    firstFocusable?.focus();
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !modalRef) return;
+      const focusables = modalRef.querySelectorAll<HTMLElement>(focusableSelectors);
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isComplete, onClose]);
 
   const formatCents = (cents: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -420,8 +462,8 @@ function PaymentModal({ sessionId, pending, onClose, onSuccess }: PaymentModalPr
 
   if (isComplete) {
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
+      <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div ref={completeModalRef} className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -440,8 +482,8 @@ function PaymentModal({ sessionId, pending, onClose, onSuccess }: PaymentModalPr
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div ref={paymentModalRef} className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-semibold text-stone-800 text-lg">Pay Outstanding Balance</h2>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-600">

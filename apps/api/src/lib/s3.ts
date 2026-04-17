@@ -67,3 +67,22 @@ export async function deleteObject(key: string): Promise<void> {
     })
   );
 }
+
+/** Upload an object directly to S3 (server-side only, not a pre-signed URL). */
+export async function putObject(
+  key: string,
+  body: Buffer | Uint8Array | string,
+  contentType: string,
+  contentLength: number
+): Promise<void> {
+  const client = getS3Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      ContentLength: contentLength,
+    })
+  );
+}

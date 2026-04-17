@@ -9,6 +9,68 @@ import type { PortalEnv } from "../middleware/portalSession.js";
 
 export const portalRouter = new Hono<PortalEnv>();
 
+// Dev-mode session creation — must be registered BEFORE the /* middleware so it is
+// NOT subject to validatePortalSession/portalAudit (GRO-778 fix). This endpoint creates
+// the impersonation session and has no X-Impersonation-Session-Id header yet.
+const devSessionSchema = z.object({
+  clientId: z.string().uuid(),
+});
+
+portalRouter.post(
+  "/dev-session",
+  zValidator("json", devSessionSchema),
+  async (c) => {
+    if (process.env.AUTH_DISABLED !== "true") {
+      return c.json({ error: "Not available when auth is enabled" }, 403);
+    }
+
+    const db = getDb();
+    const body = c.req.valid("json");
+
+    const [client] = await db
+      .select()
+      .from(clients)
+      .where(eq(clients.id, body.clientId))
+      .limit(1);
+    if (!client) {
+      return c.json({ error: "Client not found" }, 404);
+    }
+
+    const DEMO_STAFF_ID = "00000000-0000-0000-0000-000000000001";
+
+    let staffId = DEMO_STAFF_ID;
+    const [demoStaff] = await db
+      .select({ id: staff.id })
+      .from(staff)
+      .where(eq(staff.id, DEMO_STAFF_ID))
+      .limit(1);
+
+    if (!demoStaff) {
+      const [firstStaff] = await db
+        .select({ id: staff.id })
+        .from(staff)
+        .where(eq(staff.active, true))
+        .limit(1);
+      if (!firstStaff) {
+        return c.json({ error: "No staff records found. Run the database seed." }, 500);
+      }
+      staffId = firstStaff.id;
+    }
+
+    const [session] = await db
+      .insert(impersonationSessions)
+      .values({
+        staffId,
+        clientId: body.clientId,
+        reason: "dev-mode-client-portal",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      })
+      .returning();
+
+    return c.json(session, 201);
+  }
+);
+
 // Apply middleware to all portal routes
 portalRouter.use("/*", validatePortalSession, portalAudit);
 
@@ -461,72 +523,3 @@ portalRouter.delete("/payment-methods/:id", async (c) => {
   if (!ok) return c.json({ error: "Failed to detach payment method" }, 500);
   return c.json({ ok: true });
 });
-
-// ─── Dev-mode session creation ──────────────────────────────────────────────
-// Allows the dev login selector to vend an impersonation session for a client
-// without requiring manager auth. Only available when AUTH_DISABLED=true.
-
-const devSessionSchema = z.object({
-  clientId: z.string().uuid(),
-});
-
-portalRouter.post(
-  "/dev-session",
-  zValidator("json", devSessionSchema),
-  async (c) => {
-    if (process.env.AUTH_DISABLED !== "true") {
-      return c.json({ error: "Not available when auth is enabled" }, 403);
-    }
-
-    const db = getDb();
-    const body = c.req.valid("json");
-
-    // Verify client exists
-    const [client] = await db
-      .select()
-      .from(clients)
-      .where(eq(clients.id, body.clientId))
-      .limit(1);
-    if (!client) {
-      return c.json({ error: "Client not found" }, 404);
-    }
-
-    // Find a staff record to associate with the dev impersonation session.
-    // Use the demo-manager if it exists (created by seed with known ID),
-    // otherwise fall back to the first active staff record.
-    // This avoids hardcoding a UUID that may not exist in all environments.
-    const DEMO_STAFF_ID = "00000000-0000-0000-0000-000000000001";
-
-    let staffId = DEMO_STAFF_ID;
-    const [demoStaff] = await db
-      .select({ id: staff.id })
-      .from(staff)
-      .where(eq(staff.id, DEMO_STAFF_ID))
-      .limit(1);
-
-    if (!demoStaff) {
-      // Fall back to any active staff member
-      const [firstStaff] = await db
-        .select({ id: staff.id })
-        .from(staff)
-        .where(eq(staff.active, true))
-        .limit(1);
-      if (!firstStaff) {
-        return c.json({ error: "No staff records found. Run the database seed." }, 500);
-      }
-      staffId = firstStaff.id;
-    }
-
-    const [session] = await db
-      .insert(impersonationSessions)
-      .values({
-        staffId,
-        clientId: body.clientId,
-        reason: "dev-mode-client-portal",
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-      })
-      .returning();
-
-    return c.json(session, 201);
-  }
-);
