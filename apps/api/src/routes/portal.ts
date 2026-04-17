@@ -40,7 +40,6 @@ portalRouter.get("/appointments", async (c) => {
   const db = getDb();
   const clientId = c.get("portalClientId");
 
-  const now = new Date();
   const allAppts = await db
     .select({
       id: appointments.id,
@@ -82,9 +81,6 @@ portalRouter.get("/appointments", async (c) => {
     service: a.serviceId ? { id: a.serviceId, name: serviceMap[a.serviceId]?.name, duration: serviceMap[a.serviceId]?.durationMinutes, price: serviceMap[a.serviceId]?.basePriceCents } : null,
     staff: a.staffId ? { id: staffMap[a.staffId]?.id, name: staffMap[a.staffId]?.name } : null,
   }));
-
-  const upcoming = appts.filter(a => a.startTime > now && a.status !== "cancelled");
-  const past = appts.filter(a => a.startTime <= now || a.status === "cancelled");
 
   return c.json({ appointments: appts });
 });
