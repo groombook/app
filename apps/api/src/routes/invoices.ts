@@ -349,26 +349,54 @@ invoicesRouter.patch(
       }
     }
 
-    // Validate tip splits when marking invoice as paid
+    // Validate and persist tip splits when marking invoice as paid
     if (body.status === "paid" && current.tipCents > 0) {
-      const splits = await db
-        .select()
-        .from(invoiceTipSplits)
-        .where(eq(invoiceTipSplits.invoiceId, id));
+      // If incoming splits are provided in the request body, atomically replace them
+      if (body.tipSplits !== undefined) {
+        const totalPct = body.tipSplits.reduce((sum, s) => sum + s.sharePct, 0);
+        if (Math.abs(totalPct - 100) > 0.01) {
+          return c.json({ error: "Tip split percentages must sum to 100%" }, 400);
+        }
+        await db.transaction(async (tx) => {
+          await tx.delete(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id));
+          if (body.tipSplits.length > 0) {
+            let remaining = current.tipCents;
+            const rows = body.tipSplits.map((s, i) => {
+              const isLast = i === body.tipSplits.length - 1;
+              const shareCents = isLast ? remaining : Math.round((s.sharePct / 100) * current.tipCents);
+              if (!isLast) remaining -= shareCents;
+              return {
+                invoiceId: id,
+                staffId: s.staffId,
+                staffName: s.staffName,
+                sharePct: s.sharePct.toFixed(2),
+                shareCents,
+              };
+            });
+            await tx.insert(invoiceTipSplits).values(rows);
+          }
+        });
+      } else {
+        // No incoming splits — validate existing DB splits
+        const splits = await db
+          .select()
+          .from(invoiceTipSplits)
+          .where(eq(invoiceTipSplits.invoiceId, id));
 
-      if (splits.length === 0) {
-        return c.json(
-          { error: "Tip split percentages must sum to 100%" },
-          400
-        );
-      }
+        if (splits.length === 0) {
+          return c.json(
+            { error: "Tip splits are required when tip amount is greater than zero" },
+            400
+          );
+        }
 
-      const totalBps = splits.reduce((sum, s) => sum + Math.round(Number(s.sharePct) * 100), 0);
-      if (totalBps !== 10000) {
-        return c.json(
-          { error: "Tip split percentages must sum to 100%" },
-          400
-        );
+        const totalBps = splits.reduce((sum, s) => sum + Math.round(Number(s.sharePct) * 100), 0);
+        if (totalBps !== 10000) {
+          return c.json(
+            { error: "Tip split percentages must sum to 100%" },
+            400
+          );
+        }
       }
     }
 
