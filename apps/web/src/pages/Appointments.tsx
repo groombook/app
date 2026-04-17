@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { Appointment, Client, Pet, Service, Staff } from "@groombook/types";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -273,7 +273,15 @@ export function AppointmentsPage() {
       cascade !== "this_only"
         ? `/api/appointments/${id}?cascade=${cascade}`
         : `/api/appointments/${id}`;
-    await fetch(url, { method: "DELETE" });
+    try {
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed to delete appointment");
+    }
     setSelectedAppt(null);
     await loadAppointments();
   }
@@ -819,8 +827,49 @@ function AppointmentDetail({
 }
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement;
+    const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusableElements = modalRef.current?.querySelectorAll<HTMLElement>(focusableSelectors);
+    const firstFocusable = focusableElements?.[0];
+    firstFocusable?.focus();
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      if (!modalRef.current) return;
+      const focusables = modalRef.current.querySelectorAll<HTMLElement>(focusableSelectors);
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       style={{
         position: "fixed",
         inset: 0,
@@ -833,6 +882,7 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        ref={modalRef}
         style={{
           background: "#fff",
           borderRadius: 8,

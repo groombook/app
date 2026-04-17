@@ -211,6 +211,15 @@ function InvoiceDetailModal({
     setSaving(true);
     setError(null);
     const tipCents = Math.round(parseFloat(tipStr) * 100) || 0;
+    // Real-time validation: prevent submit if tip splits don't sum to 100%
+    if (showSplits && tipCents > 0 && tipSplits.length > 0) {
+      const totalPct = tipSplits.reduce((s, r) => s + r.pct, 0);
+      if (Math.abs(totalPct - 100) >= 0.01) {
+        setError("Tip split percentages must sum to 100%");
+        setSaving(false);
+        return;
+      }
+    }
     try {
       const res = await fetch(`/api/invoices/${invoice.id}`, {
         method: "PATCH",

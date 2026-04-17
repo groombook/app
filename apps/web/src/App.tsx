@@ -12,7 +12,7 @@ import { SettingsPage } from "./pages/Settings.js";
 import { BookingConfirmedPage } from "./pages/BookingConfirmed.js";
 import { BookingCancelledPage } from "./pages/BookingCancelled.js";
 import { BookingErrorPage } from "./pages/BookingError.js";
-import { SetupWizard } from "./pages/SetupWizard.jsx";
+import { SetupWizard } from "./pages/SetupWizard.tsx";
 import { CustomerPortal } from "./portal/CustomerPortal.js";
 import { DevLoginSelector, getDevUser } from "./pages/DevLoginSelector.js";
 import { DevSessionIndicator } from "./components/DevSessionIndicator.js";
