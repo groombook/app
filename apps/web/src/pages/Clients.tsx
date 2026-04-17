@@ -857,12 +857,56 @@ export function ClientsPage() {
 // ─── Shared UI ───────────────────────────────────────────────────────────────
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement;
+    const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusableElements = modalRef.current?.querySelectorAll<HTMLElement>(focusableSelectors);
+    const firstFocusable = focusableElements?.[0];
+    firstFocusable?.focus();
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      if (!modalRef.current) return;
+      const focusables = modalRef.current.querySelectorAll<HTMLElement>(focusableSelectors);
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: "#fff", borderRadius: 8, padding: "1.5rem", maxWidth: 480, width: "calc(100% - 2rem)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+      <div
+        ref={modalRef}
+        style={{ background: "#fff", borderRadius: 8, padding: "1.5rem", maxWidth: 480, width: "calc(100% - 2rem)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+      >
         {children}
       </div>
     </div>
