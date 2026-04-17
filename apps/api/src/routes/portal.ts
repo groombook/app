@@ -9,7 +9,9 @@ import type { PortalEnv } from "../middleware/portalSession.js";
 
 export const portalRouter = new Hono<PortalEnv>();
 
-// Apply middleware to all portal routes
+// Apply middleware to all portal routes — NOTE: /dev-session is registered BEFORE this line
+// so it is NOT subject to validatePortalSession/portalAudit (this is intentional: the endpoint
+// creates the impersonation session and has no X-Impersonation-Session-Id header yet).
 portalRouter.use("/*", validatePortalSession, portalAudit);
 
 // ─── GET routes ──────────────────────────────────────────────────────────────
