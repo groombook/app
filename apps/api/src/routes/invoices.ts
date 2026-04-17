@@ -349,64 +349,20 @@ invoicesRouter.patch(
       }
     }
 
-    // Validate and persist tip splits when marking invoice as paid
     const tipCents = body.tipCents ?? current.tipCents;
-    if (body.status === "paid" && tipCents > 0) {
-      // If incoming splits are provided in the request body, atomically replace them
-      if (body.tipSplits !== undefined) {
-        if (body.tipSplits.length === 0) {
-          return c.json({ error: "Tip splits are required when tip amount is greater than zero" }, 400);
-        }
-        const totalPct = body.tipSplits.reduce((sum, s) => sum + s.sharePct, 0);
-        if (Math.abs(totalPct - 100) > 0.01) {
-          return c.json({ error: "Tip split percentages must sum to 100%" }, 400);
-        }
-        await db.transaction(async (tx) => {
-          await tx.delete(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id));
-          const splits = body.tipSplits!;
-          if (splits.length > 0) {
-            let remaining = tipCents;
-            const rows = splits.map((s, i) => {
-              const isLast = i === splits.length - 1;
-              const shareCents = isLast ? remaining : Math.round((s.sharePct / 100) * tipCents);
-              if (!isLast) remaining -= shareCents;
-              return {
-                invoiceId: id,
-                staffId: s.staffId,
-                staffName: s.staffName,
-                sharePct: s.sharePct.toFixed(2),
-                shareCents,
-              };
-            });
-            await tx.insert(invoiceTipSplits).values(rows);
-          }
-        });
-      } else {
-        // No incoming splits — validate existing DB splits
-        const splits = await db
-          .select()
-          .from(invoiceTipSplits)
-          .where(eq(invoiceTipSplits.invoiceId, id));
 
-        if (splits.length === 0) {
-          return c.json(
-            { error: "Tip splits are required when tip amount is greater than zero" },
-            400
-          );
-        }
-
-        const totalBps = splits.reduce((sum, s) => sum + Math.round(Number(s.sharePct) * 100), 0);
-        if (totalBps !== 10000) {
-          return c.json(
-            { error: "Tip split percentages must sum to 100%" },
-            400
-          );
-        }
+    // Validate tip splits when marking invoice as paid
+    if (body.status === "paid" && tipCents > 0 && body.tipSplits !== undefined) {
+      if (body.tipSplits.length === 0) {
+        return c.json({ error: "Tip splits are required when tip amount is greater than zero" }, 400);
+      }
+      const totalPct = body.tipSplits.reduce((sum, s) => sum + s.sharePct, 0);
+      if (Math.abs(totalPct - 100) > 0.01) {
+        return c.json({ error: "Tip split percentages must sum to 100%" }, 400);
       }
     }
 
     // Destructure tipSplits out — it belongs to a separate table, not the invoices column
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { tipSplits: _tipSplits, ...updateBody } = body as Record<string, unknown>;
     const update: Record<string, unknown> = { ...updateBody, updatedAt: new Date() };
 
@@ -422,16 +378,42 @@ invoicesRouter.patch(
       update.totalCents = current.subtotalCents + newTaxCents + newTipCents;
     }
 
-    const [updated] = await db
-      .update(invoices)
-      .set(update)
-      .where(eq(invoices.id, id))
-      .returning();
+    // Wrap tip split persistence and invoice update in a single atomic transaction
+    const [updated, lineItems] = await db.transaction(async (tx) => {
+      if (body.status === "paid" && tipCents > 0 && body.tipSplits !== undefined) {
+        await tx.delete(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id));
+        const splits = body.tipSplits;
+        if (splits.length > 0) {
+          let remaining = tipCents;
+          const rows = splits.map((s, i) => {
+            const isLast = i === splits.length - 1;
+            const shareCents = isLast ? remaining : Math.round((s.sharePct / 100) * tipCents);
+            if (!isLast) remaining -= shareCents;
+            return {
+              invoiceId: id,
+              staffId: s.staffId,
+              staffName: s.staffName,
+              sharePct: s.sharePct.toFixed(2),
+              shareCents,
+            };
+          });
+          await tx.insert(invoiceTipSplits).values(rows);
+        }
+      }
 
-    const lineItems = await db
-      .select()
-      .from(invoiceLineItems)
-      .where(eq(invoiceLineItems.invoiceId, id));
+      const [updatedInvoice] = await tx
+        .update(invoices)
+        .set(update)
+        .where(eq(invoices.id, id))
+        .returning();
+
+      const lineItems = await tx
+        .select()
+        .from(invoiceLineItems)
+        .where(eq(invoiceLineItems.invoiceId, id));
+
+      return [updatedInvoice, lineItems];
+    });
 
     return c.json({ ...updated, lineItems });
   }
