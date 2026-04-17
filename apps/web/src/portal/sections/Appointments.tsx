@@ -379,7 +379,7 @@ export function ConfirmationSection({
     try {
       const headers: Record<string, string> = {};
       if (sessionId) {
-        headers['Authorization'] = `Bearer ${sessionId}`;
+        headers['X-Impersonation-Session-Id'] = sessionId ?? '';
       }
       const res = await fetch(`/api/portal/appointments/${appt.id}/confirm`, {
         method: 'POST',
@@ -455,7 +455,7 @@ function CancelAppointmentButton({
     try {
       const headers: Record<string, string> = {};
       if (sessionId) {
-        headers['Authorization'] = `Bearer ${sessionId}`;
+        headers['X-Impersonation-Session-Id'] = sessionId ?? '';
       }
       const res = await fetch(`/api/portal/appointments/${appt.id}/cancel`, {
         method: 'POST',
@@ -507,7 +507,7 @@ export function CustomerNotesSection({
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (sessionId) {
-        headers['Authorization'] = `Bearer ${sessionId}`;
+        headers['X-Impersonation-Session-Id'] = sessionId ?? '';
       }
       const res = await fetch(`/api/portal/appointments/${appt.id}/notes`, {
         method: 'PATCH',
@@ -600,7 +600,7 @@ export function RescheduleFlow({
     setError(null);
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (sessionId) headers['Authorization'] = `Bearer ${sessionId}`;
+      if (sessionId) headers['X-Impersonation-Session-Id'] = sessionId ?? '';
       const res = await fetch(`/api/portal/appointments/${appt.id}/reschedule`, {
         method: 'POST',
         headers,
@@ -784,7 +784,7 @@ function BookingFlow({ onClose, sessionId }: BookingFlowProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionId}`,
+          'X-Impersonation-Session-Id': sessionId ?? '',
         },
         body: JSON.stringify({
           petId: selectedPet.id,
