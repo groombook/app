@@ -93,7 +93,7 @@ describe("CustomerNotesSection", () => {
         "/api/portal/appointments/appt-1/notes",
         expect.objectContaining({
           headers: expect.objectContaining({
-            "Authorization": "Bearer test-session-id",
+            "X-Impersonation-Session-Id": "test-session-id",
           }),
         })
       );
@@ -269,7 +269,7 @@ describe("ConfirmationSection", () => {
         "/api/portal/appointments/appt-1/confirm",
         expect.objectContaining({
           headers: expect.objectContaining({
-            "Authorization": "Bearer test-session-id",
+            "X-Impersonation-Session-Id": "test-session-id",
           }),
         })
       );
