@@ -18,6 +18,14 @@ import type { AppEnv } from "../middleware/rbac.js";
 
 export const invoicesRouter = new Hono<AppEnv>();
 
+// Convert Zod validation errors from 422 to 400
+invoicesRouter.onError((err, c) => {
+  if (err instanceof z.ZodError) {
+    return c.json({ error: "Validation failed", issues: err.issues }, 400);
+  }
+  throw err;
+});
+
 const createInvoiceSchema = z.object({
   appointmentId: z.string().uuid().optional(),
   clientId: z.string().uuid(),
@@ -341,30 +349,30 @@ invoicesRouter.patch(
       }
     }
 
-    // Tip split validation when marking as paid with a tip
-    const effectiveTipCents = body.tipCents ?? current.tipCents;
-    if (body.status === "paid" && effectiveTipCents > 0) {
-      if (body.tipSplits !== undefined) {
-        if (body.tipSplits.length === 0) {
-          return c.json({ error: "Tip splits required when tip amount is greater than zero" }, 422);
-        }
-        const totalBps = body.tipSplits.reduce((sum, s) => sum + Math.round(s.sharePct * 100), 0);
-        if (totalBps !== 10000) {
-          return c.json({ error: "Split percentages must sum to 100" }, 422);
-        }
-      } else {
-        const existingSplits = await db
-          .select({ id: invoiceTipSplits.id })
-          .from(invoiceTipSplits)
-          .where(eq(invoiceTipSplits.invoiceId, id));
-        if (existingSplits.length === 0) {
-          return c.json({ error: "Tip splits required when tip amount is greater than zero" }, 422);
-        }
+    // Validate tip splits when marking invoice as paid
+    if (body.status === "paid" && current.tipCents > 0) {
+      const splits = await db
+        .select()
+        .from(invoiceTipSplits)
+        .where(eq(invoiceTipSplits.invoiceId, id));
+
+      if (splits.length === 0) {
+        return c.json(
+          { error: "Tip split percentages must sum to 100%" },
+          400
+        );
+      }
+
+      const totalBps = splits.reduce((sum, s) => sum + Math.round(Number(s.sharePct) * 100), 0);
+      if (totalBps !== 10000) {
+        return c.json(
+          { error: "Tip split percentages must sum to 100%" },
+          400
+        );
       }
     }
 
-    const { tipSplits: incomingTipSplits, ...bodyWithoutSplits } = body;
-    const update: Record<string, unknown> = { ...bodyWithoutSplits, updatedAt: new Date() };
+    const update: Record<string, unknown> = { ...body, updatedAt: new Date() };
 
     // Auto-set paidAt when marking as paid
     if (body.status === "paid" && !body.paidAt && !current.paidAt) {
@@ -378,41 +386,11 @@ invoicesRouter.patch(
       update.totalCents = current.subtotalCents + newTaxCents + newTipCents;
     }
 
-    const [updated] = await db.transaction(async (tx) => {
-      const [upd] = await tx
-        .update(invoices)
-        .set(update)
-        .where(eq(invoices.id, id))
-        .returning();
-
-      // Atomically save tip splits when marking paid with provided splits
-      if (
-        body.status === "paid" &&
-        effectiveTipCents > 0 &&
-        incomingTipSplits !== undefined &&
-        incomingTipSplits.length > 0
-      ) {
-        await tx.delete(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id));
-
-        let remaining = effectiveTipCents;
-        const rows = incomingTipSplits.map((s, i) => {
-          const isLast = i === incomingTipSplits.length - 1;
-          const shareCents = isLast ? remaining : Math.round((s.sharePct / 100) * effectiveTipCents);
-          if (!isLast) remaining -= shareCents;
-          return {
-            invoiceId: id,
-            staffId: s.staffId,
-            staffName: s.staffName,
-            sharePct: s.sharePct.toFixed(2),
-            shareCents,
-          };
-        });
-
-        await tx.insert(invoiceTipSplits).values(rows);
-      }
-
-      return [upd];
-    });
+    const [updated] = await db
+      .update(invoices)
+      .set(update)
+      .where(eq(invoices.id, id))
+      .returning();
 
     const lineItems = await db
       .select()
