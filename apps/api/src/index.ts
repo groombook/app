@@ -72,6 +72,60 @@ app.route("/api/webhooks/stripe", webhooksRouter);
 // Dev/demo routes — config is always public, users endpoint is guarded internally
 app.route("/api/dev", devRouter);
 
+// Magic bytes for allowed image types
+const ALLOWED_IMAGE_TYPES: Record<string, Uint8Array> = {
+  "image/png": new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  "image/jpeg": new Uint8Array([0xff, 0xd8, 0xff]),
+  "image/gif": new Uint8Array([0x47, 0x49, 0x46, 0x38]),
+  "image/webp": new Uint8Array([0x52, 0x49, 0x46, 0x46]), // followed by size then WEBP
+};
+
+/**
+ * Validates that the given base64 content matches the declared MIME type
+ * by checking magic bytes. Returns null if valid, or the field to clear if not.
+ */
+function validateLogoMagicBytes(
+  logoBase64: string | null,
+  logoMimeType: string | null
+): "logoBase64" | "logoMimeType" | null {
+  if (!logoBase64 || !logoMimeType) return null;
+
+  const expectedMagic = ALLOWED_IMAGE_TYPES[logoMimeType];
+  if (!expectedMagic) return "logoMimeType"; // unknown MIME type — reject
+
+  try {
+    const binary = Buffer.from(logoBase64, "base64");
+    // WebP needs a special check (RIFF....WEBP at offset 0, size at offset 4)
+    if (logoMimeType === "image/webp") {
+      if (binary.length < 12) return "logoBase64";
+      const webpMagic = binary.slice(0, 4);
+      const webpSig = binary.slice(8, 12);
+      if (
+        webpMagic[0] !== 0x52 ||
+        webpMagic[1] !== 0x49 ||
+        webpMagic[2] !== 0x46 ||
+        webpMagic[3] !== 0x46 ||
+        webpSig[0] !== 0x57 ||
+        webpSig[1] !== 0x45 ||
+        webpSig[2] !== 0x42 ||
+        webpSig[3] !== 0x50
+      ) {
+        return "logoBase64";
+      }
+      return null;
+    }
+
+    // All other types: check prefix
+    if (binary.length < expectedMagic.length) return "logoBase64";
+    for (let i = 0; i < expectedMagic.length; i++) {
+      if (binary[i] !== expectedMagic[i]) return "logoBase64";
+    }
+    return null;
+  } catch {
+    return "logoBase64";
+  }
+}
+
 // Public branding endpoint — no auth required, returns business name/colors/logo
 app.get("/api/branding", async (c) => {
   const db = getDb();
@@ -87,13 +141,19 @@ app.get("/api/branding", async (c) => {
     }
   }
 
+  // Defensive: validate magic bytes to prevent MIME type confusion attacks
+  // via the legacy base64 logo fields
+  const badField = validateLogoMagicBytes(settings.logoBase64 ?? null, settings.logoMimeType ?? null);
+  const safeLogoBase64 = badField === "logoBase64" ? null : settings.logoBase64;
+  const safeLogoMimeType = badField === "logoMimeType" ? null : settings.logoMimeType;
+
   return c.json({
     businessName: settings.businessName,
     primaryColor: settings.primaryColor,
     accentColor: settings.accentColor,
     logoUrl,
-    logoBase64: settings.logoBase64,
-    logoMimeType: settings.logoMimeType,
+    logoBase64: safeLogoBase64,
+    logoMimeType: safeLogoMimeType,
   });
 });
 
