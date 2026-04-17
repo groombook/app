@@ -363,6 +363,7 @@ invoicesRouter.patch(
     }
 
     // Destructure tipSplits out — it belongs to a separate table, not the invoices column
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { tipSplits: _tipSplits, ...updateBody } = body as Record<string, unknown>;
     const update: Record<string, unknown> = { ...updateBody, updatedAt: new Date() };
 
