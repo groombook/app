@@ -44,8 +44,25 @@ export function ReportCards({ sessionId }: Props) {
 
       if (response.ok) {
         const data = await response.json();
-        const allAppointments: Appointment[] = data.appointments || data || [];
-        const reportCardAppointments = allAppointments.filter(
+        const rawAppointments: Record<string, unknown>[] = data.appointments || data || [];
+        const transformed: Appointment[] = rawAppointments.map((a) => {
+          const start = new Date(a.startTime as string);
+          const dateStr = start.toISOString().split('T')[0];
+          const hours = start.getHours();
+          const minutes = start.getMinutes().toString().padStart(2, '0');
+          const period = hours >= 12 ? 'PM' : 'AM';
+          const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+          const timeStr = `${hour12}:${minutes} ${period}`;
+          return {
+            ...a,
+            date: dateStr,
+            time: timeStr,
+            petName: (a.pet as { name?: string })?.name,
+            serviceName: (a.service as { name?: string })?.name,
+            groomerName: (a.staff as { name?: string })?.name,
+          } as Appointment;
+        });
+        const reportCardAppointments = transformed.filter(
           (appt) => appt.reportCardId
         );
         setAppointments(reportCardAppointments);

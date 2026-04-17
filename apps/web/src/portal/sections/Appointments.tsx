@@ -123,7 +123,28 @@ export const AppointmentsSection: React.FC<AppointmentsSectionProps> = ({ sessio
 
         if (response.ok) {
           const data = await response.json();
-          const fetchedAppointments: Appointment[] = data.appointments || data || [];
+          const rawAppointments: Record<string, unknown>[] = data.appointments || data || [];
+
+          // Transform API response (startTime) to client format (date + time)
+          const fetchedAppointments: Appointment[] = rawAppointments.map((a) => {
+            const start = new Date(a.startTime as string);
+            const dateStr = start.toISOString().split('T')[0];
+            const hours = start.getHours();
+            const minutes = start.getMinutes().toString().padStart(2, '0');
+            const period = hours >= 12 ? 'PM' : 'AM';
+            const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+            const timeStr = `${hour12}:${minutes} ${period}`;
+            return {
+              ...a,
+              date: dateStr,
+              time: timeStr,
+              petName: (a.pet as { name?: string })?.name,
+              serviceName: (a.service as { name?: string })?.name,
+              groomerName: (a.staff as { name?: string })?.name,
+              duration: (a.service as { duration?: number })?.duration,
+              price: (a.service as { price?: number })?.price,
+            } as Appointment;
+          });
 
           const upcoming = fetchedAppointments.filter((appt) => isUpcoming(appt));
           const past = fetchedAppointments.filter((appt) => !isUpcoming(appt));

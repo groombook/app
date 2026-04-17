@@ -60,12 +60,15 @@ portalRouter.get("/appointments", async (c) => {
 
   const petIds = allAppts.map(a => a.petId).filter((id): id is string => id !== null);
   const staffIds = allAppts.map(a => a.staffId).filter((id): id is string => id !== null);
+  const serviceIds = allAppts.map(a => a.serviceId).filter((id): id is string => id !== null);
 
   const petRows = petIds.length ? await db.select().from(pets).where(inArray(pets.id, petIds)) : [];
   const staffRows = staffIds.length ? await db.select().from(staff).where(inArray(staff.id, staffIds)) : [];
+  const serviceRows = serviceIds.length ? await db.select().from(services).where(inArray(services.id, serviceIds)) : [];
 
   const petMap = Object.fromEntries(petRows.map(p => [p.id, p]));
   const staffMap = Object.fromEntries(staffRows.map(s => [s.id, s]));
+  const serviceMap = Object.fromEntries(serviceRows.map(s => [s.id, s]));
 
   const appts = allAppts.map(a => ({
     id: a.id,
@@ -76,14 +79,14 @@ portalRouter.get("/appointments", async (c) => {
     customerNotes: a.customerNotes,
     notes: a.notes,
     pet: a.petId ? { id: petMap[a.petId]?.id, name: petMap[a.petId]?.name, photo: petMap[a.petId]?.photoKey } : null,
-    service: a.serviceId ? { id: a.serviceId } : null,
+    service: a.serviceId ? { id: a.serviceId, name: serviceMap[a.serviceId]?.name, duration: serviceMap[a.serviceId]?.durationMinutes, price: serviceMap[a.serviceId]?.basePriceCents } : null,
     staff: a.staffId ? { id: staffMap[a.staffId]?.id, name: staffMap[a.staffId]?.name } : null,
   }));
 
   const upcoming = appts.filter(a => a.startTime > now && a.status !== "cancelled");
   const past = appts.filter(a => a.startTime <= now || a.status === "cancelled");
 
-  return c.json({ upcoming, past });
+  return c.json({ appointments: appts });
 });
 
 portalRouter.get("/pets", async (c) => {
