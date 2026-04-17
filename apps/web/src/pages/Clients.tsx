@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useId } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Client, GroomingVisitLog, Pet } from "@groombook/types";
 import { PetPhotoDisplay } from "../components/PetPhotoDisplay.js";
@@ -647,8 +647,7 @@ export function ClientsPage() {
 
       {/* ── Client modal ── */}
       {showClientForm && (
-        <Modal onClose={() => setShowClientForm(false)}>
-          <h2 style={{ marginTop: 0 }}>{editingClient ? "Edit Client" : "New Client"}</h2>
+        <Modal title={editingClient ? "Edit Client" : "New Client"} onClose={() => setShowClientForm(false)}>
           <form onSubmit={submitClient}>
             <Field label="Full name">
               <input value={clientForm.name} onChange={(e) => setClientForm((f) => ({ ...f, name: e.target.value }))} required style={inputStyle} />
@@ -678,8 +677,7 @@ export function ClientsPage() {
 
       {/* ── Pet modal ── */}
       {showPetForm && (
-        <Modal onClose={() => setShowPetForm(false)}>
-          <h2 style={{ marginTop: 0 }}>{editingPet ? "Edit Pet" : "Add Pet"}</h2>
+        <Modal title={editingPet ? "Edit Pet" : "Add Pet"} onClose={() => setShowPetForm(false)}>
           <form onSubmit={submitPet}>
             <Field label="Pet name">
               <input value={petForm.name} onChange={(e) => setPetForm((f) => ({ ...f, name: e.target.value }))} required style={inputStyle} />
@@ -753,8 +751,7 @@ export function ClientsPage() {
 
       {/* ── Visit log modal ── */}
       {showLogForm && logPetId && (
-        <Modal onClose={() => setShowLogForm(false)}>
-          <h2 style={{ marginTop: 0 }}>Log Grooming Visit</h2>
+        <Modal title="Log Grooming Visit" onClose={() => setShowLogForm(false)}>
           {logsLoading[logPetId] && <p style={{ fontSize: 13, color: "#6b7280" }}>Loading history…</p>}
           {visitLogs[logPetId] && visitLogs[logPetId].length > 0 && (
             <div style={{ marginBottom: "1rem" }}>
@@ -817,8 +814,7 @@ export function ClientsPage() {
 
       {/* ── Delete confirmation modal ── */}
       {showDeleteConfirm && selectedClient && (
-        <Modal onClose={() => setShowDeleteConfirm(false)}>
-          <h2 style={{ marginTop: 0, color: "#dc2626" }}>Permanently Delete Client</h2>
+        <Modal title="Permanently Delete Client" titleStyle={{ color: "#dc2626" }} onClose={() => setShowDeleteConfirm(false)}>
           <p style={{ fontSize: 14, color: "#374151" }}>
             This will permanently delete <strong>{selectedClient.name}</strong> and all their pets. This action cannot be undone.
           </p>
@@ -856,13 +852,20 @@ export function ClientsPage() {
 
 // ─── Shared UI ───────────────────────────────────────────────────────────────
 
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function Modal({ children, onClose, title, titleStyle }: { children: React.ReactNode; onClose: () => void; title: string; titleStyle?: React.CSSProperties }) {
+  const titleId = useId();
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: "#fff", borderRadius: 8, padding: "1.5rem", maxWidth: 480, width: "calc(100% - 2rem)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        style={{ background: "#fff", borderRadius: 8, padding: "1.5rem", maxWidth: 480, width: "calc(100% - 2rem)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+      >
+        <h2 id={titleId} style={{ marginTop: 0, ...titleStyle }}>{title}</h2>
         {children}
       </div>
     </div>
