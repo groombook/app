@@ -18,6 +18,14 @@ import type { AppEnv } from "../middleware/rbac.js";
 
 export const invoicesRouter = new Hono<AppEnv>();
 
+// Convert Zod validation errors from 422 to 400
+invoicesRouter.onError((err, c) => {
+  if (err instanceof z.ZodError) {
+    return c.json({ error: "Validation failed", issues: err.issues }, 400);
+  }
+  throw err;
+});
+
 const createInvoiceSchema = z.object({
   appointmentId: z.string().uuid().optional(),
   clientId: z.string().uuid(),
@@ -330,6 +338,29 @@ invoicesRouter.patch(
         return c.json(
           { error: `Invalid status transition from ${current.status} to ${body.status}` },
           422
+        );
+      }
+    }
+
+    // Validate tip splits when marking invoice as paid
+    if (body.status === "paid" && current.tipCents > 0) {
+      const splits = await db
+        .select()
+        .from(invoiceTipSplits)
+        .where(eq(invoiceTipSplits.invoiceId, id));
+
+      if (splits.length === 0) {
+        return c.json(
+          { error: "Tip split percentages must sum to 100%" },
+          400
+        );
+      }
+
+      const totalBps = splits.reduce((sum, s) => sum + Math.round(Number(s.sharePct) * 100), 0);
+      if (totalBps !== 10000) {
+        return c.json(
+          { error: "Tip split percentages must sum to 100%" },
+          400
         );
       }
     }
