@@ -221,33 +221,29 @@ function InvoiceDetailModal({
       }
     }
     try {
+      const patchBody: {
+        status: string;
+        paymentMethod: string;
+        tipCents: number;
+        tipSplits?: Array<{ staffId: string | null; staffName: string; sharePct: number }>;
+      } = { status: "paid", paymentMethod, tipCents };
+
+      if (showSplits && tipCents > 0 && tipSplits.length > 0) {
+        patchBody.tipSplits = tipSplits.map((r) => ({
+          staffId: r.staffId,
+          staffName: r.staffName,
+          sharePct: r.pct,
+        }));
+      }
+
       const res = await fetch(`/api/invoices/${invoice.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "paid", paymentMethod, tipCents }),
+        body: JSON.stringify(patchBody),
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-
-      // Save tip splits if applicable and tip > 0
-      if (showSplits && tipCents > 0 && tipSplits.length > 0) {
-        const totalPct = tipSplits.reduce((s, r) => s + r.pct, 0);
-        if (Math.abs(totalPct - 100) < 0.01) {
-          const splitsRes = await fetch(`/api/invoices/${invoice.id}/tip-splits`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              splits: tipSplits.map((r) => ({
-                staffId: r.staffId,
-                staffName: r.staffName,
-                sharePct: r.pct,
-              })),
-            }),
-          });
-          if (!splitsRes.ok) console.warn("Tip split save failed (non-blocking)");
-        }
       }
 
       onUpdated();
