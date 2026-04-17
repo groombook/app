@@ -27,6 +27,8 @@ interface AuthProviderForm {
 
 const REDACTED = "••••••••";
 
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"]);
+
 interface CurrentUser {
   id: string;
   name: string;
@@ -326,7 +328,7 @@ issuerUrl: authForm.issuerUrl,
 
   if (!loaded) return <p>Loading settings...</p>;
 
-  const logoSrc = form.logoUrl ?? (form.logoBase64 && form.logoMimeType ? `data:${form.logoMimeType};base64,${form.logoBase64}` : null);
+  const logoSrc = form.logoUrl ?? (form.logoBase64 && form.logoMimeType && ALLOWED_LOGO_TYPES.has(form.logoMimeType) ? `data:${form.logoMimeType};base64,${form.logoBase64}` : null);
 
   return (
     <div style={{ maxWidth: 600 }}>
