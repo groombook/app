@@ -158,46 +158,28 @@ export function SettingsPage() {
     }
 
     try {
-      // Step 1: Get presigned upload URL
-      const uploadRes = await fetch("/api/admin/settings/logo/upload-url", {
+      // Upload directly through the API server to avoid mixed-content issues
+      // with pre-signed URLs that use the internal HTTP endpoint
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadRes = await fetch("/api/admin/settings/logo/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentType: file.type, fileSizeBytes: file.size }),
+        body: formData,
       });
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => null);
-        throw new Error(err?.error ?? "Failed to get upload URL");
+        throw new Error(err?.error ?? "Failed to upload logo");
       }
-      const { uploadUrl, key } = await uploadRes.json();
+      const { logoKey } = await uploadRes.json();
 
-      // Step 2: PUT the file directly to S3
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!putRes.ok) {
-        throw new Error("Failed to upload logo to storage");
-      }
-
-      // Step 3: Confirm the upload
-      const confirmRes = await fetch("/api/admin/settings/logo/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
-      });
-      if (!confirmRes.ok) {
-        const err = await confirmRes.json().catch(() => null);
-        throw new Error(err?.error ?? "Failed to confirm logo upload");
-      }
-
-      // Step 4: Fetch the presigned GET URL for display
+      // Fetch the presigned GET URL for display
       const logoRes = await fetch("/api/admin/settings/logo");
       if (logoRes.ok) {
         const logoData = await logoRes.json();
-        setForm((f) => ({ ...f, logoKey: key, logoUrl: logoData.url, logoBase64: null, logoMimeType: null }));
+        setForm((f) => ({ ...f, logoKey, logoUrl: logoData.url, logoBase64: null, logoMimeType: null }));
       } else {
-        setForm((f) => ({ ...f, logoKey: key, logoUrl: null, logoBase64: null, logoMimeType: null }));
+        setForm((f) => ({ ...f, logoKey, logoUrl: null, logoBase64: null, logoMimeType: null }));
       }
       setMessage({ type: "success", text: "Logo uploaded." });
       refresh();

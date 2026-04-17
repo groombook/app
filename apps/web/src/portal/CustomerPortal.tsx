@@ -326,7 +326,7 @@ export function CustomerPortal() {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 min-h-screen">
+        <main className="flex-1 min-h-screen overflow-x-hidden">
           <div className="hidden md:flex items-center justify-between px-8 py-4 border-b border-stone-200 bg-white">
             <div>
               <h1 className="text-lg font-semibold text-stone-800">
@@ -340,7 +340,7 @@ export function CustomerPortal() {
               </div>
             </div>
           </div>
-          <div className="p-4 md:p-8 max-w-6xl">
+          <div className="p-4 md:p-8 max-w-6xl w-full overflow-hidden">
             {renderSection()}
           </div>
         </main>
