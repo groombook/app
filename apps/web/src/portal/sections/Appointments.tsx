@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
 
-interface Appointment {
+export interface Appointment {
   id: string;
   petId: string;
   serviceId: string;

@@ -1,1 +1,1 @@
-export { SetupWizard } from "./SetupWizard.jsx";
+export { SetupWizard } from "./SetupWizard.tsx";

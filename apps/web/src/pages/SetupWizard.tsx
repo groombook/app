@@ -2,16 +2,39 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBranding } from "../BrandingContext.js";
 
-export function SetupWizard({ onSetupComplete }) {
+interface SetupStatus {
+  showAuthProviderStep?: boolean;
+}
+
+interface TestResult {
+  ok: boolean;
+  error?: string;
+}
+
+interface AuthFormState {
+  providerId: string;
+  displayName: string;
+  issuerUrl: string;
+  internalBaseUrl: string;
+  clientId: string;
+  clientSecret: string;
+  scopes: string;
+}
+
+interface Step {
+  id: string;
+  title: string;
+  description: string;
+}
+
+export function SetupWizard({ onSetupComplete }: { onSetupComplete?: () => void }) {
   const navigate = useNavigate();
   const { refresh: refreshBranding } = useBranding();
 
-  // Fetch setup status to determine if auth provider step is needed
-  const [setupStatus, setSetupStatus] = useState(null); // null = loading
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
 
-  // Auth provider form state
-  const [authForm, setAuthForm] = useState({
+  const [authForm, setAuthForm] = useState<AuthFormState>({
     providerId: "authentik",
     displayName: "",
     issuerUrl: "",
@@ -21,16 +44,16 @@ export function SetupWizard({ onSetupComplete }) {
     scopes: "openid profile email",
   });
   const [testingConnection, setTestingConnection] = useState(false);
-  const [testResult, setTestResult] = useState(null); // {ok: boolean, error?: string}
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
 
   const [step, setStep] = useState(0);
   const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/setup/status")
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<SetupStatus>)
       .then((data) => {
         setSetupStatus(data);
         setLoadingStatus(false);
@@ -40,8 +63,7 @@ export function SetupWizard({ onSetupComplete }) {
       });
   }, []);
 
-  // Build steps dynamically based on setup status
-  const STEPS = setupStatus?.showAuthProviderStep
+  const STEPS: Step[] = setupStatus?.showAuthProviderStep
     ? [
         { id: "welcome", title: "Welcome", description: "Welcome to GroomBook! Let's get your business set up." },
         { id: "auth", title: "Auth Provider", description: "Configure your authentication provider to secure your GroomBook instance." },
@@ -63,9 +85,8 @@ export function SetupWizard({ onSetupComplete }) {
   const isFirst = step === 0;
   const canGoBack = step > 0 && step < STEPS.length - 1;
 
-  // Determine if we can proceed - depends on which step we're on
   const canGoNext = (() => {
-    if (step === STEPS.length - 1) return true; // done step
+    if (step === STEPS.length - 1) return true;
     if (current?.id === "business") return businessName.trim().length > 0;
     if (current?.id === "auth") {
       return (
@@ -94,9 +115,9 @@ export function SetupWizard({ onSetupComplete }) {
           scopes: authForm.scopes,
         }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as TestResult;
       setTestResult(data);
-    } catch (e) {
+    } catch {
       setTestResult({ ok: false, error: "Network error. Please try again." });
     } finally {
       setTestingConnection(false);
@@ -105,12 +126,10 @@ export function SetupWizard({ onSetupComplete }) {
 
   const handleNext = async () => {
     if (step === STEPS.length - 1) {
-      // Done - redirect to admin
       navigate("/admin");
       return;
     }
 
-    // Submit auth provider config
     if (current?.id === "auth") {
       setLoading(true);
       setError(null);
@@ -129,12 +148,12 @@ export function SetupWizard({ onSetupComplete }) {
           }),
         });
         if (!res.ok) {
-          const data = await res.json();
+          const data = (await res.json()) as { error?: string };
           setError(data.error || "Failed to save auth provider configuration. Please try again.");
           setLoading(false);
           return;
         }
-      } catch (e) {
+      } catch {
         setError("Network error. Please try again.");
         setLoading(false);
         return;
@@ -142,7 +161,6 @@ export function SetupWizard({ onSetupComplete }) {
       setLoading(false);
     }
 
-    // Submit business name and complete setup
     if (current?.id === "business" && businessName.trim()) {
       setLoading(true);
       setError(null);
@@ -153,16 +171,14 @@ export function SetupWizard({ onSetupComplete }) {
           body: JSON.stringify({ businessName: businessName.trim() }),
         });
         if (!res.ok) {
-          const data = await res.json();
+          const data = (await res.json()) as { error?: string };
           setError(data.error || "Setup failed. Please try again.");
           setLoading(false);
           return;
         }
-        // Refresh branding so the nav bar shows the new business name
         refreshBranding();
-        // Clear needsSetup state in App so the redirect to /admin sticks
         if (onSetupComplete) onSetupComplete();
-      } catch (e) {
+      } catch {
         setError("Network error. Please try again.");
         setLoading(false);
         return;
@@ -192,7 +208,7 @@ export function SetupWizard({ onSetupComplete }) {
     );
   }
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "0.6rem 0.85rem",
     borderRadius: 8,
@@ -220,7 +236,6 @@ export function SetupWizard({ onSetupComplete }) {
         maxWidth: 480,
         width: "100%",
       }}>
-        {/* Progress dots */}
         <div style={{ display: "flex", gap: 6, marginBottom: "2rem", justifyContent: "center" }}>
           {STEPS.map((_, i) => (
             <div
@@ -237,38 +252,32 @@ export function SetupWizard({ onSetupComplete }) {
           ))}
         </div>
 
-        {/* Step indicator */}
         <p style={{ margin: "0 0 0.5rem", fontSize: 13, color: "#6b7280", fontWeight: 500 }}>
           Step {step + 1} of {STEPS.length}
         </p>
 
-        {/* Title */}
         <h2 style={{ margin: "0 0 0.75rem", fontSize: 22, fontWeight: 700, color: "#1a202c" }}>
           {current?.title}
         </h2>
 
-        {/* Description */}
         <p style={{ margin: "0 0 1.5rem", fontSize: 15, color: "#4b5563", lineHeight: 1.6 }}>
           {current?.description}
         </p>
 
-        {/* Step: Business name input */}
         {current?.id === "business" && (
           <input
             type="text"
             placeholder="e.g. Happy Paws Grooming"
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && canGoNext && handleNext()}
+            onKeyDown={(e) => e.key === "Enter" && canGoNext && void handleNext()}
             autoFocus
             style={inputStyle}
           />
         )}
 
-        {/* Step: Auth provider config form */}
         {current?.id === "auth" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-            {/* Provider ID */}
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                 Provider ID
@@ -282,7 +291,6 @@ export function SetupWizard({ onSetupComplete }) {
               />
             </div>
 
-            {/* Display Name */}
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                 Display Name
@@ -296,7 +304,6 @@ export function SetupWizard({ onSetupComplete }) {
               />
             </div>
 
-            {/* Issuer URL */}
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                 Issuer URL
@@ -310,7 +317,6 @@ export function SetupWizard({ onSetupComplete }) {
               />
             </div>
 
-            {/* Internal Base URL (optional) */}
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                 Internal Base URL <span style={{ fontWeight: 400, color: "#6b7280" }}>(optional, for hairpin NAT)</span>
@@ -324,7 +330,6 @@ export function SetupWizard({ onSetupComplete }) {
               />
             </div>
 
-            {/* Client ID */}
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                 Client ID
@@ -338,7 +343,6 @@ export function SetupWizard({ onSetupComplete }) {
               />
             </div>
 
-            {/* Client Secret */}
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                 Client Secret
@@ -352,7 +356,6 @@ export function SetupWizard({ onSetupComplete }) {
               />
             </div>
 
-            {/* Scopes */}
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                 Scopes
@@ -366,10 +369,9 @@ export function SetupWizard({ onSetupComplete }) {
               />
             </div>
 
-            {/* Test Connection button */}
             <button
               type="button"
-              onClick={handleTestConnection}
+              onClick={() => { void handleTestConnection(); }}
               disabled={testingConnection || !authForm.issuerUrl || !authForm.clientId}
               style={{
                 padding: "0.45rem 0.85rem",
@@ -387,7 +389,6 @@ export function SetupWizard({ onSetupComplete }) {
               {testingConnection ? "Testing..." : "Test Connection"}
             </button>
 
-            {/* Test result */}
             {testResult && (
               <div style={{
                 padding: "0.5rem 0.75rem",
@@ -405,7 +406,6 @@ export function SetupWizard({ onSetupComplete }) {
           </div>
         )}
 
-        {/* Step: Super user info */}
         {current?.id === "superuser" && (
           <div style={{
             background: "#f0fdf4",
@@ -420,7 +420,6 @@ export function SetupWizard({ onSetupComplete }) {
           </div>
         )}
 
-        {/* Step: Second admin info */}
         {current?.id === "admin" && (
           <div style={{
             background: "#fffbeb",
@@ -434,7 +433,6 @@ export function SetupWizard({ onSetupComplete }) {
           </div>
         )}
 
-        {/* Error message */}
         {error && (
           <p style={{
             margin: "0.5rem 0 0",
@@ -449,7 +447,6 @@ export function SetupWizard({ onSetupComplete }) {
           </p>
         )}
 
-        {/* Navigation buttons */}
         <div style={{
           display: "flex",
           gap: "0.75rem",
@@ -476,7 +473,7 @@ export function SetupWizard({ onSetupComplete }) {
             </button>
           )}
           <button
-            onClick={handleNext}
+            onClick={() => { void handleNext(); }}
             disabled={(!canGoNext && !isLast) || loading}
             style={{
               padding: "0.55rem 1.25rem",

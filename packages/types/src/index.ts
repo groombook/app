@@ -40,6 +40,8 @@ export interface Pet {
   shampooPreference: string | null;
   specialCareNotes: string | null;
   customFields: Record<string, string>;
+  photoKey?: string;
+  photoUploadedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

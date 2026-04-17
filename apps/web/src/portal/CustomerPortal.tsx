@@ -16,6 +16,7 @@ import { AuditLogViewer } from "./AuditLogViewer.js";
 import { useBranding } from "../BrandingContext.js";
 import { getDevUser } from "../pages/DevLoginSelector.js";
 import type { ImpersonationSession } from "@groombook/types";
+import type { Appointment as PortalAppointment } from "./sections/Appointments.js";
 
 type Section = "dashboard" | "appointments" | "pets" | "reports" | "billing" | "messages" | "settings";
 
@@ -34,7 +35,7 @@ export function CustomerPortal() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
-  const [rescheduleAppointment, setRescheduleAppointment] = useState<Record<string, unknown> | null>(null);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState<PortalAppointment | null>(null);
   const [session, setSession] = useState<ImpersonationSession | null>(null);
   const [sessionExtended, setSessionExtended] = useState(false);
   const [clientName, setClientName] = useState<string>("");
@@ -149,7 +150,7 @@ export function CustomerPortal() {
   const handleReschedule = useCallback((appointmentId: string) => {
     // Look up the full appointment from Dashboard's displayed data
     // The appointment was already fetched by Dashboard, so we use the ID to find it
-    setRescheduleAppointment({ id: appointmentId } as Record<string, unknown>);
+    setRescheduleAppointment({ id: appointmentId } as PortalAppointment);
     setShowReschedule(true);
   }, []);
 
@@ -227,7 +228,7 @@ export function CustomerPortal() {
 
       {showReschedule && rescheduleAppointment && (
         <RescheduleFlow
-          appointment={rescheduleAppointment as any}
+          appointment={rescheduleAppointment}
           onClose={() => { setShowReschedule(false); setRescheduleAppointment(null); }}
           sessionId={session?.id ?? null}
         />
