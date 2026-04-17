@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
 import { eq, getDb, businessSettings } from "@groombook/db";
-import { getPresignedUploadUrl, getPresignedGetUrl, deleteObject } from "../lib/s3.js";
+import { getPresignedUploadUrl, getPresignedGetUrl, deleteObject, putObject } from "../lib/s3.js";
 import { requireSuperUser } from "../middleware/rbac.js";
 
 export const settingsRouter = new Hono();
@@ -99,6 +99,77 @@ settingsRouter.post(
     return c.json({ uploadUrl, key });
   }
 );
+
+/**
+ * POST /api/admin/settings/logo/upload
+ * Proxy upload through the API server to avoid mixed-content issues with
+ * pre-signed URLs that use the internal HTTP endpoint. The file is uploaded
+ * directly to S3 from the server using the internal endpoint.
+ */
+settingsRouter.post("/logo/upload", requireSuperUser(), async (c) => {
+  const db = getDb();
+
+  // Parse multipart form data (file field)
+  const body = await c.req.parseBody({ all: true });
+  const file = body["file"];
+
+  if (!file || !(file instanceof File)) {
+    return c.json({ error: "No file provided" }, 400);
+  }
+
+  const contentType = file.type;
+  if (!ALLOWED_LOGO_TYPES.has(contentType)) {
+    return c.json(
+      {
+        error:
+          "contentType must be one of: image/png, image/svg+xml, image/jpeg, image/webp",
+      },
+      400
+    );
+  }
+
+  const fileSizeBytes = file.size;
+  if (fileSizeBytes > MAX_LOGO_SIZE) {
+    return c.json({ error: "File must not exceed 512 KB" }, 400);
+  }
+
+  const rows = await db.select().from(businessSettings).limit(1);
+  if (!rows[0]) {
+    return c.json({ error: "Settings not found" }, 404);
+  }
+  const settingsId = rows[0].id;
+
+  const ext = contentType.split("/")[1] ?? "png";
+  const key = `logos/${settingsId}/${Date.now()}.${ext}`;
+
+  // Read file into buffer and upload directly to S3 (bypasses pre-signed URL)
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  await putObject(key, buffer, contentType, fileSizeBytes);
+
+  // Delete previous S3 object if any
+  if (rows[0].logoKey) {
+    await deleteObject(rows[0].logoKey);
+  }
+
+  // Update database with new logo key
+  const [updated] = await db
+    .update(businessSettings)
+    .set({
+      logoKey: key,
+      logoBase64: null,
+      logoMimeType: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(businessSettings.id, settingsId))
+    .returning();
+
+  if (!updated) {
+    return c.json({ error: "Settings not found" }, 404);
+  }
+
+  return c.json({ ok: true, logoKey: updated.logoKey });
+});
 
 /**
  * POST /api/admin/settings/logo/confirm
