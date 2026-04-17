@@ -200,51 +200,60 @@ export const appointmentGroups = pgTable("appointment_groups", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const appointments = pgTable("appointments", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  clientId: uuid("client_id")
-    .notNull()
-    .references(() => clients.id, { onDelete: "restrict" }),
-  petId: uuid("pet_id")
-    .notNull()
-    .references(() => pets.id, { onDelete: "restrict" }),
-  serviceId: uuid("service_id")
-    .notNull()
-    .references(() => services.id, { onDelete: "restrict" }),
-  staffId: uuid("staff_id").references(() => staff.id, {
-    onDelete: "set null",
-  }),
-  // Optional secondary staff (bather/assistant) for tip-split tracking
-  batherStaffId: uuid("bather_staff_id").references(() => staff.id, {
-    onDelete: "set null",
-  }),
-  status: appointmentStatusEnum("status").notNull().default("scheduled"),
-  startTime: timestamp("start_time").notNull(),
-  endTime: timestamp("end_time").notNull(),
-  notes: text("notes"),
-  // Override price at time of booking (null = use service base price)
-  priceCents: integer("price_cents"),
-  // Recurring series support
-  seriesId: uuid("series_id").references(() => recurringSeries.id, {
-    onDelete: "set null",
-  }),
-  seriesIndex: integer("series_index"),
-  // Multi-pet group booking: links this appointment to others in the same visit
-  groupId: uuid("group_id").references(() => appointmentGroups.id, {
-    onDelete: "set null",
-  }),
-  // Customer confirmation/cancellation tracking
-  // Values: "pending" | "confirmed" | "cancelled"
-  confirmationStatus: text("confirmation_status").notNull().default("pending"),
-  confirmedAt: timestamp("confirmed_at"),
-  cancelledAt: timestamp("cancelled_at"),
-  // Token for tokenized email confirm/cancel links (no auth required)
-  confirmationToken: text("confirmation_token").unique(),
-  // Customer-provided note visible to groomer (500 char max, editable until appointment starts)
-  customerNotes: text("customer_notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const appointments = pgTable(
+  "appointments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "restrict" }),
+    petId: uuid("pet_id")
+      .notNull()
+      .references(() => pets.id, { onDelete: "restrict" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "restrict" }),
+    staffId: uuid("staff_id").references(() => staff.id, {
+      onDelete: "set null",
+    }),
+    // Optional secondary staff (bather/assistant) for tip-split tracking
+    batherStaffId: uuid("bather_staff_id").references(() => staff.id, {
+      onDelete: "set null",
+    }),
+    status: appointmentStatusEnum("status").notNull().default("scheduled"),
+    startTime: timestamp("start_time").notNull(),
+    endTime: timestamp("end_time").notNull(),
+    notes: text("notes"),
+    // Override price at time of booking (null = use service base price)
+    priceCents: integer("price_cents"),
+    // Recurring series support
+    seriesId: uuid("series_id").references(() => recurringSeries.id, {
+      onDelete: "set null",
+    }),
+    seriesIndex: integer("series_index"),
+    // Multi-pet group booking: links this appointment to others in the same visit
+    groupId: uuid("group_id").references(() => appointmentGroups.id, {
+      onDelete: "set null",
+    }),
+    // Customer confirmation/cancellation tracking
+    // Values: "pending" | "confirmed" | "cancelled"
+    confirmationStatus: text("confirmation_status").notNull().default("pending"),
+    confirmedAt: timestamp("confirmed_at"),
+    cancelledAt: timestamp("cancelled_at"),
+    // Token for tokenized email confirm/cancel links (no auth required)
+    confirmationToken: text("confirmation_token").unique(),
+    // Customer-provided note visible to groomer (500 char max, editable until appointment starts)
+    customerNotes: text("customer_notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_appointments_client_id").on(t.clientId),
+    index("idx_appointments_staff_id").on(t.staffId),
+    index("idx_appointments_start_time").on(t.startTime),
+    index("idx_appointments_status").on(t.status),
+  ]
+);
 
 export const invoices = pgTable(
   "invoices",

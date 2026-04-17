@@ -213,7 +213,11 @@ petsRouter.post(
 
     // Delete the previous photo from storage to avoid orphaned objects
     if (pet.photoKey) {
-      await deleteObject(pet.photoKey);
+      try {
+        await deleteObject(pet.photoKey);
+      } catch (err) {
+        console.warn(`Failed to delete previous photo ${pet.photoKey}, orphaned object may remain:`, err);
+      }
     }
 
     const [row] = await db
@@ -240,7 +244,11 @@ petsRouter.delete("/:petId/photo", async (c) => {
   if (!pet) return c.json({ error: "Pet not found" }, 404);
   if (!pet.photoKey) return c.json({ error: "No photo on file" }, 404);
 
-  await deleteObject(pet.photoKey);
+  try {
+    await deleteObject(pet.photoKey);
+  } catch (err) {
+    console.warn(`Failed to delete photo ${pet.photoKey} from S3, orphaned object may remain:`, err);
+  }
   await db
     .update(pets)
     .set({ photoKey: null, photoUploadedAt: null, updatedAt: new Date() })
