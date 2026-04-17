@@ -71,6 +71,12 @@ export function PetPhotoUpload({ petId, onUploaded }: Props) {
   }
 
   async function handleFile(file: File) {
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      setState({ status: "error", message: "File exceeds 50MB limit. Please choose a smaller image." });
+      return;
+    }
+
     if (!ACCEPTED_TYPES.includes(file.type)) {
       setState({ status: "error", message: "Please select a JPEG, PNG, WebP, or GIF image." });
       return;

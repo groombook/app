@@ -27,6 +27,8 @@ interface AuthProviderForm {
 
 const REDACTED = "••••••••";
 
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+
 interface CurrentUser {
   id: string;
   name: string;
@@ -149,9 +151,9 @@ export function SettingsPage() {
       return;
     }
 
-    const validTypes = ["image/png", "image/svg+xml", "image/jpeg", "image/webp"];
+    const validTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
     if (!validTypes.includes(file.type)) {
-      setMessage({ type: "error", text: "Logo must be PNG, SVG, JPEG, or WebP." });
+      setMessage({ type: "error", text: "Logo must be PNG, JPEG, GIF, or WebP." });
       return;
     }
 
@@ -326,7 +328,7 @@ issuerUrl: authForm.issuerUrl,
 
   if (!loaded) return <p>Loading settings...</p>;
 
-  const logoSrc = form.logoUrl ?? (form.logoBase64 && form.logoMimeType ? `data:${form.logoMimeType};base64,${form.logoBase64}` : null);
+  const logoSrc = form.logoUrl ?? (form.logoBase64 && form.logoMimeType && ALLOWED_LOGO_TYPES.has(form.logoMimeType) ? `data:${form.logoMimeType};base64,${form.logoBase64}` : null);
 
   return (
     <div style={{ maxWidth: 600 }}>
@@ -393,7 +395,7 @@ issuerUrl: authForm.issuerUrl,
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/png,image/svg+xml,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/gif,image/webp"
               onChange={handleLogoChange}
               style={{ display: "none" }}
             />
