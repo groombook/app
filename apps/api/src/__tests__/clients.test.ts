@@ -195,8 +195,8 @@ describe("POST /clients", () => {
     expect(insertedValues[0]!.name).toBe("Charlie");
   });
 
-  it("creates a client with only required name field", async () => {
-    const res = await jsonRequest("POST", "/clients", { name: "Dana" });
+  it("creates a client with required fields", async () => {
+    const res = await jsonRequest("POST", "/clients", { name: "Dana", email: "dana@example.com" });
     expect(res.status).toBe(201);
     expect(insertedValues[0]!.name).toBe("Dana");
   });
