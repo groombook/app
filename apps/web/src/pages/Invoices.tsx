@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { Invoice, Client, Appointment, Service, Staff, InvoiceTipSplit } from "@groombook/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -221,33 +221,29 @@ function InvoiceDetailModal({
       }
     }
     try {
+      const patchBody: {
+        status: string;
+        paymentMethod: string;
+        tipCents: number;
+        tipSplits?: Array<{ staffId: string | null; staffName: string; sharePct: number }>;
+      } = { status: "paid", paymentMethod, tipCents };
+
+      if (showSplits && tipCents > 0 && tipSplits.length > 0) {
+        patchBody.tipSplits = tipSplits.map((r) => ({
+          staffId: r.staffId,
+          staffName: r.staffName,
+          sharePct: r.pct,
+        }));
+      }
+
       const res = await fetch(`/api/invoices/${invoice.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "paid", paymentMethod, tipCents }),
+        body: JSON.stringify(patchBody),
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
         throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-
-      // Save tip splits if applicable and tip > 0
-      if (showSplits && tipCents > 0 && tipSplits.length > 0) {
-        const totalPct = tipSplits.reduce((s, r) => s + r.pct, 0);
-        if (Math.abs(totalPct - 100) < 0.01) {
-          const splitsRes = await fetch(`/api/invoices/${invoice.id}/tip-splits`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              splits: tipSplits.map((r) => ({
-                staffId: r.staffId,
-                staffName: r.staffName,
-                sharePct: r.pct,
-              })),
-            }),
-          });
-          if (!splitsRes.ok) console.warn("Tip split save failed (non-blocking)");
-        }
       }
 
       onUpdated();
@@ -686,19 +682,63 @@ export function InvoicesPage() {
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 
 function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement;
+    const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusableElements = modalRef.current?.querySelectorAll<HTMLElement>(focusableSelectors);
+    const firstFocusable = focusableElements?.[0];
+    firstFocusable?.focus();
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      if (!modalRef.current) return;
+      const focusables = modalRef.current.querySelectorAll<HTMLElement>(focusableSelectors);
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
-        background: "#fff", borderRadius: 8, padding: "1.5rem",
-        maxWidth: 520, width: "calc(100% - 2rem)", maxHeight: "90vh", overflowY: "auto",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-      }}>
+      <div
+        ref={modalRef}
+        style={{
+          background: "#fff", borderRadius: 8, padding: "1.5rem",
+          maxWidth: 520, width: "calc(100% - 2rem)", maxHeight: "90vh", overflowY: "auto",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+      >
         {children}
       </div>
     </div>
