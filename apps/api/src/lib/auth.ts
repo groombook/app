@@ -93,9 +93,12 @@ export async function initAuth(): Promise<void> {
         baseURL: BETTER_AUTH_URL,
         rateLimit: {
           enabled: true,
-          max: 10,
-          window: 60,
+          max: 100,
+          window: 10,
           storage: "memory",
+          customRules: {
+            "/get-session": false,
+          },
         },
         plugins: [
           genericOAuth({
@@ -240,9 +243,12 @@ export async function initAuth(): Promise<void> {
       baseURL: BETTER_AUTH_URL,
       rateLimit: {
         enabled: true,
-        max: 10,
-        window: 60,
+        max: 100,
+        window: 10,
         storage: "memory",
+        customRules: {
+          "/get-session": false,
+        },
       },
       account: {
         storeStateStrategy: "cookie" as const,
