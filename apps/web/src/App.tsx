@@ -2,6 +2,7 @@ import { Routes, Route, Link, useLocation, Navigate, useNavigate } from "react-r
 import { useEffect, useState } from "react";
 import { AppointmentsPage } from "./pages/Appointments.js";
 import { ClientsPage } from "./pages/Clients.js";
+import { ClientDetailPage } from "./pages/ClientDetailPage.js";
 import { ServicesPage } from "./pages/Services.js";
 import { StaffPage } from "./pages/Staff.js";
 import { InvoicesPage } from "./pages/Invoices.js";
@@ -296,6 +297,7 @@ function AdminLayout() {
         <Routes>
           <Route path="/" element={<AppointmentsPage />} />
           <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/clients/:clientId" element={<ClientDetailPage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/staff" element={<StaffPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
