@@ -27,7 +27,7 @@ interface AuthProviderForm {
 
 const REDACTED = "••••••••";
 
-const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"]);
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 interface CurrentUser {
   id: string;
