@@ -202,7 +202,7 @@ api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireRoleOrSuperUser("manager"
 api.use("/admin/*", requireRoleOrSuperUser("manager"));
 api.use("/admin/settings/*", requireSuperUser());
 api.use("/reports/*", requireRole("manager"));
-api.use("/invoices/*", requireRole("manager"));
+api.use("/invoices/*", requireRole("manager", "groomer"));
 api.use("/impersonation/*", requireRole("manager"));
 
 // Manager + Receptionist only (groomers have no access): appointment-groups, grooming-logs, waitlist
