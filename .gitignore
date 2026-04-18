@@ -8,3 +8,16 @@ dist/
 .turbo/
 coverage/
 minimax-output/
+
+# Agent runtime artifacts — never commit
+.gh-token
+*.gh-token
+.config/gh/
+**/.config/gh/
+infra-repo
+infra-repo/
+**/instructions/.gh-token
+**/AGENT_HOME/**
+$AGENT_HOME/**
+.claude/
+.codex/
