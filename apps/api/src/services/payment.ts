@@ -169,7 +169,7 @@ export async function getPaymentIntentDetails(
   const stripe = getStripeClient();
   if (!stripe) return null;
 
-  const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+  const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ["payment_method"] });
   const cardLast4 = pi.payment_method
     ? (pi.payment_method as Stripe.PaymentMethod).card?.last4 ?? null
     : null;

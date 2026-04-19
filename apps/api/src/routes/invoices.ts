@@ -495,9 +495,9 @@ invoicesRouter.get("/stats/summary", async (c) => {
     .where(eq(invoices.status, "pending"));
 
   const [refundsResult] = await db
-    .select({ total: sql<number>`coalesce(sum(tip_cents), 0)` })
-    .from(invoices)
-    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`));
+    .select({ total: sql<number>`coalesce(sum(amount_cents), 0)` })
+    .from(refunds)
+    .where(sql`${refunds.createdAt} >= ${startOfMonth}`);
 
   const methodBreakdown = await db
     .select({
