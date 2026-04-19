@@ -162,3 +162,19 @@ export async function createSetupIntent(customerId: string): Promise<{ clientSec
 
   return { clientSecret: setupIntent.client_secret! };
 }
+
+export async function getPaymentIntentDetails(
+  paymentIntentId: string
+): Promise<{ cardLast4: string | null; paymentStatus: string | null } | null> {
+  const stripe = getStripeClient();
+  if (!stripe) return null;
+
+  const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+  const cardLast4 = pi.payment_method
+    ? (pi.payment_method as Stripe.PaymentMethod).card?.last4 ?? null
+    : null;
+  return {
+    cardLast4,
+    paymentStatus: pi.status ?? null,
+  };
+}

@@ -422,7 +422,7 @@ invoicesRouter.patch(
 
 // ─── Refund ───────────────────────────────────────────────────────────────────
 
-import { processRefund } from "../services/payment.js";
+import { processRefund, getPaymentIntentDetails } from "../services/payment.js";
 
 const refundSchema = z.object({
   amountCents: z.number().int().nonnegative().optional(),
@@ -513,5 +513,32 @@ invoicesRouter.get("/stats/summary", async (c) => {
     outstanding: outstandingResult?.total ?? 0,
     refundsThisMonth: refundsResult?.total ?? 0,
     methodBreakdown,
+  });
+});
+
+// Get Stripe payment details for an invoice (card last4, payment status, refund status)
+invoicesRouter.get("/:id/stripe-details", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+  if (!invoice) return c.json({ error: "Not found" }, 404);
+
+  let cardLast4: string | null = null;
+  let paymentStatus: string | null = null;
+
+  if (invoice.stripePaymentIntentId) {
+    const details = await getPaymentIntentDetails(invoice.stripePaymentIntentId);
+    if (details) {
+      cardLast4 = details.cardLast4;
+      paymentStatus = details.paymentStatus;
+    }
+  }
+
+  return c.json({
+    stripePaymentIntentId: invoice.stripePaymentIntentId,
+    stripeRefundId: invoice.stripeRefundId,
+    cardLast4,
+    paymentStatus,
   });
 });

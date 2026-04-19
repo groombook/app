@@ -159,6 +159,9 @@ export interface Invoice {
   createdAt: string;
   updatedAt: string;
   lineItems?: InvoiceLineItem[];
+  // Transient fields populated from Stripe API (not stored in DB)
+  cardLast4?: string | null;
+  paymentStatus?: string | null;
   tipSplits?: InvoiceTipSplit[];
 }
 
