@@ -477,3 +477,41 @@ invoicesRouter.post(
     });
   }
 );
+
+// Payment stats for admin dashboard
+invoicesRouter.get("/stats/summary", async (c) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [revenueResult] = await db
+    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+    .from(invoices)
+    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`));
+
+  const [outstandingResult] = await db
+    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+    .from(invoices)
+    .where(eq(invoices.status, "pending"));
+
+  const [refundsResult] = await db
+    .select({ total: sql<number>`coalesce(sum(tip_cents), 0)` })
+    .from(invoices)
+    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`));
+
+  const methodBreakdown = await db
+    .select({
+      method: invoices.paymentMethod,
+      total: sql<number>`count(*)`,
+    })
+    .from(invoices)
+    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`))
+    .groupBy(invoices.paymentMethod);
+
+  return c.json({
+    revenueThisMonth: revenueResult?.total ?? 0,
+    outstanding: outstandingResult?.total ?? 0,
+    refundsThisMonth: refundsResult?.total ?? 0,
+    methodBreakdown,
+  });
+});
