@@ -44,6 +44,16 @@ test.beforeEach(async ({ page }) => {
         json: { newClients: [], activeInPeriodCount: 0, churnRisk: [], churnRiskTotal: 0 },
       });
     }
+    if (url.includes("/api/invoices/stats/summary")) {
+      return route.fulfill({
+        json: {
+          revenueThisMonth: 0,
+          outstanding: 0,
+          refundsThisMonth: 0,
+          methodBreakdown: [],
+        },
+      });
+    }
     if (url.includes("/api/invoices")) {
       return route.fulfill({ json: { data: [], total: 0 } });
     }
