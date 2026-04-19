@@ -71,10 +71,18 @@ export function PetProfiles({ sessionId, readOnly }: Props) {
         }
 
         const petsData = await petsRes.json();
-        const apptsData: AppointmentsResponse = await apptsRes.json();
+        const apptsData = await apptsRes.json();
 
-        setPets(petsData);
-        setAppointments(apptsData);
+        setPets(petsData.map((p: { id: string; name: string; breed: string; weightKg: number; dateOfBirth: string; photoKey: string | null; groomingNotes: string | null }) => ({
+          id: p.id,
+          name: p.name,
+          breed: p.breed,
+          weight: p.weightKg,
+          birthDate: p.dateOfBirth,
+          photoUrl: p.photoKey ?? null,
+          notes: p.groomingNotes ?? null,
+        })));
+        setAppointments({ upcoming: apptsData?.upcoming || [], past: apptsData?.past || [] });
 
         if (petsData.length > 0 && !selectedPetId) {
           setSelectedPetId(petsData[0].id);
