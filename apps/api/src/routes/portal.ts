@@ -102,7 +102,6 @@ portalRouter.get("/appointments", async (c) => {
   const db = getDb();
   const clientId = c.get("portalClientId");
 
-  const now = new Date();
   const allAppts = await db
     .select({
       id: appointments.id,

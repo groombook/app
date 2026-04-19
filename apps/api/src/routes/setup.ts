@@ -9,8 +9,8 @@ const RATE_LIMIT_MAX = 10;
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 function rateLimitByIp(ip: string): { allowed: boolean; remaining: number } {
-  const now = Date.now();
   const entry = rateLimitMap.get(ip);
+  const now = Date.now();
   if (!entry || now > entry.resetAt) {
     rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return { allowed: true, remaining: RATE_LIMIT_MAX - 1 };
