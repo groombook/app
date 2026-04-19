@@ -12,7 +12,8 @@ RUN pnpm install --frozen-lockfile
 
 # Build
 FROM deps AS builder
-RUN mkdir -p /home/node/.cache/node/corepack
+RUN mkdir -p /home/node/.cache/node/corepack && \
+    corepack prepare pnpm@9.15.4 --activate
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 RUN pnpm --filter @groombook/types build && \
@@ -21,7 +22,9 @@ RUN pnpm --filter @groombook/types build && \
 
 # Runtime
 FROM node:20-alpine AS runner
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+RUN corepack enable && \
+    mkdir -p /home/node/.cache/node/corepack && \
+    corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 ENV NODE_ENV=production
 
