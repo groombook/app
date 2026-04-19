@@ -422,7 +422,7 @@ invoicesRouter.patch(
 
 // ─── Refund ───────────────────────────────────────────────────────────────────
 
-import { processRefund } from "../services/payment.js";
+import { processRefund, getPaymentIntentDetails } from "../services/payment.js";
 
 const refundSchema = z.object({
   amountCents: z.number().int().nonnegative().optional(),
@@ -477,3 +477,68 @@ invoicesRouter.post(
     });
   }
 );
+
+// Payment stats for admin dashboard
+invoicesRouter.get("/stats/summary", async (c) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [revenueResult] = await db
+    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+    .from(invoices)
+    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`));
+
+  const [outstandingResult] = await db
+    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+    .from(invoices)
+    .where(eq(invoices.status, "pending"));
+
+  const [refundsResult] = await db
+    .select({ total: sql<number>`coalesce(sum(amount_cents), 0)` })
+    .from(refunds)
+    .where(sql`${refunds.createdAt} >= ${startOfMonth}`);
+
+  const methodBreakdown = await db
+    .select({
+      method: invoices.paymentMethod,
+      total: sql<number>`count(*)`,
+    })
+    .from(invoices)
+    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`))
+    .groupBy(invoices.paymentMethod);
+
+  return c.json({
+    revenueThisMonth: revenueResult?.total ?? 0,
+    outstanding: outstandingResult?.total ?? 0,
+    refundsThisMonth: refundsResult?.total ?? 0,
+    methodBreakdown,
+  });
+});
+
+// Get Stripe payment details for an invoice (card last4, payment status, refund status)
+invoicesRouter.get("/:id/stripe-details", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+  if (!invoice) return c.json({ error: "Not found" }, 404);
+
+  let cardLast4: string | null = null;
+  let paymentStatus: string | null = null;
+
+  if (invoice.stripePaymentIntentId) {
+    const details = await getPaymentIntentDetails(invoice.stripePaymentIntentId);
+    if (details) {
+      cardLast4 = details.cardLast4;
+      paymentStatus = details.paymentStatus;
+    }
+  }
+
+  return c.json({
+    stripePaymentIntentId: invoice.stripePaymentIntentId,
+    stripeRefundId: invoice.stripeRefundId,
+    cardLast4,
+    paymentStatus,
+  });
+});
