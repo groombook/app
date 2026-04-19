@@ -142,10 +142,7 @@ portalRouter.get("/appointments", async (c) => {
     staff: a.staffId ? { id: staffMap[a.staffId]?.id, name: staffMap[a.staffId]?.name } : null,
   }));
 
-  const upcoming = appts.filter(a => a.startTime > now && a.status !== "cancelled");
-  const past = appts.filter(a => a.startTime <= now || a.status === "cancelled");
-
-  return c.json({ upcoming, past });
+  return c.json({ appointments: appts });
 });
 
 portalRouter.get("/pets", async (c) => {
@@ -153,7 +150,7 @@ portalRouter.get("/pets", async (c) => {
   const clientId = c.get("portalClientId");
 
   const clientPets = await db.select().from(pets).where(eq(pets.clientId, clientId));
-  return c.json(clientPets.map(p => ({ id: p.id, name: p.name, breed: p.breed, weightKg: p.weightKg, dateOfBirth: p.dateOfBirth, photoKey: p.photoKey, groomingNotes: p.groomingNotes })));
+  return c.json(clientPets.map(p => ({ id: p.id, name: p.name, breed: p.breed, weight: p.weightKg, birthDate: p.dateOfBirth, photoUrl: p.photoKey, notes: p.groomingNotes })));
 });
 
 portalRouter.get("/invoices", async (c) => {
