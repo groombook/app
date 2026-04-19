@@ -338,3 +338,69 @@ invoicesRouter.patch(
     return c.json({ ...updated, lineItems });
   }
 );
+
+// Issue a refund on a paid invoice (Stripe integration placeholder)
+const refundSchema = z.object({
+  amountCents: z.number().int().positive().optional(), // omitting = full refund
+});
+
+invoicesRouter.post(
+  "/:id/refund",
+  zValidator("json", refundSchema),
+  async (c) => {
+    const db = getDb();
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    if (!invoice) return c.json({ error: "Not found" }, 404);
+    if (invoice.status !== "paid") return c.json({ error: "Can only refund paid invoices" }, 422);
+
+    const refundAmount = body.amountCents ?? invoice.totalCents;
+
+    // TODO: Integrate Stripe here
+    // const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    // await stripe.refunds.create({ payment_intent: invoice.stripePaymentIntentId, amount: refundAmount });
+
+    // For now, log and mark as refunded in a future version
+    return c.json({ message: "Refund endpoint ready — Stripe integration pending", refundAmount, status: "pending" });
+  }
+);
+
+// Payment stats for admin dashboard
+invoicesRouter.get("/stats/summary", async (c) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [revenueResult] = await db
+    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+    .from(invoices)
+    .where(eq(invoices.status, "paid"));
+
+  const [outstandingResult] = await db
+    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+    .from(invoices)
+    .where(eq(invoices.status, "pending"));
+
+  const [refundsResult] = await db
+    .select({ total: sql<number>`coalesce(sum(tip_cents), 0)` })
+    .from(invoices)
+    .where(eq(invoices.status, "paid"));
+
+  const methodBreakdown = await db
+    .select({
+      method: invoices.paymentMethod,
+      total: sql<number>`count(*)`,
+    })
+    .from(invoices)
+    .where(eq(invoices.status, "paid"))
+    .groupBy(invoices.paymentMethod);
+
+  return c.json({
+    revenueThisMonth: revenueResult?.total ?? 0,
+    outstanding: outstandingResult?.total ?? 0,
+    refundsThisMonth: refundsResult?.total ?? 0,
+    methodBreakdown,
+  });
+});

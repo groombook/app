@@ -150,6 +150,7 @@ export interface Invoice {
   status: InvoiceStatus;
   paymentMethod: PaymentMethod | null;
   paidAt: string | null;
+  stripePaymentIntentId: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;

@@ -251,6 +251,7 @@ export const invoices = pgTable(
     status: invoiceStatusEnum("status").notNull().default("draft"),
     paymentMethod: paymentMethodEnum("payment_method"),
     paidAt: timestamp("paid_at"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
