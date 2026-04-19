@@ -176,6 +176,19 @@ function InvoiceDetailModal({
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [refundType, setRefundType] = useState<"full" | "partial">("full");
   const [partialAmount, setPartialAmount] = useState("");
+  const [stripeDetails, setStripeDetails] = useState<{ cardLast4: string | null; paymentStatus: string | null; stripeRefundId: string | null } | null>(null);
+
+  // Fetch Stripe details when modal opens for paid invoices with a payment intent
+  useEffect(() => {
+    if (invoice.status === "paid" && invoice.stripePaymentIntentId) {
+      fetch(`/api/invoices/${invoice.id}/stripe-details`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => { if (data) setStripeDetails(data); })
+        .catch(() => {});
+    } else {
+      setStripeDetails(null);
+    }
+  }, [invoice.id, invoice.status, invoice.stripePaymentIntentId]);
 
   // Tip split state: array of {staffId, staffName, pct}
   const linkedAppt = invoice.appointmentId
@@ -367,6 +380,19 @@ function InvoiceDetailModal({
         />
         {invoice.paidAt && <SummaryRow label="Paid on" value={fmtDate(invoice.paidAt)} />}
         {invoice.paymentMethod && <SummaryRow label="Payment" value={invoice.paymentMethod} />}
+        {stripeDetails && (
+          <>
+            {stripeDetails.cardLast4 && (
+              <SummaryRow label="Card" value={`•••• ${stripeDetails.cardLast4}`} />
+            )}
+            {stripeDetails.paymentStatus && (
+              <SummaryRow label="Stripe status" value={stripeDetails.paymentStatus} />
+            )}
+            {stripeDetails.stripeRefundId && (
+              <SummaryRow label="Refund" value="Refunded" />
+            )}
+          </>
+        )}
       </div>
 
       {/* ── Tip Distribution ── */}
