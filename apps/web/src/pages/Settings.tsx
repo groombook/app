@@ -89,24 +89,14 @@ export function SettingsPage() {
     fetch("/api/admin/settings")
       .then((r) => r.json())
       .then(async (data) => {
-        let logoUrl: string | null = null;
-        if (data.logoKey) {
-          try {
-            const logoRes = await fetch("/api/admin/settings/logo");
-            if (logoRes.ok) {
-              const logoData = await logoRes.json();
-              logoUrl = logoData.url;
-            }
-          } catch {
-            // ignore
-          }
-        }
+        // The logo is now proxied through the API server so the browser
+        // never receives an S3 URL — use the proxy path directly as the src.
         setForm({
           businessName: data.businessName ?? "GroomBook",
           primaryColor: data.primaryColor ?? "#4f8a6f",
           accentColor: data.accentColor ?? "#8b7355",
           logoKey: data.logoKey ?? null,
-          logoUrl,
+          logoUrl: data.logoKey ? "/api/admin/settings/logo" : null,
           logoBase64: data.logoBase64 ?? null,
           logoMimeType: data.logoMimeType ?? null,
         });
@@ -172,15 +162,7 @@ export function SettingsPage() {
         throw new Error(err?.error ?? "Failed to upload logo");
       }
       const { logoKey } = await uploadRes.json();
-
-      // Fetch the presigned GET URL for display
-      const logoRes = await fetch("/api/admin/settings/logo");
-      if (logoRes.ok) {
-        const logoData = await logoRes.json();
-        setForm((f) => ({ ...f, logoKey, logoUrl: logoData.url, logoBase64: null, logoMimeType: null }));
-      } else {
-        setForm((f) => ({ ...f, logoKey, logoUrl: null, logoBase64: null, logoMimeType: null }));
-      }
+      setForm((f) => ({ ...f, logoKey, logoUrl: "/api/admin/settings/logo", logoBase64: null, logoMimeType: null }));
       setMessage({ type: "success", text: "Logo uploaded." });
       refresh();
     } catch (err: unknown) {
