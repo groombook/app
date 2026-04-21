@@ -68,6 +68,20 @@ export async function deleteObject(key: string): Promise<void> {
   );
 }
 
+/** Read an object from S3 and return its body buffer and content type. */
+export async function getObject(key: string): Promise<{ body: Buffer; contentType: string }> {
+  const client = getS3Client();
+  const response = await client.send(
+    new GetObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+    })
+  );
+  const body = await response.Body!.transformToBuffer();
+  const contentType = response.ContentType ?? "application/octet-stream";
+  return { body, contentType };
+}
+
 /** Upload an object directly to S3 (server-side only, not a pre-signed URL). */
 export async function putObject(
   key: string,
