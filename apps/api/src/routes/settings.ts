@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
 import { eq, getDb, businessSettings } from "@groombook/db";
-import { getPresignedUploadUrl, getPresignedGetUrl, deleteObject, putObject, getObject } from "../lib/s3.js";
+import { getPresignedUploadUrl, deleteObject, putObject, getObject } from "../lib/s3.js";
 import { requireSuperUser } from "../middleware/rbac.js";
 
 export const settingsRouter = new Hono();
