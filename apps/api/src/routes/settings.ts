@@ -226,9 +226,13 @@ settingsRouter.get("/logo", async (c) => {
   if (!row.logoKey) return c.json({ error: "No logo on file" }, 404);
 
   const { body, contentType } = await getObject(row.logoKey);
-  c.header("Content-Type", contentType);
-  c.header("Cache-Control", "public, max-age=86400");
-  return c.body(body);
+  return new Response(Buffer.from(body), {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=86400",
+    },
+  });
 });
 
 /**
