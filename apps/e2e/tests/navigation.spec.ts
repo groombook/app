@@ -47,6 +47,11 @@ test.beforeEach(async ({ page }) => {
     if (url.includes("/api/invoices")) {
       return route.fulfill({ json: { data: [], total: 0 } });
     }
+    if (url.includes("/api/invoices/stats/summary")) {
+      return route.fulfill({
+        json: { revenueThisMonth: 0, outstanding: 0, refundsThisMonth: 0, methodBreakdown: [] },
+      });
+    }
     // Appointments, clients, services, staff, book, etc.
     return route.fulfill({ json: [] });
   });
