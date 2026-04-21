@@ -77,7 +77,12 @@ export async function getObject(key: string): Promise<{ body: Buffer; contentTyp
       Key: key,
     })
   );
-  const body = await response.Body!.transformToBuffer();
+  const chunks: Uint8Array[] = [];
+  // response.Body is a Readable stream; collect chunks into a buffer
+  for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(chunk);
+  }
+  const body = Buffer.concat(chunks);
   const contentType = response.ContentType ?? "application/octet-stream";
   return { body, contentType };
 }
