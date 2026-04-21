@@ -1,0 +1,53 @@
+# =============================================================================
+# Terraform CRD for Flux ToFu Controller — Authentik groombook-uat
+# =============================================================================
+# This CRD tells the Flux ToFu Controller to reconcile the Terraform
+# workspace at apps/overlays/uat/terraform/
+#
+# The ToFu Controller will:
+# 1. Clone the groombook/app GitRepository
+# 2. Run tofu init + tofu plan/apply in the specified path
+# 3. Store Terraform state in a Kubernetes secret (backend.tf)
+# 4. Inject TF_VAR_authentik_token from the authentik-credentials secret
+#    via tf-controller varsFrom (maps secret key to Terraform variable)
+#
+# ApiVersion: infra.contrib.fluxcd.io/v1alpha2 (tf-controller)
+# =============================================================================
+
+apiVersion: infra.contrib.fluxcd.io/v1alpha2
+kind: Terraform
+metadata:
+  name: authentik-uat
+  namespace: groombook-uat
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/part-of: groombook
+    app.kubernetes.io/env: uat
+spec:
+  # Reconcile every hour
+  interval: 1h
+
+  # Path within the GitRepository (groombook/app)
+  path: ./apps/overlays/uat/terraform
+
+  # Source reference — must match the GitRepository name watching this repo
+  sourceRef:
+    kind: GitRepository
+    name: groombook
+
+  # Auto-approve plans (no manual intervention needed for infrastructure)
+  approvePlan: "auto"
+
+  # Clean up Terraform resources when this CRD is deleted
+  destroyResourcesOnDeletion: true
+
+  # Inject TF_VAR_authentik_token from the sealed secret via tf-controller varsFrom
+  # (maps secret key "authentik_token" to Terraform var.authentik_token)
+  varsFrom:
+    - kind: Secret
+      name: authentik-credentials
+    - kind: Secret
+      name: authentik-uat-users-credentials
+
+  runnerPodTemplate:
+    spec: {}

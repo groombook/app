@@ -1,0 +1,19 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: groombook
+  namespace: groombook-uat
+  labels:
+    app.kubernetes.io/name: groombook
+    app.kubernetes.io/part-of: groombook
+    app.kubernetes.io/env: uat
+spec:
+  interval: 15m
+  provider: github
+  ref:
+    branch: fix/gro-844-network-policy
+  secretRef:
+    name: cpfarhood-k8s
+  timeout: 60s
+  url: https://github.com/groombook/app
