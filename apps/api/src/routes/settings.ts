@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
 import { eq, getDb, businessSettings } from "@groombook/db";
-import { getPresignedUploadUrl, getPresignedGetUrl, deleteObject, putObject } from "../lib/s3.js";
+import { getPresignedUploadUrl, deleteObject, putObject, getObject } from "../lib/s3.js";
 import { requireSuperUser } from "../middleware/rbac.js";
 
 export const settingsRouter = new Hono();
@@ -215,7 +215,8 @@ settingsRouter.post(
 
 /**
  * GET /api/admin/settings/logo
- * Returns a presigned GET URL for the logo.
+ * Proxies the logo from S3 so the browser never sees an S3 URL.
+ * Returns the image bytes with proper Content-Type.
  */
 settingsRouter.get("/logo", async (c) => {
   const db = getDb();
@@ -224,8 +225,14 @@ settingsRouter.get("/logo", async (c) => {
   if (!row) return c.json({ error: "Settings not found" }, 404);
   if (!row.logoKey) return c.json({ error: "No logo on file" }, 404);
 
-  const url = await getPresignedGetUrl(row.logoKey);
-  return c.json({ url, logoKey: row.logoKey });
+  const { body, contentType } = await getObject(row.logoKey);
+  return new Response(Buffer.from(body), {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=86400",
+    },
+  });
 });
 
 /**
