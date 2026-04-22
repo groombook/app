@@ -27,8 +27,7 @@ interface Appointment {
 }
 
 interface AppointmentsResponse {
-  upcoming: Appointment[];
-  past: Appointment[];
+  appointments: Appointment[];
 }
 
 interface Props {
@@ -46,7 +45,7 @@ function buildHeaders(sessionId: string | null): Record<string, string> {
 
 export function PetProfiles({ sessionId, readOnly }: Props) {
   const [pets, setPets] = useState<Pet[]>([]);
-  const [appointments, setAppointments] = useState<AppointmentsResponse>({ upcoming: [], past: [] });
+  const [appointments, setAppointments] = useState<AppointmentsResponse>({ appointments: [] });
   const [selectedPetId, setSelectedPetId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"info" | "medical" | "grooming" | "history">("info");
   const [editingPetId, setEditingPetId] = useState<string | null>(null);
@@ -90,7 +89,7 @@ export function PetProfiles({ sessionId, readOnly }: Props) {
   }, [sessionId]);
 
   const selectedPet = pets.find(p => p.id === selectedPetId) ?? null;
-  const petHistory = appointments.past.filter(a => a.pet?.id === selectedPetId);
+  const petHistory = appointments.appointments.filter(a => a.pet?.id === selectedPetId && new Date(a.startTime) <= new Date());
   const editingPet = editingPetId ? pets.find(p => p.id === editingPetId) ?? null : null;
 
   function handlePetSave(updatedPet: Pet) {

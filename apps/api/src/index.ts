@@ -19,7 +19,7 @@ import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { authProviderRouter } from "./routes/authProvider.js";
 import { searchRouter } from "./routes/search.js";
-import { getPresignedGetUrl } from "./lib/s3.js";
+import { getObject } from "./lib/s3.js";
 import { calendarRouter } from "./routes/calendar.js";
 import { setupRouter } from "./routes/setup.js";
 import { getDb, businessSettings, eq, staff } from "@groombook/db";
@@ -126,20 +126,31 @@ function validateLogoMagicBytes(
   }
 }
 
+// Public logo proxy — no auth required, streams logo from S3 so browser never sees raw S3 URL
+app.get("/api/branding/logo", async (c) => {
+  const db = getDb();
+  const [row] = await db.select().from(businessSettings).limit(1);
+  if (!row) return c.json({ error: "Settings not found" }, 404);
+  if (!row.logoKey) return c.json({ error: "No logo on file" }, 404);
+
+  const { body, contentType } = await getObject(row.logoKey);
+  return new Response(Buffer.from(body), {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=86400",
+    },
+  });
+});
+
 // Public branding endpoint — no auth required, returns business name/colors/logo
 app.get("/api/branding", async (c) => {
   const db = getDb();
   const [row] = await db.select().from(businessSettings).limit(1);
   const settings = row ?? { businessName: "GroomBook", primaryColor: "#4f8a6f", accentColor: "#8b7355", logoBase64: null, logoMimeType: null, logoKey: null };
 
-  let logoUrl: string | null = null;
-  if (settings.logoKey) {
-    try {
-      logoUrl = await getPresignedGetUrl(settings.logoKey);
-    } catch {
-      // If S3 URL generation fails, fall back to legacy base64
-    }
-  }
+  // Return the public proxy path so browser never sees a raw S3 URL
+  const logoUrl = settings.logoKey ? "/api/branding/logo" : null;
 
   // Defensive: validate magic bytes to prevent MIME type confusion attacks
   // via the legacy base64 logo fields
@@ -202,7 +213,7 @@ api.on(["POST", "PATCH", "DELETE"], "/staff/*", requireRoleOrSuperUser("manager"
 api.use("/admin/*", requireRoleOrSuperUser("manager"));
 api.use("/admin/settings/*", requireSuperUser());
 api.use("/reports/*", requireRole("manager"));
-api.use("/invoices/*", requireRole("manager"));
+api.use("/invoices/*", requireRole("manager", "groomer"));
 api.use("/impersonation/*", requireRole("manager"));
 
 // Manager + Receptionist only (groomers have no access): appointment-groups, grooming-logs, waitlist

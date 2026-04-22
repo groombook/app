@@ -18,6 +18,14 @@ import type { AppEnv } from "../middleware/rbac.js";
 
 export const invoicesRouter = new Hono<AppEnv>();
 
+// Convert Zod validation errors from 422 to 400
+invoicesRouter.onError((err, c) => {
+  if (err instanceof z.ZodError) {
+    return c.json({ error: "Validation failed", issues: err.issues }, 400);
+  }
+  throw err;
+});
+
 const createInvoiceSchema = z.object({
   appointmentId: z.string().uuid().optional(),
   clientId: z.string().uuid(),
@@ -341,30 +349,23 @@ invoicesRouter.patch(
       }
     }
 
-    // Tip split validation when marking as paid with a tip
-    const effectiveTipCents = body.tipCents ?? current.tipCents;
-    if (body.status === "paid" && effectiveTipCents > 0) {
-      if (body.tipSplits !== undefined) {
-        if (body.tipSplits.length === 0) {
-          return c.json({ error: "Tip splits required when tip amount is greater than zero" }, 422);
-        }
-        const totalBps = body.tipSplits.reduce((sum, s) => sum + Math.round(s.sharePct * 100), 0);
-        if (totalBps !== 10000) {
-          return c.json({ error: "Split percentages must sum to 100" }, 422);
-        }
-      } else {
-        const existingSplits = await db
-          .select({ id: invoiceTipSplits.id })
-          .from(invoiceTipSplits)
-          .where(eq(invoiceTipSplits.invoiceId, id));
-        if (existingSplits.length === 0) {
-          return c.json({ error: "Tip splits required when tip amount is greater than zero" }, 422);
-        }
+    const tipCents = body.tipCents ?? current.tipCents;
+
+    // Validate tip splits when marking invoice as paid
+    if (body.status === "paid" && tipCents > 0 && body.tipSplits !== undefined) {
+      if (body.tipSplits.length === 0) {
+        return c.json({ error: "Tip splits are required when tip amount is greater than zero" }, 400);
+      }
+      const totalPct = body.tipSplits.reduce((sum, s) => sum + s.sharePct, 0);
+      if (Math.abs(totalPct - 100) > 0.01) {
+        return c.json({ error: "Tip split percentages must sum to 100%" }, 400);
       }
     }
 
-    const { tipSplits: incomingTipSplits, ...bodyWithoutSplits } = body;
-    const update: Record<string, unknown> = { ...bodyWithoutSplits, updatedAt: new Date() };
+    // Destructure tipSplits out — it belongs to a separate table, not the invoices column
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { tipSplits: _tipSplits, ...updateBody } = body as Record<string, unknown>;
+    const update: Record<string, unknown> = { ...updateBody, updatedAt: new Date() };
 
     // Auto-set paidAt when marking as paid
     if (body.status === "paid" && !body.paidAt && !current.paidAt) {
@@ -378,46 +379,42 @@ invoicesRouter.patch(
       update.totalCents = current.subtotalCents + newTaxCents + newTipCents;
     }
 
-    const [updated] = await db.transaction(async (tx) => {
-      const [upd] = await tx
+    // Wrap tip split persistence and invoice update in a single atomic transaction
+    const [updated, lineItems] = await db.transaction(async (tx) => {
+      if (body.status === "paid" && tipCents > 0 && body.tipSplits !== undefined) {
+        await tx.delete(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id));
+        const splits = body.tipSplits;
+        if (splits.length > 0) {
+          let remaining = tipCents;
+          const rows = splits.map((s, i) => {
+            const isLast = i === splits.length - 1;
+            const shareCents = isLast ? remaining : Math.round((s.sharePct / 100) * tipCents);
+            if (!isLast) remaining -= shareCents;
+            return {
+              invoiceId: id,
+              staffId: s.staffId,
+              staffName: s.staffName,
+              sharePct: s.sharePct.toFixed(2),
+              shareCents,
+            };
+          });
+          await tx.insert(invoiceTipSplits).values(rows);
+        }
+      }
+
+      const [updatedInvoice] = await tx
         .update(invoices)
         .set(update)
         .where(eq(invoices.id, id))
         .returning();
 
-      // Atomically save tip splits when marking paid with provided splits
-      if (
-        body.status === "paid" &&
-        effectiveTipCents > 0 &&
-        incomingTipSplits !== undefined &&
-        incomingTipSplits.length > 0
-      ) {
-        await tx.delete(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id));
+      const lineItems = await tx
+        .select()
+        .from(invoiceLineItems)
+        .where(eq(invoiceLineItems.invoiceId, id));
 
-        let remaining = effectiveTipCents;
-        const rows = incomingTipSplits.map((s, i) => {
-          const isLast = i === incomingTipSplits.length - 1;
-          const shareCents = isLast ? remaining : Math.round((s.sharePct / 100) * effectiveTipCents);
-          if (!isLast) remaining -= shareCents;
-          return {
-            invoiceId: id,
-            staffId: s.staffId,
-            staffName: s.staffName,
-            sharePct: s.sharePct.toFixed(2),
-            shareCents,
-          };
-        });
-
-        await tx.insert(invoiceTipSplits).values(rows);
-      }
-
-      return [upd];
+      return [updatedInvoice, lineItems];
     });
-
-    const lineItems = await db
-      .select()
-      .from(invoiceLineItems)
-      .where(eq(invoiceLineItems.invoiceId, id));
 
     return c.json({ ...updated, lineItems });
   }
@@ -425,7 +422,7 @@ invoicesRouter.patch(
 
 // ─── Refund ───────────────────────────────────────────────────────────────────
 
-import { processRefund } from "../services/payment.js";
+import { processRefund, getPaymentIntentDetails } from "../services/payment.js";
 
 const refundSchema = z.object({
   amountCents: z.number().int().nonnegative().optional(),
@@ -480,3 +477,68 @@ invoicesRouter.post(
     });
   }
 );
+
+// Payment stats for admin dashboard
+invoicesRouter.get("/stats/summary", async (c) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [revenueResult] = await db
+    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+    .from(invoices)
+    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`));
+
+  const [outstandingResult] = await db
+    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+    .from(invoices)
+    .where(eq(invoices.status, "pending"));
+
+  const [refundsResult] = await db
+    .select({ total: sql<number>`coalesce(sum(amount_cents), 0)` })
+    .from(refunds)
+    .where(sql`${refunds.createdAt} >= ${startOfMonth}`);
+
+  const methodBreakdown = await db
+    .select({
+      method: invoices.paymentMethod,
+      total: sql<number>`count(*)`,
+    })
+    .from(invoices)
+    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`))
+    .groupBy(invoices.paymentMethod);
+
+  return c.json({
+    revenueThisMonth: revenueResult?.total ?? 0,
+    outstanding: outstandingResult?.total ?? 0,
+    refundsThisMonth: refundsResult?.total ?? 0,
+    methodBreakdown,
+  });
+});
+
+// Get Stripe payment details for an invoice (card last4, payment status, refund status)
+invoicesRouter.get("/:id/stripe-details", async (c) => {
+  const db = getDb();
+  const id = c.req.param("id");
+
+  const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+  if (!invoice) return c.json({ error: "Not found" }, 404);
+
+  let cardLast4: string | null = null;
+  let paymentStatus: string | null = null;
+
+  if (invoice.stripePaymentIntentId) {
+    const details = await getPaymentIntentDetails(invoice.stripePaymentIntentId);
+    if (details) {
+      cardLast4 = details.cardLast4;
+      paymentStatus = details.paymentStatus;
+    }
+  }
+
+  return c.json({
+    stripePaymentIntentId: invoice.stripePaymentIntentId,
+    stripeRefundId: invoice.stripeRefundId,
+    cardLast4,
+    paymentStatus,
+  });
+});
