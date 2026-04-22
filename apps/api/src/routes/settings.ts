@@ -218,7 +218,7 @@ settingsRouter.post(
  * Proxies the logo from S3 so the browser never sees an S3 URL.
  * Returns the image bytes with proper Content-Type.
  */
-settingsRouter.get("/logo", async (c) => {
+settingsRouter.get("/logo", requireSuperUser(), async (c) => {
   const db = getDb();
 
   const [row] = await db.select().from(businessSettings).limit(1);
