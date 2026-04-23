@@ -530,6 +530,14 @@ const [showRefundDialog, setShowRefundDialog] = useState(false);
                 setRefunding(true);
                 setRefundError(null);
                 try {
+                  if (refundType === "partial") {
+                    const parsed = parseFloat(refundAmount);
+                    if (isNaN(parsed) || parsed <= 0) {
+                      setRefundError("Please enter a valid amount greater than zero.");
+                      setRefunding(false);
+                      return;
+                    }
+                  }
                   const body = refundType === "partial" ? { amountCents: Math.round(parseFloat(refundAmount) * 100) } : {};
                   const res = await fetch(`/api/invoices/${invoice.id}/refund`, {
                     method: "POST",
@@ -557,8 +565,7 @@ const [showRefundDialog, setShowRefundDialog] = useState(false);
           </div>
         </div>
       )}
-
-          </Modal>
+      </Modal>
   );
 }
 
