@@ -291,35 +291,6 @@ const [showRefundDialog, setShowRefundDialog] = useState(false);
     }
   }
 
-  async function issueRefund() {
-    const amountCents = refundType === "partial"
-      ? Math.round(parseFloat(refundAmount) * 100)
-      : undefined;
-    if (refundType === "partial" && (!amountCents || amountCents <= 0)) {
-      setError("Enter a valid refund amount");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/invoices/${invoice.id}/refund`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(amountCents ? { amountCents } : {}),
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error?: string };
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-      setShowRefundDialog(false);
-      onUpdated();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to issue refund");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   if (loading) return <Modal onClose={onClose}><p style={{ padding: "1rem" }}>Loading…</p></Modal>;
 
   const tipCentsCalc = Math.round(parseFloat(tipStr) * 100) || 0;
