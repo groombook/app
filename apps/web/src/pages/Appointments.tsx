@@ -112,8 +112,16 @@ export function AppointmentsPage() {
   const [viewMode, setViewMode] = useState<"status" | "groomer">("status");
   // null key = unassigned; staffId string = that groomer; undefined set = all visible
   const [hiddenGroomers, setHiddenGroomers] = useState<Set<string | null>>(new Set());
+  const [paymentStats, setPaymentStats] = useState<{ revenueThisMonth: number; outstanding: number; refundsThisMonth: number; methodBreakdown: { method: string | null; total: number }[] } | null>(null);
 
   const weekEnd = addDays(weekStart, 6);
+
+  useEffect(() => {
+    fetch("/api/invoices/stats/summary")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setPaymentStats(data); })
+      .catch(() => {});
+  }, []);
 
   const loadAppointments = useCallback(() => {
     const from = weekStart.toISOString();
@@ -313,6 +321,24 @@ export function AppointmentsPage() {
           + New Appointment
         </button>
       </div>
+
+      {/* Payment Stats Summary */}
+      {paymentStats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.75rem", marginBottom: "1.25rem" }}>
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem 1rem" }}>
+            <div style={{ fontSize: 12, color: "#166534", fontWeight: 600, marginBottom: "0.25rem" }}>Revenue (paid)</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#15803d" }}>${(paymentStats.revenueThisMonth / 100).toFixed(2)}</div>
+          </div>
+          <div style={{ background: "#fefce8", border: "1px solid #fde047", borderRadius: 8, padding: "0.75rem 1rem" }}>
+            <div style={{ fontSize: 12, color: "#854d0e", fontWeight: 600, marginBottom: "0.25rem" }}>Outstanding</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#a16207" }}>${(paymentStats.outstanding / 100).toFixed(2)}</div>
+          </div>
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "0.75rem 1rem" }}>
+            <div style={{ fontSize: 12, color: "#991b1b", fontWeight: 600, marginBottom: "0.25rem" }}>Refunds (this mo.)</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#dc2626" }}>${(paymentStats.refundsThisMonth / 100).toFixed(2)}</div>
+          </div>
+        </div>
+      )}
 
       {/* ── View Mode + Groomer Filters ── */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
