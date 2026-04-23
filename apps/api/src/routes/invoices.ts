@@ -101,6 +101,7 @@ invoicesRouter.get(
         paymentMethod: invoices.paymentMethod,
         paidAt: invoices.paidAt,
         notes: invoices.notes,
+        stripePaymentIntentId: invoices.stripePaymentIntentId,
         createdAt: invoices.createdAt,
         updatedAt: invoices.updatedAt,
       })
@@ -480,40 +481,50 @@ invoicesRouter.post(
 
 // Payment stats for admin dashboard
 invoicesRouter.get("/stats/summary", async (c) => {
-  const db = getDb();
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  try {
+    const db = getDb();
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [revenueResult] = await db
-    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
-    .from(invoices)
-    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`));
+    const [revenueResult] = await db
+      .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+      .from(invoices)
+      .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`));
 
-  const [outstandingResult] = await db
-    .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
-    .from(invoices)
-    .where(eq(invoices.status, "pending"));
+    const [outstandingResult] = await db
+      .select({ total: sql<number>`coalesce(sum(total_cents), 0)` })
+      .from(invoices)
+      .where(eq(invoices.status, "pending"));
 
-  const [refundsResult] = await db
-    .select({ total: sql<number>`coalesce(sum(amount_cents), 0)` })
-    .from(refunds)
-    .where(sql`${refunds.createdAt} >= ${startOfMonth}`);
+    const [refundsResult] = await db
+      .select({ total: sql<number>`coalesce(sum(amount_cents), 0)` })
+      .from(refunds)
+      .where(sql`${refunds.createdAt} >= ${startOfMonth}`);
 
-  const methodBreakdown = await db
-    .select({
-      method: invoices.paymentMethod,
-      total: sql<number>`count(*)`,
-    })
-    .from(invoices)
-    .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`))
-    .groupBy(invoices.paymentMethod);
+    const methodBreakdown = await db
+      .select({
+        method: invoices.paymentMethod,
+        total: sql<number>`count(*)`,
+      })
+      .from(invoices)
+      .where(and(eq(invoices.status, "paid"), sql`${invoices.paidAt} >= ${startOfMonth}`))
+      .groupBy(invoices.paymentMethod);
 
-  return c.json({
-    revenueThisMonth: revenueResult?.total ?? 0,
-    outstanding: outstandingResult?.total ?? 0,
-    refundsThisMonth: refundsResult?.total ?? 0,
-    methodBreakdown,
-  });
+    return c.json({
+      revenueThisMonth: revenueResult?.total ?? 0,
+      outstanding: outstandingResult?.total ?? 0,
+      refundsThisMonth: refundsResult?.total ?? 0,
+      methodBreakdown,
+    });
+  } catch (err) {
+    console.error("stats/summary error:", err);
+    return c.json({
+      revenueThisMonth: 0,
+      outstanding: 0,
+      refundsThisMonth: 0,
+      methodBreakdown: [],
+    });
+  }
 });
 
 // Get Stripe payment details for an invoice (card last4, payment status, refund status)
