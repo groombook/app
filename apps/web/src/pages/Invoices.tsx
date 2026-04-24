@@ -487,7 +487,7 @@ const [showRefundDialog, setShowRefundDialog] = useState(false);
             </div>
           )}
           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-            {invoice.status === "paid" && invoice.stripePaymentIntentId && !invoice.stripeRefundId && isManager && (
+            {invoice.status === "paid" && !invoice.stripeRefundId && isManager && (
               <button onClick={() => setShowRefundDialog(true)} style={{ ...btnStyle, color: "#fff", backgroundColor: "#7c3aed", borderColor: "#7c3aed" }}>
                 Refund
               </button>
