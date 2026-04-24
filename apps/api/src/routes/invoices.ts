@@ -102,6 +102,7 @@ invoicesRouter.get(
         paidAt: invoices.paidAt,
         notes: invoices.notes,
         stripePaymentIntentId: invoices.stripePaymentIntentId,
+        stripeRefundId: invoices.stripeRefundId,
         createdAt: invoices.createdAt,
         updatedAt: invoices.updatedAt,
       })
