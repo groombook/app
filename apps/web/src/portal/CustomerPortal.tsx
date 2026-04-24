@@ -326,7 +326,7 @@ export function CustomerPortal() {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 min-h-screen overflow-x-hidden">
+        <main className="flex-1 min-h-screen overflow-hidden">
           <div className="hidden md:flex items-center justify-between px-8 py-4 border-b border-stone-200 bg-white">
             <div>
               <h1 className="text-lg font-semibold text-stone-800">
