@@ -50,6 +50,27 @@ spec:
             - name: OIDC_AUDIENCE
               value: {{ .Values.api.env.oidcAudience | quote }}
             {{- end }}
+            {{- if .Values.api.env.internalBaseUrl }}
+            - name: OIDC_INTERNAL_BASE
+              value: {{ .Values.api.env.internalBaseUrl | quote }}
+            {{- end }}
+            - name: BETTER_AUTH_URL
+              value: {{ .Values.api.env.betterAuthUrl | quote }}
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "groombook.authSecretName" . }}
+                  key: OIDC_CLIENT_ID
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "groombook.authSecretName" . }}
+                  key: OIDC_CLIENT_SECRET
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "groombook.authSecretName" . }}
+                  key: BETTER_AUTH_SECRET
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

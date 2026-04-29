@@ -119,3 +119,10 @@ uri
 database-url
 {{- end -}}
 {{- end }}
+
+{{/*
+Auth secret name — always use groombook-auth (sealed secret name)
+*/}}
+{{- define "groombook.authSecretName" -}}
+{{- printf "%s" "groombook-auth" }}
+{{- end }}
