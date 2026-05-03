@@ -173,22 +173,21 @@ function InvoiceDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [tipStr, setTipStr] = useState((invoice.tipCents / 100).toFixed(2));
   const [paymentMethod, setPaymentMethod] = useState<string>(invoice.paymentMethod ?? "cash");
-  const [showRefundDialog, setShowRefundDialog] = useState(false);
+const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [refundType, setRefundType] = useState<"full" | "partial">("full");
-  const [partialAmount, setPartialAmount] = useState("");
-  const [stripeDetails, setStripeDetails] = useState<{ cardLast4: string | null; paymentStatus: string | null; stripeRefundId: string | null } | null>(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [refunding, setRefunding] = useState(false);
 
-  // Fetch Stripe details when modal opens for paid invoices with a payment intent
+  // Fetch current staff role to determine manager access
+  const [staffMe, setStaffMe] = useState<{ role: string; isSuperUser: boolean } | null>(null);
   useEffect(() => {
-    if (invoice.status === "paid" && invoice.stripePaymentIntentId) {
-      fetch(`/api/invoices/${invoice.id}/stripe-details`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((data) => { if (data) setStripeDetails(data); })
-        .catch(() => {});
-    } else {
-      setStripeDetails(null);
-    }
-  }, [invoice.id, invoice.status, invoice.stripePaymentIntentId]);
+    fetch("/api/staff/me")
+      .then((r) => r.json())
+      .then((d) => setStaffMe(d))
+      .catch(() => setStaffMe(null));
+  }, []);
+  const isManager = staffMe && (staffMe.role === "manager" || staffMe.isSuperUser);
 
   // Tip split state: array of {staffId, staffName, pct}
   const linkedAppt = invoice.appointmentId
@@ -292,35 +291,6 @@ function InvoiceDetailModal({
     }
   }
 
-  async function issueRefund() {
-    const amountCents = refundType === "partial"
-      ? Math.round(parseFloat(partialAmount) * 100)
-      : undefined;
-    if (refundType === "partial" && (!amountCents || amountCents <= 0)) {
-      setError("Enter a valid refund amount");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/invoices/${invoice.id}/refund`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(amountCents ? { amountCents } : {}),
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error?: string };
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-      setShowRefundDialog(false);
-      onUpdated();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to issue refund");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   if (loading) return <Modal onClose={onClose}><p style={{ padding: "1rem" }}>Loading…</p></Modal>;
 
   const tipCentsCalc = Math.round(parseFloat(tipStr) * 100) || 0;
@@ -380,15 +350,15 @@ function InvoiceDetailModal({
         />
         {invoice.paidAt && <SummaryRow label="Paid on" value={fmtDate(invoice.paidAt)} />}
         {invoice.paymentMethod && <SummaryRow label="Payment" value={invoice.paymentMethod} />}
-        {stripeDetails && (
+        {invoice.stripePaymentIntentId && (
           <>
-            {stripeDetails.cardLast4 && (
-              <SummaryRow label="Card" value={`•••• ${stripeDetails.cardLast4}`} />
+            {invoice.cardLast4 && (
+              <SummaryRow label="Card" value={`•••• ${invoice.cardLast4}`} />
             )}
-            {stripeDetails.paymentStatus && (
-              <SummaryRow label="Stripe status" value={stripeDetails.paymentStatus} />
+            {invoice.paymentStatus && (
+              <SummaryRow label="Stripe status" value={invoice.paymentStatus} />
             )}
-            {stripeDetails.stripeRefundId && (
+            {invoice.stripeRefundId && (
               <SummaryRow label="Refund" value="Refunded" />
             )}
           </>
@@ -510,77 +480,92 @@ function InvoiceDetailModal({
         </div>
       )}
       {(invoice.status === "paid" || invoice.status === "void") && (
-        <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
-          {invoice.status === "paid" && invoice.stripePaymentIntentId && (
-            <button
-              onClick={() => setShowRefundDialog(true)}
-              style={{ ...btnStyle, color: "#b45309", borderColor: "#b45309" }}
-            >
-              Refund
-            </button>
+        <div style={{ marginTop: "1rem", borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}>
+          {invoice.stripeRefundId && (
+            <div style={{ marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ background: "#fef3c7", color: "#92400e", padding: "0.2rem 0.6rem", borderRadius: 4, fontSize: 13, fontWeight: 600 }}>Refunded</span>
+            </div>
           )}
-          <button onClick={onClose} style={btnStyle}>Close</button>
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+            {invoice.status === "paid" && !invoice.stripeRefundId && isManager && (
+              <button onClick={() => setShowRefundDialog(true)} style={{ ...btnStyle, color: "#fff", backgroundColor: "#7c3aed", borderColor: "#7c3aed" }}>
+                Refund
+              </button>
+            )}
+            <button onClick={onClose} style={btnStyle}>Close</button>
+          </div>
         </div>
       )}
 
-      {/* Refund Dialog */}
       {showRefundDialog && (
-        <Modal onClose={() => setShowRefundDialog(false)}>
-          <h2 style={{ marginTop: 0 }}>Issue Refund</h2>
-          <p style={{ fontSize: 14, color: "#6b7280", marginBottom: "1rem" }}>
-            Invoice total: <strong>{fmtMoney(invoice.totalCents)}</strong>
-          </p>
-          <div style={{ marginBottom: "0.75rem" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-              <input
-                type="radio"
-                name="refundType"
-                value="full"
-                checked={refundType === "full"}
-                onChange={() => setRefundType("full")}
-              />
+        <div style={{ marginTop: "1rem", border: "1px solid #e2e8f0", borderRadius: 8, padding: "1rem", background: "#f9fafb" }}>
+          <p style={{ fontWeight: 600, margin: "0 0 0.75rem" }}>Process Refund</p>
+          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+              <input type="radio" checked={refundType === "full"} onChange={() => setRefundType("full")} />
               Full refund
             </label>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600 }}>
-              <input
-                type="radio"
-                name="refundType"
-                value="partial"
-                checked={refundType === "partial"}
-                onChange={() => setRefundType("partial")}
-              />
+            <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+              <input type="radio" checked={refundType === "partial"} onChange={() => setRefundType("partial")} />
               Partial refund
             </label>
           </div>
           {refundType === "partial" && (
-            <div style={{ marginBottom: "1rem" }}>
+            <div style={{ marginBottom: "0.75rem" }}>
               <input
                 type="number"
                 min="0.01"
                 step="0.01"
-                placeholder="0.00"
-                value={partialAmount}
-                onChange={(e) => setPartialAmount(e.target.value)}
-                style={{ ...inputStyle, width: 120 }}
+                placeholder="Amount ($)"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                style={{ ...inputStyle, width: 100 }}
               />
             </div>
           )}
-          {error && <p style={{ color: "red", margin: "0.5rem 0" }}>{error}</p>}
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+          {refundError && <p style={{ color: "red", margin: "0 0 0.5rem", fontSize: 13 }}>{refundError}</p>}
+          <div style={{ display: "flex", gap: "0.5rem" }}>
             <button
-              onClick={issueRefund}
-              disabled={saving}
-              style={{ ...btnStyle, backgroundColor: "#b45309", color: "#fff", borderColor: "#b45309" }}
+              onClick={async () => {
+                setRefunding(true);
+                setRefundError(null);
+                try {
+                  if (refundType === "partial") {
+                    const parsed = parseFloat(refundAmount);
+                    if (isNaN(parsed) || parsed <= 0) {
+                      setRefundError("Please enter a valid amount greater than zero.");
+                      setRefunding(false);
+                      return;
+                    }
+                  }
+                  const body = refundType === "partial" ? { amountCents: Math.round(parseFloat(refundAmount) * 100) } : {};
+                  const res = await fetch(`/api/invoices/${invoice.id}/refund`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                  });
+                  if (!res.ok) {
+                    const err = (await res.json()) as { error?: string };
+                    throw new Error(err.error ?? `HTTP ${res.status}`);
+                  }
+                  setShowRefundDialog(false);
+                  onUpdated();
+                } catch (e: unknown) {
+                  setRefundError(e instanceof Error ? e.message : "Refund failed");
+                } finally {
+                  setRefunding(false);
+                }
+              }}
+              disabled={refunding}
+              style={{ ...btnStyle, color: "#fff", backgroundColor: "#7c3aed", borderColor: "#7c3aed" }}
             >
-              {saving ? "Processing…" : "Issue Refund"}
+              {refunding ? "Processing…" : "Process Refund"}
             </button>
-            <button onClick={() => setShowRefundDialog(false)} style={btnStyle}>
-              Cancel
-            </button>
+            <button onClick={() => { setShowRefundDialog(false); setRefundError(null); }} style={btnStyle}>Cancel</button>
           </div>
-        </Modal>
+        </div>
       )}
-    </Modal>
+      </Modal>
   );
 }
 

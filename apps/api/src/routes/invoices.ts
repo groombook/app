@@ -102,6 +102,7 @@ invoicesRouter.get(
         paidAt: invoices.paidAt,
         notes: invoices.notes,
         stripePaymentIntentId: invoices.stripePaymentIntentId,
+        stripeRefundId: invoices.stripeRefundId,
         createdAt: invoices.createdAt,
         updatedAt: invoices.updatedAt,
       })
@@ -129,7 +130,17 @@ invoicesRouter.get("/:id", async (c) => {
     db.select().from(invoiceTipSplits).where(eq(invoiceTipSplits.invoiceId, id)),
   ]);
 
-  return c.json({ ...invoice, lineItems, tipSplits });
+  let cardLast4: string | null = null;
+  let paymentStatus: string | null = null;
+  if (invoice.stripePaymentIntentId) {
+    const details = await getPaymentIntentDetails(invoice.stripePaymentIntentId);
+    if (details) {
+      cardLast4 = details.cardLast4;
+      paymentStatus = details.paymentStatus;
+    }
+  }
+
+  return c.json({ ...invoice, lineItems, tipSplits, cardLast4, paymentStatus });
 });
 
 // Save tip splits for an invoice (replaces existing splits)
@@ -449,9 +460,6 @@ invoicesRouter.post(
     if (invoice.status !== "paid") {
       return c.json({ error: "Refund only allowed on paid invoices" }, 422);
     }
-    if (!invoice.stripePaymentIntentId) {
-      return c.json({ error: "No Stripe payment intent found for this invoice" }, 422);
-    }
 
     return await db.transaction(async (tx) => {
       if (body.idempotencyKey) {
@@ -464,17 +472,25 @@ invoicesRouter.post(
         }
       }
 
-      const result = await processRefund(id, body.amountCents);
-      if (!result) return c.json({ error: "Refund failed" }, 500);
+      let refundId: string;
+
+      if (invoice.stripePaymentIntentId) {
+        const result = await processRefund(id, body.amountCents);
+        if (!result) return c.json({ error: "Refund failed" }, 500);
+        refundId = result.refundId;
+      } else {
+        // Manual refund — no Stripe call needed
+        refundId = `manual_${id}_${Date.now()}`;
+      }
 
       await tx.insert(refunds).values({
         invoiceId: id,
-        stripeRefundId: result.refundId,
+        stripeRefundId: refundId,
         idempotencyKey: body.idempotencyKey ?? null,
         amountCents: body.amountCents ?? null,
       });
 
-      return c.json({ refundId: result.refundId });
+      return c.json({ refundId });
     });
   }
 );
