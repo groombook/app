@@ -883,6 +883,7 @@ async function seed() {
   let appointmentCount = 0;
   let invoiceCount = 0;
   let visitLogCount = 0;
+  let paidInvoiceCounter = 0;
 
   // Process in batches per client to keep memory manageable
   const apptBatchSize = 100;
@@ -977,8 +978,11 @@ async function seed() {
 
         const invoiceStatus = rand() < 0.95 ? "paid" as const : "pending" as const;
         const paidAt = invoiceStatus === "paid" ? new Date(endTime.getTime() + randInt(5, 30) * 60 * 1000) : null;
+        paidInvoiceCounter++;
+        const stripePaymentIntentId = invoiceStatus === "paid"
+          ? `pi_test_seed_${String(paidInvoiceCounter).padStart(6, "0")}`
+          : null;
 
-        const stripePaymentIntentId = invoiceStatus === "paid" && rand() < 0.2 ? `pi_test_${uuid().replace(/-/g, "").slice(0, 24)}` : null;
         invoiceBatch.push({
           id: invoiceId,
           appointmentId: apptId,
@@ -1094,14 +1098,16 @@ async function seed() {
       const taxCents = Math.round(effectivePrice * 0.08);
       const totalCents = effectivePrice + taxCents + tipCents;
       const paidAt = new Date(endTime.getTime() + randInt(5, 30) * 60 * 1000);
-      const stripePaymentIntentId = rand() < 0.2 ? `pi_test_${uuid().replace(/-/g, "").slice(0, 24)}` : null;
+      paidInvoiceCounter++;
 
       invoiceBatch.push({
         id: invoiceId, appointmentId: apptId, clientId,
         subtotalCents: effectivePrice, taxCents, tipCents, totalCents,
         status: "paid" as const,
         paymentMethod: pick(["cash", "card", "card", "card", "check"]) as "cash" | "card" | "check",
-        paidAt, stripePaymentIntentId, notes: null,
+        paidAt,
+        stripePaymentIntentId: `pi_test_seed_${String(paidInvoiceCounter).padStart(6, "0")}`,
+        notes: null,
       });
       lineItemBatch.push({
         id: uuid(), invoiceId, description: svc.name, quantity: 1,
