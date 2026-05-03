@@ -130,7 +130,7 @@ function BillingPaymentsInner({ sessionId, readOnly }: BillingPaymentsProps) {
         </div>
       )}
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap flex-shrink-0">
         {([
           { id: "invoices" as const, label: "Invoices", icon: DollarSign },
           { id: "payment" as const, label: "Payment Methods", icon: CreditCard },
