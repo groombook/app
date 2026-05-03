@@ -67,18 +67,14 @@ input:focus, select:focus, textarea:focus {
 
 /* ─── Scrollbar polish ─── */
 ::-webkit-scrollbar {
-  width: 6px;
+  display: none;
 }
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  display: none;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+/* ─── Scrollbar hide utility ─── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
