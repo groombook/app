@@ -18,6 +18,8 @@ api:
     corsOrigin: ""
     oidcIssuer: ""
     oidcAudience: groombook
+    betterAuthUrl: ""
+    internalBaseUrl: ""
     port: "3000"
   service:
     type: ClusterIP
