@@ -72,9 +72,15 @@ test.describe("Portal Data Integrity", () => {
   });
 
   test("billing section renders without JS errors", async ({ page }) => {
-    // Mock billing endpoint
-    await page.route("**/api/billing**", (route) =>
-      route.fulfill({ json: { invoices: [], balanceCents: 0 } })
+    // Mock portal billing endpoints
+    await page.route("**/api/portal/config**", (route) =>
+      route.fulfill({ json: { stripePublishableKey: "" } })
+    );
+    await page.route("**/api/portal/invoices**", (route) =>
+      route.fulfill({ json: [] })
+    );
+    await page.route("**/api/portal/payment-methods**", (route) =>
+      route.fulfill({ json: [] })
     );
 
     const consoleErrors: string[] = [];
