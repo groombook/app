@@ -54,7 +54,7 @@ test.beforeEach(async ({ page }) => {
         },
       });
     }
-if (url.includes("/api/invoices")) {
+    if (url.includes("/api/invoices")) {
       return route.fulfill({ json: { data: [], total: 0 } });
     }
     // Appointments, clients, services, staff, book, etc.
