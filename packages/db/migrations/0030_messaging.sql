@@ -23,7 +23,7 @@ CREATE TABLE "conversations" (
   "updated_at" timestamp NOT NULL DEFAULT now()
 );
 
-CREATE INDEX "idx_conversations_business_id_last_message_at" ON "conversations"("business_id", "last_message_at");
+CREATE INDEX "idx_conversations_business_id_last_message_at" ON "conversations"("business_id", "last_message_at" DESC);
 CREATE UNIQUE INDEX "uq_conversations_business_client_number" ON "conversations"("business_id", "client_id", "business_number");
 
 CREATE TABLE "messages" (
@@ -41,7 +41,7 @@ CREATE TABLE "messages" (
   "read_by_client_at" timestamp
 );
 
-CREATE INDEX "idx_messages_conversation_id_created_at" ON "messages"("conversation_id", "created_at");
+CREATE INDEX "idx_messages_conversation_id_created_at" ON "messages"("conversation_id", "created_at" DESC);
 CREATE UNIQUE INDEX "uq_messages_provider_message_id" ON "messages"("provider_message_id");
 
 CREATE TABLE "message_attachments" (

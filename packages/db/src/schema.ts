@@ -448,7 +448,7 @@ export const conversations = pgTable(
   (t) => [
     index("idx_conversations_business_id_last_message_at").on(
       t.businessId,
-      t.lastMessageAt
+      t.lastMessageAt.desc()
     ),
     unique("uq_conversations_business_client_number").on(
       t.businessId,
@@ -479,7 +479,10 @@ export const messages = pgTable(
     readByClientAt: timestamp("read_by_client_at"),
   },
   (t) => [
-    index("idx_messages_conversation_id_created_at").on(t.conversationId, t.createdAt),
+    index("idx_messages_conversation_id_created_at").on(
+      t.conversationId,
+      t.createdAt.desc()
+    ),
     unique("uq_messages_provider_message_id").on(t.providerMessageId),
   ]
 );
