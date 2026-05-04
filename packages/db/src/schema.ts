@@ -406,6 +406,114 @@ export const impersonationAuditLogs = pgTable(
   (t) => [index("impersonation_audit_logs_session_id_idx").on(t.sessionId)]
 );
 
+// ─── Messaging ───────────────────────────────────────────────────────────────
+
+export const messagingChannelEnum = pgEnum("messaging_channel", ["sms", "mms"]);
+
+export const messageDirectionEnum = pgEnum("message_direction", [
+  "inbound",
+  "outbound",
+]);
+
+export const messageStatusEnum = pgEnum("message_status", [
+  "queued",
+  "sent",
+  "delivered",
+  "failed",
+  "received",
+]);
+
+export const messageConsentKindEnum = pgEnum("message_consent_kind", [
+  "opt_in",
+  "opt_out",
+  "help",
+]);
+
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    businessId: uuid("business_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    channel: messagingChannelEnum("channel").notNull(),
+    externalNumber: text("external_number").notNull(),
+    businessNumber: text("business_number").notNull(),
+    lastMessageAt: timestamp("last_message_at"),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("idx_conversations_business_id_last_message_at").on(
+      t.businessId,
+      t.lastMessageAt
+    ),
+    unique("uq_conversations_business_client_number").on(
+      t.businessId,
+      t.clientId,
+      t.businessNumber
+    ),
+  ]
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    direction: messageDirectionEnum("direction").notNull(),
+    body: text("body"),
+    status: messageStatusEnum("status").notNull().default("queued"),
+    providerMessageId: text("provider_message_id"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    sentByStaffId: uuid("sent_by_staff_id").references(() => staff.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at"),
+    readByClientAt: timestamp("read_by_client_at"),
+  },
+  (t) => [
+    index("idx_messages_conversation_id_created_at").on(t.conversationId, t.createdAt),
+    unique("uq_messages_provider_message_id").on(t.providerMessageId),
+  ]
+);
+
+export const messageAttachments = pgTable(
+  "message_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    url: text("url").notNull(),
+    size: integer("size").notNull(),
+    providerMediaId: text("provider_media_id"),
+  },
+  (t) => [index("idx_message_attachments_message_id").on(t.messageId)]
+);
+
+export const messageConsentEvents = pgTable(
+  "message_consent_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    businessId: uuid("business_id").notNull(),
+    kind: messageConsentKindEnum("kind").notNull(),
+    source: text("source"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("idx_message_consent_events_client_id").on(t.clientId)]
+);
+
 export const businessSettings = pgTable("business_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   businessName: text("business_name").notNull().default("GroomBook"),
@@ -414,6 +522,8 @@ export const businessSettings = pgTable("business_settings", {
   logoKey: text("logo_key"),
   primaryColor: text("primary_color").notNull().default("#4f8a6f"),
   accentColor: text("accent_color").notNull().default("#8b7355"),
+  messagingPhoneNumber: text("messaging_phone_number"),
+  telnyxMessagingProfileId: text("telnyx_messaging_profile_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
