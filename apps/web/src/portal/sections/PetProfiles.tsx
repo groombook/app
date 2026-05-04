@@ -182,7 +182,7 @@ export function PetProfiles({ sessionId, readOnly }: Props) {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white rounded-xl border border-stone-200 p-1 overflow-x-auto">
+      <div className="flex gap-1 bg-white rounded-xl border border-stone-200 p-1 overflow-x-auto scrollbar-hide">
         {([
           { id: "info", label: "Basic Info", icon: PawPrint },
           { id: "medical", label: "Medical", icon: Heart },
