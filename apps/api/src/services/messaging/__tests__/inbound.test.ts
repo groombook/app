@@ -262,6 +262,11 @@ describe("handleMessageReceived", () => {
         where: vi.fn().mockReturnValue({}),
       }),
     });
+    mockDb.insert.mockReturnValueOnce({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockReturnValue([{ id: "msg-new" }]),
+      }),
+    });
 
     const payload = makePayload("message.received", "msg-abc", "+1555111", "+1555222", "Test message");
     const result = await handleMessageReceived(payload);
