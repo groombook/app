@@ -1,4 +1,5 @@
-import { getDb, conversations, messages, businessSettings, eq, and, sql } from "@groombook/db";
+import { getDb, conversations, messages, businessSettings, clients, eq, and } from "@groombook/db";
+import { v4 as uuidv4 } from "uuid";
 
 export interface TelnyxMessageReceivedPayload {
   data: {
@@ -41,13 +42,23 @@ export async function findOrCreateConversation(
     return { id: existing.id, clientId: existing.clientId };
   }
 
-  const [business] = await db
-    .select({ primaryClientId: sql<string>`${businessSettings.id}` })
-    .from(businessSettings)
-    .where(eq(businessSettings.id, businessId))
+  const [existingClient] = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(eq(clients.phone, clientPhone))
     .limit(1);
 
-  const clientId = business?.primaryClientId ?? crypto.randomUUID();
+  const clientId = existingClient?.id ?? uuidv4();
+
+  if (!existingClient) {
+    await db.insert(clients).values({
+      id: clientId,
+      name: clientPhone,
+      email: `sms-${uuidv4()}@placeholder.local`,
+      phone: clientPhone,
+      status: "active",
+    });
+  }
 
   const [created] = await db
     .insert(conversations)

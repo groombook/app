@@ -13,6 +13,7 @@ vi.mock("@groombook/db", () => ({
   conversations: { id: "", businessId: "", clientId: "", externalNumber: "", businessNumber: "", channel: "", lastMessageAt: null, status: "", createdAt: null, updatedAt: null },
   messages: { id: "", conversationId: "", direction: "", body: "", status: "", providerMessageId: "", sentByStaffId: null, createdAt: null, deliveredAt: null, readByClientAt: null },
   businessSettings: { id: "", messagingPhoneNumber: "" },
+  clients: { id: "", name: "", email: "", phone: "", status: "" },
   eq: vi.fn(),
   and: vi.fn(),
   sql: vi.fn(),
@@ -126,6 +127,33 @@ describe("findOrCreateConversation", () => {
 
     const result = await findOrCreateConversation("biz-1", "+1555111", "+1555222");
     expect(result.id).toBe("conv-2");
+  });
+
+  it("creates placeholder client for unknown phone then creates conversation", async () => {
+    mockDb.select
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue([]),
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue([]),
+          }),
+        }),
+      });
+    mockDb.insert.mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockReturnValue([{ id: "conv-3", clientId: "client-3" }]),
+      }),
+    });
+
+    const result = await findOrCreateConversation("biz-1", "+1555111", "+1555222");
+    expect(result.id).toBe("conv-3");
+    expect(result.clientId).toBe("client-3");
   });
 });
 
