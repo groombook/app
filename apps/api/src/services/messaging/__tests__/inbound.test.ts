@@ -59,7 +59,7 @@ describe("signature validation via route", () => {
   it("returns 401 when telnyx-signature header is missing", async () => {
     const { telnyxWebhooksRouter } = await import("../../../routes/webhooks/telnyx.js");
     const payload = JSON.stringify(makePayload("message.received", "msg-123", "+1555111", "+1555222"));
-    const req = new Request("http://localhost/api/webhooks/telnyx/messaging", {
+    const req = new Request("http://localhost/messaging", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: payload,
@@ -72,7 +72,7 @@ describe("signature validation via route", () => {
     process.env.TELNYX_WEBHOOK_SECRET = "test-secret";
     const { telnyxWebhooksRouter } = await import("../../../routes/webhooks/telnyx.js");
     const payload = JSON.stringify(makePayload("message.received", "msg-123", "+1555111", "+1555222"));
-    const req = new Request("http://localhost/api/webhooks/telnyx/messaging", {
+    const req = new Request("http://localhost/messaging", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -178,58 +178,54 @@ describe("handleMessageReceived", () => {
     mockDb.insert.mockReset();
     mockDb.update.mockReset();
     mockDb.returning.mockReset();
-  });
-
-  it("returns 404 when no business owns the to number", async () => {
-    mockDb.select.mockReturnValue({
+    mockDb.select.mockImplementation(() => ({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           limit: vi.fn().mockReturnValue([]),
         }),
       }),
-    });
+    }));
+  });
 
+  it("returns 404 when no business owns the to number", async () => {
     const payload = makePayload("message.received", "msg-123", "+1555111", "+1555000");
     await expect(handleMessageReceived(payload)).rejects.toThrow("No business owns messaging number");
   });
 
   it("creates conversation and message for valid inbound", async () => {
-    mockDb.select
-      .mockReturnValueOnce({
+    const businessLookup = {
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue([{ id: "biz-1" }]),
+        }),
+      }),
+    };
+    let selectCallCount = 0;
+    mockDb.select.mockImplementation(() => {
+      selectCallCount++;
+      if (selectCallCount === 1) return businessLookup;
+      return {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             limit: vi.fn().mockReturnValue([]),
           }),
         }),
+      };
+    });
+    mockDb.insert
+      .mockReturnValueOnce({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue([{ id: "conv-new", clientId: "client-1" }]),
+        }),
       })
       .mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockReturnValue([{ id: "biz-1" }]),
-          }),
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue([{ id: "msg-new" }]),
         }),
       });
-
-    mockDb.insert.mockReturnValue({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockReturnValue([{ id: "conv-new", clientId: "client-1" }]),
-      }),
-    });
     mockDb.update.mockReturnValue({
       set: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({}),
-      }),
-    });
-    mockDb.select.mockReturnValueOnce({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue([]),
-        }),
-      }),
-    });
-    mockDb.insert.mockReturnValueOnce({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockReturnValue([{ id: "msg-new" }]),
       }),
     });
 
@@ -242,6 +238,12 @@ describe("handleMessageReceived", () => {
 describe("handleMessageFinalized", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDb.select.mockReset();
+    mockDb.from.mockReset();
+    mockDb.where.mockReset();
+    mockDb.limit.mockReset();
+    mockDb.update.mockReset();
+    mockDb.returning.mockReset();
   });
 
   it("returns null when message not found", async () => {
@@ -268,7 +270,9 @@ describe("handleMessageFinalized", () => {
     });
     mockDb.update.mockReturnValue({
       set: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({}),
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue([{ id: "msg-1" }]),
+        }),
       }),
     });
 

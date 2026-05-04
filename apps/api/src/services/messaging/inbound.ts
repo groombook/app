@@ -175,10 +175,7 @@ export async function handleMessageFinalized(payload: TelnyxMessageReceivedPaylo
 
   let newStatus = existing.status;
   if (payload.data.event_type === "message.finalized") {
-    const deliveryReceipt = message as { direction?: string; to?: Array<{ phone: string }> };
-    if (deliveryReceipt.direction === "inbound") {
-      newStatus = "delivered";
-    }
+    newStatus = "delivered";
   }
 
   if (newStatus !== existing.status) {
