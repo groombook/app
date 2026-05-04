@@ -14,7 +14,8 @@ import {
   clients,
   sql,
 } from "@groombook/db";
-import type { AppEnv } from "../middleware/rbac.js";
+import type { AppEnv, StaffRole } from "../middleware/rbac.js";
+import { requireRole } from "../middleware/rbac.js";
 
 export const invoicesRouter = new Hono<AppEnv>();
 
@@ -460,6 +461,9 @@ invoicesRouter.post(
     if (invoice.status !== "paid") {
       return c.json({ error: "Refund only allowed on paid invoices" }, 422);
     }
+    if (!invoice.stripePaymentIntentId) {
+      return c.json({ error: "Invoice has no Stripe payment intent" }, 422);
+    }
 
     return await db.transaction(async (tx) => {
       if (body.idempotencyKey) {
@@ -472,16 +476,9 @@ invoicesRouter.post(
         }
       }
 
-      let refundId: string;
-
-      if (invoice.stripePaymentIntentId) {
-        const result = await processRefund(id, body.amountCents);
-        if (!result) return c.json({ error: "Refund failed" }, 500);
-        refundId = result.refundId;
-      } else {
-        // Manual refund — no Stripe call needed
-        refundId = `manual_${id}_${Date.now()}`;
-      }
+      const result = await processRefund(id, body.amountCents);
+      if (!result) return c.json({ error: "Refund failed" }, 500);
+      const refundId = result.refundId;
 
       await tx.insert(refunds).values({
         invoiceId: id,
@@ -496,7 +493,7 @@ invoicesRouter.post(
 );
 
 // Payment stats for admin dashboard
-invoicesRouter.get("/stats/summary", async (c) => {
+invoicesRouter.get("/stats/summary", requireRole("manager" as StaffRole), async (c) => {
   try {
     const db = getDb();
     const now = new Date();
