@@ -1,6 +1,6 @@
 # 10DLC Pilot Tenant Registration Runbook
 
-Authored for [GRO-106](/GRO/issues/GRO-106) Phase 1.
+Authored for GRO-106 Phase 1.
 
 ---
 
@@ -60,10 +60,10 @@ curl -X POST https://api.telnyx.com/v2/10dlc/brands \
     "primary_contact": {
       "name": "Jane Doe",
       "email": "compliance@example.com",
-      "phone": "+13125551000"
+      "phone": "+1XXXXXXXXXX"
     },
     "website": "https://www.example.com",
-    "business_vertical": "FINANCE_INSURANCE_BANKING"
+    "business_vertical": "PROFESSIONAL_SERVICES"
   }'
 ```
 
@@ -177,14 +177,14 @@ curl -X PATCH https://api.telnyx.com/v2/phone_numbers/YOUR_PHONE_NUMBER_ID \
 
 ## Step 5 — Record in Database
 
-Once [GRO-981](/GRO/issues/GRO-981) lands, record the following against the business record:
+Once GRO-981 lands, record the following against the business record:
 
 ### SQL Path (when GRO-981 is complete)
 
 ```sql
 UPDATE businesses
 SET
-  messaging_phone_number = '+13125551000',
+  messaging_phone_number = '+1XXXXXXXXXX',
   telnyx_messaging_profile_id = 'YOUR_MESSAGING_PROFILE_ID',
   telnyx_brand_id = 'YOUR_BRAND_ID',
   telnyx_campaign_id = 'YOUR_CAMPAIGN_ID',
@@ -302,8 +302,8 @@ If the pilot tenant must be de-provisioned:
 |----------|---------|
 | Telnyx Support | support@telnyx.com |
 | Telnyx Dashboard | portal.telnyx.com |
-| Internal Engineering | Raise issue in [GRO-106](/GRO/issues/GRO-106) |
+| Internal Engineering | Raise issue in GRO-106 |
 
 ---
 
-_Last updated: 2026-05-04_
+_Owner: Engineering · Last updated: 2026-05-04_
