@@ -4,7 +4,7 @@ const mockSendSms = vi.fn();
 const mockGetDb = vi.fn();
 const mockUuidv4 = vi.fn();
 
-vi.mock("../sms.js", () => ({
+vi.mock("../../sms.js", () => ({
   sendSms: mockSendSms,
 }));
 
@@ -23,9 +23,6 @@ vi.mock("uuid", () => ({
 }));
 
 const { sendMessage, MissingTenantPhoneNumberError } = await import("../outbound.ts");
-
-const mockEq = (a: unknown, b: unknown) => [a, b];
-const mockAnd = (...args: unknown[]) => args;
 
 describe("sendMessage", () => {
   beforeEach(() => {

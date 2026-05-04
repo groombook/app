@@ -3,7 +3,6 @@ import { createHmac } from "crypto";
 import {
   handleMessageReceived,
   handleMessageFinalized,
-  resolveBusinessIdByMessagingNumber,
   TelnyxMessageReceivedPayload,
 } from "../../services/messaging/inbound.js";
 
@@ -45,7 +44,7 @@ telnyxWebhooksRouter.post("/messaging", async (c) => {
     return c.json({ error: "Could not read body" }, 400);
   }
 
-  if (!validateTelnyxSignature(rawBody, signature)) {
+  if (!validateTelnyxSignature(rawBody, signature ?? null)) {
     return c.json({ error: "Invalid signature" }, 401);
   }
 

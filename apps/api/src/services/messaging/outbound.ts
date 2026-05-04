@@ -66,6 +66,8 @@ async function findOrCreateConversation(
     })
     .returning({ id: conversations.id });
 
+  if (!created) throw new Error("Failed to create conversation");
+
   return { id: created.id };
 }
 
@@ -114,6 +116,8 @@ export async function sendMessage(opts: SendMessageOptions): Promise<SendMessage
       sentByStaffId: sentByStaffId ?? null,
     })
     .returning({ id: messages.id });
+
+  if (!queuedMessage) throw new Error("Failed to insert queued message");
 
   try {
     const result = await sendSms(to, body, mediaUrls);

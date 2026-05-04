@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   findOrCreateConversation,
   upsertMessage,
-  resolveBusinessIdByMessagingNumber,
   handleMessageReceived,
   handleMessageFinalized,
   TelnyxMessageReceivedPayload,
@@ -54,7 +53,7 @@ const makePayload = (
 
 describe("signature validation via route", () => {
   it("returns 401 when telnyx-signature header is missing", async () => {
-    const { telnyxWebhooksRouter } = await import("../../routes/webhooks/telnyx.js");
+    const { telnyxWebhooksRouter } = await import("../../../routes/webhooks/telnyx.js");
     const payload = JSON.stringify(makePayload("message.received", "msg-123", "+1555111", "+1555222"));
     const req = new Request("http://localhost/api/webhooks/telnyx/messaging", {
       method: "POST",
@@ -67,7 +66,7 @@ describe("signature validation via route", () => {
 
   it("returns 401 when signature does not match", async () => {
     process.env.TELNYX_WEBHOOK_SECRET = "test-secret";
-    const { telnyxWebhooksRouter } = await import("../../routes/webhooks/telnyx.js");
+    const { telnyxWebhooksRouter } = await import("../../../routes/webhooks/telnyx.js");
     const payload = JSON.stringify(makePayload("message.received", "msg-123", "+1555111", "+1555222"));
     const req = new Request("http://localhost/api/webhooks/telnyx/messaging", {
       method: "POST",

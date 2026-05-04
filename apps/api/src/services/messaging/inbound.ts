@@ -1,5 +1,4 @@
 import { getDb, conversations, messages, businessSettings, eq, and, sql } from "@groombook/db";
-import { messageDirectionEnum, messageStatusEnum } from "@groombook/db";
 import { v4 as uuidv4 } from "uuid";
 
 export interface TelnyxMessageReceivedPayload {
@@ -17,14 +16,6 @@ export interface TelnyxMessageReceivedPayload {
       recording?: unknown;
       leg_count?: number;
     };
-  };
-}
-
-function buildFindOrCreateConversationParams(businessId: string, clientPhone: string, businessNumber: string) {
-  return {
-    businessId,
-    externalNumber: clientPhone,
-    businessNumber,
   };
 }
 
@@ -73,6 +64,8 @@ export async function findOrCreateConversation(
     })
     .returning({ id: conversations.id, clientId: conversations.clientId });
 
+  if (!created) throw new Error("Failed to create conversation");
+
   return { id: created.id, clientId: created.clientId };
 }
 
@@ -108,6 +101,8 @@ export async function upsertMessage(
       sentByStaffId: sentByStaffId ?? null,
     })
     .returning({ id: messages.id });
+
+  if (!inserted) throw new Error("Failed to insert message");
 
   return { id: inserted.id, isNew: true };
 }

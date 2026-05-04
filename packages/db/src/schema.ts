@@ -477,6 +477,7 @@ export const messages = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     deliveredAt: timestamp("delivered_at"),
     readByClientAt: timestamp("read_by_client_at"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
     index("idx_messages_conversation_id_created_at").on(
