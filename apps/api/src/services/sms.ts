@@ -1,5 +1,7 @@
 import { Telnyx } from "telnyx";
 import { createHmac } from "crypto";
+import { v4 as uuidv4 } from "uuid";
+import { getDb, conversations, messages, businessSettings, eq, and } from "@groombook/db";
 
 export interface SmsProvider {
   sendSms(to: string, body: string, mediaUrls?: string[]): Promise<{ messageId: string; status: string }>;
@@ -32,6 +34,48 @@ function isE164(phone: string): boolean {
   return /^\+[1-9]\d{7,14}$/.test(phone);
 }
 
+async function findOrCreateConversationForOutbound(
+  businessId: string,
+  clientPhone: string,
+  businessNumber: string
+): Promise<{ id: string; clientId: string }> {
+  const db = getDb();
+
+  const [existing] = await db
+    .select({ id: conversations.id, clientId: conversations.clientId })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.businessId, businessId),
+        eq(conversations.externalNumber, clientPhone),
+        eq(conversations.businessNumber, businessNumber)
+      )
+    )
+    .limit(1);
+
+  if (existing) {
+    return { id: existing.id, clientId: existing.clientId };
+  }
+
+  const clientId = uuidv4();
+
+  const [created] = await db
+    .insert(conversations)
+    .values({
+      id: uuidv4(),
+      businessId,
+      clientId,
+      channel: "sms",
+      externalNumber: clientPhone,
+      businessNumber,
+      lastMessageAt: new Date(),
+      status: "active",
+    })
+    .returning({ id: conversations.id, clientId: conversations.clientId });
+
+  return { id: created.id, clientId: created.clientId };
+}
+
 export async function sendSms(
   to: string,
   body: string,
@@ -58,6 +102,38 @@ export async function sendSms(
 
   const result = await client.messages.create(payload as Record<string, string | string[]>);
   const smsResult = result.data as unknown as TelnyxSmsResult;
+
+  const db = getDb();
+  const [settings] = await db
+    .select({ id: businessSettings.id })
+    .from(businessSettings)
+    .where(eq(businessSettings.messagingPhoneNumber, from))
+    .limit(1);
+
+  if (settings?.id) {
+    const { id: conversationId } = await findOrCreateConversationForOutbound(
+      settings.id,
+      to,
+      from
+    );
+
+    await db
+      .update(conversations)
+      .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+      .where(eq(conversations.id, conversationId));
+
+    await db
+      .insert(messages)
+      .values({
+        id: uuidv4(),
+        conversationId,
+        direction: "outbound",
+        body,
+        status: "sent",
+        providerMessageId: smsResult.message_id,
+      });
+  }
+
   return {
     messageId: smsResult.message_id,
     status: smsResult.status,
