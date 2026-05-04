@@ -235,23 +235,29 @@ describe("handleMessageReceived", () => {
       return {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockReturnValue([{ id: "biz-1" }]),
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
             limit: vi.fn().mockReturnValue([]),
           }),
         }),
       };
     });
-    mockDb.insert
-      .mockReturnValueOnce({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockReturnValue([{ id: "conv-new", clientId: "client-1" }]),
-        }),
-      })
-      .mockReturnValueOnce({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockReturnValue([{ id: "msg-new" }]),
-        }),
-      });
-    mockDb.update.mockReturnValue({
+    mockDb.insert.mockReturnValueOnce({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockReturnValue([{ id: "client-new" }]),
+      }),
+    });
+    mockDb.insert.mockReturnValueOnce({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockReturnValue([{ id: "conv-new", clientId: "client-new" }]),
+      }),
+    });
+    mockDb.update.mockReturnValueOnce({
       set: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({}),
       }),
@@ -270,6 +276,7 @@ describe("handleMessageFinalized", () => {
     mockDb.from.mockReset();
     mockDb.where.mockReset();
     mockDb.limit.mockReset();
+    mockDb.insert.mockReset();
     mockDb.update.mockReset();
     mockDb.returning.mockReset();
   });
