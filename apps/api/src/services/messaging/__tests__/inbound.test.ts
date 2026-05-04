@@ -221,18 +221,8 @@ describe("handleMessageReceived", () => {
   });
 
   it("creates conversation and message for valid inbound", async () => {
-    const businessLookup = {
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue([{ id: "biz-1" }]),
-        }),
-      }),
-    };
-    let selectCallCount = 0;
-    mockDb.select.mockImplementation(() => {
-      selectCallCount++;
-      if (selectCallCount === 1) return businessLookup;
-      return {
+    mockDb.select
+      .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             limit: vi.fn().mockReturnValue([{ id: "biz-1" }]),
@@ -245,18 +235,18 @@ describe("handleMessageReceived", () => {
             limit: vi.fn().mockReturnValue([]),
           }),
         }),
-      };
-    });
-    mockDb.insert.mockReturnValueOnce({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockReturnValue([{ id: "client-new" }]),
-      }),
-    });
-    mockDb.insert.mockReturnValueOnce({
-      values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockReturnValue([{ id: "conv-new", clientId: "client-new" }]),
-      }),
-    });
+      });
+    mockDb.insert
+      .mockReturnValueOnce({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue([{ id: "client-new" }]),
+        }),
+      })
+      .mockReturnValueOnce({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue([{ id: "conv-new", clientId: "client-new" }]),
+        }),
+      });
     mockDb.update.mockReturnValueOnce({
       set: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({}),
