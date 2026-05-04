@@ -249,12 +249,12 @@ customRules: {
         max: 100,
         window: 10,
         storage: "memory",
-        customRules: {
-          "/sign-in/social": { max: 10, window: 60 },
-          "/sign-in/email": { max: 10, window: 60 },
-          "/sign-up/email": { max: 5, window: 60 },
-          "/get-session": false,
-        },
+          customRules: {
+            "/sign-in/social": { max: 10, window: 60 },
+            "/sign-in/email": { max: 10, window: 60 },
+            "/sign-up/email": { max: 5, window: 60 },
+            "/get-session": false,
+          },
       },
       account: {
         storeStateStrategy: "cookie" as const,
