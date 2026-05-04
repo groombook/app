@@ -1,6 +1,4 @@
 import { getDb, conversations, messages, businessSettings, eq, and, sql } from "@groombook/db";
-import { messageDirectionEnum, messageStatusEnum } from "@groombook/db";
-import { v4 as uuidv4 } from "uuid";
 
 export interface TelnyxMessageReceivedPayload {
   data: {
@@ -17,14 +15,6 @@ export interface TelnyxMessageReceivedPayload {
       recording?: unknown;
       leg_count?: number;
     };
-  };
-}
-
-function buildFindOrCreateConversationParams(businessId: string, clientPhone: string, businessNumber: string) {
-  return {
-    businessId,
-    externalNumber: clientPhone,
-    businessNumber,
   };
 }
 
@@ -57,12 +47,12 @@ export async function findOrCreateConversation(
     .where(eq(businessSettings.id, businessId))
     .limit(1);
 
-  const clientId = business?.primaryClientId ?? uuidv4();
+  const clientId = business?.primaryClientId ?? crypto.randomUUID();
 
   const [created] = await db
     .insert(conversations)
     .values({
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       businessId,
       clientId,
       channel: "sms",
@@ -72,6 +62,8 @@ export async function findOrCreateConversation(
       status: "active",
     })
     .returning({ id: conversations.id, clientId: conversations.clientId });
+
+  if (!created) throw new Error("Failed to create conversation");
 
   return { id: created.id, clientId: created.clientId };
 }
@@ -96,20 +88,33 @@ export async function upsertMessage(
     return { id: existing.id, isNew: false };
   }
 
-  const [inserted] = await db
-    .insert(messages)
-    .values({
-      id: uuidv4(),
-      conversationId,
-      direction,
-      body,
-      status,
-      providerMessageId,
-      sentByStaffId: sentByStaffId ?? null,
-    })
-    .returning({ id: messages.id });
+  try {
+    const [inserted] = await db
+      .insert(messages)
+      .values({
+        id: crypto.randomUUID(),
+        conversationId,
+        direction,
+        body,
+        status,
+        providerMessageId,
+        sentByStaffId: sentByStaffId ?? null,
+      })
+      .returning({ id: messages.id });
 
-  return { id: inserted.id, isNew: true };
+    if (!inserted) throw new Error("Failed to insert message");
+    return { id: inserted.id, isNew: true };
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("unique")) {
+      const [existing] = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(eq(messages.providerMessageId, providerMessageId))
+        .limit(1);
+      if (existing) return { id: existing.id, isNew: false };
+    }
+    throw err;
+  }
 }
 
 export async function resolveBusinessIdByMessagingNumber(toNumber: string): Promise<string | null> {
@@ -179,7 +184,7 @@ export async function handleMessageFinalized(payload: TelnyxMessageReceivedPaylo
   if (newStatus !== existing.status) {
     await db
       .update(messages)
-      .set({ status: newStatus, deliveredAt: new Date(), updatedAt: new Date() })
+      .set({ status: newStatus, deliveredAt: new Date() })
       .where(eq(messages.id, existing.id));
   }
 

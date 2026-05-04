@@ -1,39 +1,12 @@
 import { Hono } from "hono";
-import { createHmac } from "crypto";
+import { validateTelnyxSignature } from "../../services/sms.js";
 import {
   handleMessageReceived,
   handleMessageFinalized,
-  resolveBusinessIdByMessagingNumber,
   TelnyxMessageReceivedPayload,
 } from "../../services/messaging/inbound.js";
 
 export const telnyxWebhooksRouter = new Hono();
-
-function validateTelnyxSignature(rawBody: string, signature: string | null): boolean {
-  if (!signature) return false;
-  const secret = process.env.TELNYX_WEBHOOK_SECRET;
-  if (!secret) return false;
-
-  try {
-    const hmac = createHmac("sha256", secret);
-    const expected = `sha256=${hmac.update(rawBody).digest("hex")}`;
-
-    const sigBuf = Buffer.from(signature);
-    const expBuf = Buffer.from(expected);
-
-    if (sigBuf.length !== expBuf.length) return false;
-
-    let diff = 0;
-    for (let i = 0; i < sigBuf.length; i++) {
-      const sigByte = sigBuf[i] ?? 0;
-      const expByte = expBuf[i] ?? 0;
-      diff |= sigByte ^ expByte;
-    }
-    return diff === 0;
-  } catch {
-    return false;
-  }
-}
 
 telnyxWebhooksRouter.post("/messaging", async (c) => {
   const signature = c.req.header("telnyx-signature");
