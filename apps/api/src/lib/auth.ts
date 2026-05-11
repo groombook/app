@@ -97,6 +97,9 @@ export async function initAuth(): Promise<void> {
           window: 10,
           storage: "memory",
           customRules: {
+            "/sign-in/social": { max: 10, window: 60 },
+            "/sign-in/email": { max: 10, window: 60 },
+            "/sign-up/email": { max: 5, window: 60 },
             "/get-session": false,
           },
         },
@@ -247,6 +250,9 @@ export async function initAuth(): Promise<void> {
         window: 10,
         storage: "memory",
         customRules: {
+          "/sign-in/social": { max: 10, window: 60 },
+          "/sign-in/email": { max: 10, window: 60 },
+          "/sign-up/email": { max: 5, window: 60 },
           "/get-session": false,
         },
       },
