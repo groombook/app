@@ -29,6 +29,7 @@ import { devRouter } from "./routes/dev.js";
 import { adminSeedRouter } from "./routes/admin/seed.js";
 import { startReminderScheduler } from "./services/reminders.js";
 import { webhooksRouter } from "./routes/stripe-webhooks.js";
+import { telnyxWebhooksRouter } from "./routes/webhooks/telnyx.js";
 
 const app = new Hono();
 
@@ -68,6 +69,9 @@ app.route("/api/portal", portalRouter);
 
 // Public Stripe webhook endpoint — signature-verified, no auth required
 app.route("/api/webhooks/stripe", webhooksRouter);
+
+// Public Telnyx messaging webhook — signature-verified, no auth required
+app.route("/api/webhooks/telnyx", telnyxWebhooksRouter);
 
 // Dev/demo routes — config is always public, users endpoint is guarded internally
 app.route("/api/dev", devRouter);
