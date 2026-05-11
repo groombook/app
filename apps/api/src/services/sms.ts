@@ -32,6 +32,35 @@ function isE164(phone: string): boolean {
   return /^\+[1-9]\d{7,14}$/.test(phone);
 }
 
+export function validateTelnyxSignature(
+  rawBody: string,
+  signature: string | undefined | null
+): boolean {
+  if (!signature) return false;
+  const secret = process.env.TELNYX_WEBHOOK_SECRET;
+  if (!secret) return false;
+
+  try {
+    const hmac = createHmac("sha256", secret);
+    const expected = `sha256=${hmac.update(rawBody).digest("hex")}`;
+
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+
+    if (sigBuf.length !== expBuf.length) return false;
+
+    let diff = 0;
+    for (let i = 0; i < sigBuf.length; i++) {
+      const sigByte = sigBuf[i] ?? 0;
+      const expByte = expBuf[i] ?? 0;
+      diff |= sigByte ^ expByte;
+    }
+    return diff === 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendSms(
   to: string,
   body: string,
@@ -74,33 +103,7 @@ export class TelnyxProvider implements SmsProvider {
   }
 
   validateWebhookSignature(req: Request): boolean {
-    const secret = process.env.TELNYX_WEBHOOK_SECRET;
-    if (!secret) return false;
-
-    const signature = req.headers.get("telnyx-signature");
-    if (!signature) return false;
-
-    const payload = JSON.stringify(req.body);
-
-    try {
-      const hmac = createHmac("sha256", secret);
-      const expected = `sha256=${hmac.update(payload).digest("hex")}`;
-
-      const sigBuf = Buffer.from(signature);
-      const expBuf = Buffer.from(expected);
-
-      if (sigBuf.length !== expBuf.length) return false;
-
-      let diff = 0;
-      for (let i = 0; i < sigBuf.length; i++) {
-        const sigByte = sigBuf[i] ?? 0;
-        const expByte = expBuf[i] ?? 0;
-        diff |= sigByte ^ expByte;
-      }
-      return diff === 0;
-    } catch {
-      return false;
-    }
+    return validateTelnyxSignature(JSON.stringify(req.body), req.headers.get("telnyx-signature"));
   }
 }
 
