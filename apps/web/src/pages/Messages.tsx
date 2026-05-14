@@ -93,7 +93,10 @@ export function MessagesPage() {
 
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      const el = messagesEndRef.current;
+      if (el && typeof (el as HTMLDivElement).scrollIntoView === "function") {
+        (el as HTMLDivElement).scrollIntoView({ behavior: "smooth" });
+      }
     }
   }, [messages]);
 

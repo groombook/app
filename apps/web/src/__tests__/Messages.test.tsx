@@ -100,7 +100,7 @@ describe("MessagesPage", () => {
       if (url === "/api/conversations?limit=20") {
         return Promise.resolve(makeResponse(mockConversations));
       }
-      if (url === "/api/conversations/conv-1/messages?limit=50") {
+      if (url.match(/\/api\/conversations\/[^/]+\/messages/)) {
         return Promise.resolve(makeResponse({ messages: mockMessages }));
       }
       return Promise.resolve(makeResponseWithStatus(null, 404));
@@ -112,7 +112,9 @@ describe("MessagesPage", () => {
     fireEvent.click(screen.getByText("Alice Smith"));
 
     await waitFor(() => {
-      expect(screen.getByText("Hello, is my dog ready?")).toBeInTheDocument();
+      // Use getAllByText since the message also appears as preview in sidebar
+      const msgs = screen.getAllByText("Hello, is my dog ready?");
+      expect(msgs).toHaveLength(2); // preview in sidebar + bubble in message view
       expect(screen.getByText("Yes, she is all done!")).toBeInTheDocument();
     });
   });
@@ -121,7 +123,10 @@ describe("MessagesPage", () => {
     let capturedBody: unknown = null;
     vi.mocked(global.fetch).mockImplementation((input, init) => {
       const url = String(input);
-      if (url.includes("/messages") && init?.method === "POST") {
+      if (url === "/api/conversations?limit=20") {
+        return Promise.resolve(makeResponse(mockConversations));
+      }
+      if (url.match(/\/api\/conversations\/[^/]+\/messages/) && init?.method === "POST") {
         capturedBody = init?.body;
         return Promise.resolve(makeResponseWithStatus({
           id: "msg-new",
@@ -132,7 +137,10 @@ describe("MessagesPage", () => {
           sentByStaffId: "staff-1",
         }, 201));
       }
-      return Promise.resolve(makeResponse(mockConversations));
+      if (url.match(/\/api\/conversations\/[^/]+\/messages/)) {
+        return Promise.resolve(makeResponse({ messages: mockMessages }));
+      }
+      return Promise.resolve(makeResponseWithStatus(null, 404));
     });
 
     render(<MessagesPage />);
