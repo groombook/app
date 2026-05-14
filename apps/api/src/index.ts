@@ -19,7 +19,6 @@ import { groomingLogsRouter } from "./routes/groomingLogs.js";
 import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { authProviderRouter } from "./routes/authProvider.js";
-import { conversationsRouter } from "./routes/conversations.js";
 import { searchRouter } from "./routes/search.js";
 import { getObject } from "./lib/s3.js";
 import { calendarRouter } from "./routes/calendar.js";
