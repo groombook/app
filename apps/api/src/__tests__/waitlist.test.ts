@@ -41,12 +41,14 @@ let selectRows: Record<string, unknown>[] = [];
 let selectSessionRow: Record<string, unknown> | null = null;
 let insertedValues: Record<string, unknown>[] = [];
 let updatedValues: Record<string, unknown>[] = [];
+let insertedAuditLogs: Record<string, unknown>[] = [];
 
 function resetMock() {
   selectRows = [];
   selectSessionRow = null;
   insertedValues = [];
   updatedValues = [];
+  insertedAuditLogs = [];
 }
 
 vi.mock("@groombook/db", () => {
@@ -94,6 +96,11 @@ vi.mock("@groombook/db", () => {
     { get: (t, p) => (p === "_name" ? "appointments" : { table: "appointments", column: p }) }
   );
 
+  const impersonationAuditLogs = new Proxy(
+    { _name: "impersonationAuditLogs" },
+    { get: (t, p) => (p === "_name" ? "impersonationAuditLogs" : { table: "impersonationAuditLogs", column: p }) }
+  );
+
   return {
     getDb: () => ({
       select: () => ({
@@ -109,9 +116,18 @@ vi.mock("@groombook/db", () => {
       }),
       insert: () => ({
         values: (vals: Record<string, unknown>) => {
-          insertedValues.push(vals);
+          // Only count waitlist entry inserts, not audit log inserts from portalAudit middleware
+          if (vals.petId || vals.serviceId || vals.status !== undefined) {
+            insertedValues.push(vals);
+          }
           return {
-            returning: () => [{ ...WAITLIST_ENTRY, ...vals, id: "waitlist-uuid-new" }],
+            returning: () => {
+              if (vals.sessionId && !vals.petId) {
+                insertedAuditLogs.push(vals);
+                return [{ ...vals, id: "audit-log-uuid", createdAt: new Date() }];
+              }
+              return [{ ...WAITLIST_ENTRY, ...vals, id: "waitlist-uuid-new" }];
+            },
           };
         },
       }),
@@ -139,6 +155,7 @@ vi.mock("@groombook/db", () => {
     }),
     waitlistEntries,
     impersonationSessions,
+    impersonationAuditLogs,
     clients,
     pets,
     services,

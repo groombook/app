@@ -1,5 +1,7 @@
 import { getDb, conversations, messages, businessSettings, clients, eq, and } from "@groombook/db";
 import { v4 as uuidv4 } from "uuid";
+import { detectKeyword, handleConsentKeyword } from "./consent.js";
+import { sendMessage } from "./outbound.js";
 
 export interface TelnyxMessageReceivedPayload {
   data: {
@@ -166,6 +168,22 @@ export async function handleMessageReceived(payload: TelnyxMessageReceivedPayloa
     message.body,
     "received"
   );
+
+  const keyword = detectKeyword(message.body ?? "");
+  if (keyword) {
+    const { replyText } = await handleConsentKeyword({
+      clientId,
+      businessId,
+      kind: keyword.kind,
+      db: getDb(),
+    });
+    await sendMessage({
+      businessId,
+      clientId,
+      body: replyText,
+      staffId: undefined,
+    });
+  }
 
   return { conversationId, messageId };
 }
