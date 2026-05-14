@@ -169,6 +169,7 @@ vi.mock("@groombook/db", () => {
     lt: vi.fn((a, b) => ({ type: "lt", a, b })),
     sql: vi.fn(() => ({ __type: "sql" })),
     isNull: vi.fn((col) => ({ type: "isNull", col })),
+    count: vi.fn((col) => ({ type: "count", col })),
   };
 });
 

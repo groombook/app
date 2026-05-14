@@ -1,14 +1,7 @@
 import { useState, useEffect } from "react";
-import { Send, Check, CheckCheck, Bell, Mail, Smartphone, Megaphone, FileText, CreditCard } from "lucide-react";
-
-interface Message {
-  id: string;
-  sender: "customer" | "business";
-  senderName: string;
-  text: string;
-  timestamp: string;
-  read: boolean;
-}
+import { Bell, Mail, Smartphone } from "lucide-react";
+import { useConversation, useMessages } from "./Communication.api.js";
+import type { Message as ApiMessage } from "./Communication.api.js";
 
 interface NotificationCategory {
   email: boolean;
@@ -25,10 +18,11 @@ interface NotificationPreferences {
 }
 
 interface Props {
+  sessionId: string | null;
   readOnly: boolean;
 }
 
-export function Communication({ readOnly }: Props) {
+export function Communication({ sessionId, readOnly }: Props) {
   const [tab, setTab] = useState<"messages" | "notifications">("messages");
 
   return (
@@ -53,16 +47,22 @@ export function Communication({ readOnly }: Props) {
         </button>
       </div>
 
-      {tab === "messages" && <MessageThread readOnly={readOnly} />}
+      {tab === "messages" && <MessageThread sessionId={sessionId} readOnly={readOnly} />}
       {tab === "notifications" && <NotificationPreferences readOnly={readOnly} />}
     </div>
   );
 }
 
-function MessageThread({ readOnly }: { readOnly: boolean }) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
+interface MessageThreadProps {
+  sessionId: string | null;
+  readOnly: boolean;
+}
+
+function MessageThread({ sessionId, readOnly: _readOnly }: MessageThreadProps) {
   const [businessName, setBusinessName] = useState<string>("Business");
+
+  const { conversation, loading: convLoading, error: convError } = useConversation(sessionId);
+  const { messages, loading: msgLoading, error: msgError, loadMore, hasMore } = useMessages(sessionId);
 
   useEffect(() => {
     async function fetchBranding() {
@@ -79,19 +79,57 @@ function MessageThread({ readOnly }: { readOnly: boolean }) {
     fetchBranding();
   }, []);
 
-  const handleSend = () => {
-    if (!newMessage.trim() || readOnly) return;
-    const msg: Message = {
-      id: `m-${Date.now()}`,
-      sender: "customer",
-      senderName: "You",
-      text: newMessage.trim(),
-      timestamp: new Date().toISOString(),
-      read: false,
-    };
-    setMessages([...messages, msg]);
-    setNewMessage("");
-  };
+  const loading = convLoading || msgLoading;
+  const error = convError || msgError;
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "500px" }}>
+        <div className="px-5 py-3 border-b border-stone-200 bg-stone-50 flex items-center justify-center">
+          <div className="animate-pulse text-stone-400 text-sm">Loading messages...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "500px" }}>
+        <div className="px-5 py-3 border-b border-stone-200 bg-stone-50">
+          <p className="text-sm font-medium text-stone-800">{businessName}</p>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-red-500 text-sm">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!conversation) {
+    return (
+      <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "500px" }}>
+        <div className="px-5 py-3 border-b border-stone-200 bg-stone-50">
+          <p className="text-sm font-medium text-stone-800">{businessName}</p>
+          <p className="text-xs text-stone-400">Usually replies within a few hours</p>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8">
+          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center">
+            <Mail size={20} className="text-stone-400" />
+          </div>
+          <p className="text-stone-500 text-sm text-center">No conversation yet</p>
+          <p className="text-stone-400 text-xs text-center">Messages with {businessName} will appear here once you start texting.</p>
+        </div>
+        <div className="border-t border-stone-200 p-3 flex gap-2">
+          <div
+            className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-400 bg-stone-50 flex items-center justify-center gap-2"
+            title="Reply from your phone"
+          >
+            Reply from your phone
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "500px" }}>
@@ -104,49 +142,46 @@ function MessageThread({ readOnly }: { readOnly: boolean }) {
         {messages.length === 0 ? (
           <p className="text-stone-400 text-center text-sm italic">No messages yet</p>
         ) : (
-          messages.map(msg => (
-            <div key={msg.id} className={`flex ${msg.sender === "customer" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                msg.sender === "customer"
-                  ? "bg-(--color-accent) text-white rounded-br-md"
-                  : "bg-stone-100 text-stone-800 rounded-bl-md"
-              }`}>
-                <p className="text-sm">{msg.text}</p>
-                <div className={`flex items-center gap-1 mt-1 ${msg.sender === "customer" ? "justify-end" : ""}`}>
-                  <span className={`text-xs ${msg.sender === "customer" ? "text-white/60" : "text-stone-400"}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                  </span>
-                  {msg.sender === "customer" && (
-                    msg.read
-                      ? <CheckCheck size={12} className="text-white/60" />
-                      : <Check size={12} className="text-white/60" />
-                  )}
+          messages.map((msg: ApiMessage) => {
+            const sender = msg.direction === "inbound" ? "customer" : "business";
+            return (
+              <div key={msg.id} className={`flex ${sender === "customer" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                  sender === "customer"
+                    ? "bg-(--color-accent) text-white rounded-br-md"
+                    : "bg-stone-100 text-stone-800 rounded-bl-md"
+                }`}>
+                  {msg.body && <p className="text-sm">{msg.body}</p>}
+                  <div className={`flex items-center gap-1 mt-1 ${sender === "customer" ? "justify-end" : ""}`}>
+                    <span className={`text-xs ${sender === "customer" ? "text-white/60" : "text-stone-400"}`}>
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
+        )}
+        {hasMore && (
+          <div className="flex justify-center">
+            <button
+              onClick={loadMore}
+              className="text-sm text-(--color-accent) hover:underline"
+            >
+              Load more
+            </button>
+          </div>
         )}
       </div>
 
-      {!readOnly && (
-        <div className="border-t border-stone-200 p-3 flex gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSend()}
-            placeholder="Type a message..."
-            className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--color-accent)/30 focus:border-(--color-accent)"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!newMessage.trim()}
-            className="px-4 py-2 bg-(--color-accent) text-white rounded-lg hover:bg-(--color-accent-hover) disabled:opacity-50"
-          >
-            <Send size={16} />
-          </button>
+      <div className="border-t border-stone-200 p-3 flex gap-2">
+        <div
+          className="flex-1 border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-400 bg-stone-50 flex items-center justify-center gap-2"
+          title="Reply from your phone"
+        >
+          Reply from your phone
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -176,10 +211,10 @@ function NotificationPreferences({ readOnly }: { readOnly: boolean }) {
 
   const categories: { key: PrefKey; label: string; desc: string; icon: typeof Bell }[] = [
     { key: "appointmentReminders", label: "Appointment Reminders", desc: "Upcoming appointment notifications", icon: Bell },
-    { key: "vaccinationAlerts", label: "Vaccination Alerts", desc: "Expiration and renewal reminders", icon: FileText },
-    { key: "promotional", label: "Promotions & Offers", desc: "Deals and seasonal specials", icon: Megaphone },
-    { key: "reportCards", label: "Report Cards", desc: "Grooming report card delivery", icon: FileText },
-    { key: "invoiceReceipts", label: "Invoice & Receipts", desc: "Payment confirmations", icon: CreditCard },
+    { key: "vaccinationAlerts", label: "Vaccination Alerts", desc: "Expiration and renewal reminders", icon: Mail },
+    { key: "promotional", label: "Promotions & Offers", desc: "Deals and seasonal specials", icon: Smartphone },
+    { key: "reportCards", label: "Report Cards", desc: "Grooming report card delivery", icon: Mail },
+    { key: "invoiceReceipts", label: "Invoice & Receipts", desc: "Payment confirmations", icon: Bell },
   ];
 
   const channels: { key: ChannelKey; label: string; icon: typeof Mail }[] = [
