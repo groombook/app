@@ -143,6 +143,7 @@ vi.mock("@groombook/db", () => {
     messages,
     eq: vi.fn(),
     and: vi.fn(),
+    lt: vi.fn(),
     desc: vi.fn((col: unknown) => ({ _name: "desc", col })),
   };
 });

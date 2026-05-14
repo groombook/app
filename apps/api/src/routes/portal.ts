@@ -212,11 +212,12 @@ portalRouter.get("/conversation/messages", async (c) => {
 
   const [settings] = await db.select({ id: businessSettings.id }).from(businessSettings).limit(1);
   if (!settings) return c.json({ error: "Business not configured" }, 500);
+  const businessId = settings.id;
 
   const [conversation] = await db
     .select({ id: conversations.id })
     .from(conversations)
-    .where(eq(conversations.clientId, clientId))
+    .where(and(eq(conversations.clientId, clientId), eq(conversations.businessId, businessId)))
     .limit(1);
 
   if (!conversation) {
