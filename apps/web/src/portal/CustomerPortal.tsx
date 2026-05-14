@@ -170,7 +170,7 @@ export function CustomerPortal() {
       case "billing":
         return <BillingPayments readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "messages":
-        return <Communication readOnly={!!isReadOnly} />;
+        return <Communication readOnly={!!isReadOnly} sessionId={sessionId} />;
       case "settings":
         return <AccountSettings readOnly={!!isReadOnly} sessionId={sessionId} />;
     }
