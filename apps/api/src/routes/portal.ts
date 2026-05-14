@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { eq, inArray, desc } from "@groombook/db";
+import { and, eq, inArray, desc, lt } from "@groombook/db";
 import { getDb, appointments, impersonationSessions, waitlistEntries, clients, pets, services, staff, invoices, invoiceLineItems, businessSettings, conversations, messages } from "@groombook/db";
 import { validatePortalSession } from "../middleware/portalSession.js";
 import { portalAudit } from "../middleware/portalAudit.js";
@@ -194,7 +194,7 @@ portalRouter.get("/conversation", async (c) => {
       createdAt: conversations.createdAt,
     })
     .from(conversations)
-    .where(eq(conversations.clientId, clientId))
+    .where(and(eq(conversations.clientId, clientId), eq(conversations.businessId, businessId)))
     .limit(1);
 
   if (!conversation) {
@@ -254,7 +254,7 @@ portalRouter.get("/conversation/messages", async (c) => {
           deliveredAt: messages.deliveredAt,
         })
         .from(messages)
-        .where(eq(messages.conversationId, conversation.id))
+        .where(and(eq(messages.conversationId, conversation.id), lt(messages.createdAt, cursorMsg.createdAt)))
         .orderBy(desc(messages.createdAt))
         .limit(limit);
     }
