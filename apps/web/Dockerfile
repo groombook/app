@@ -11,6 +11,8 @@ RUN pnpm install --frozen-lockfile
 
 # Build
 FROM deps AS builder
+ARG VITE_API_URL=
+ENV VITE_API_URL=
 COPY packages/types/ packages/types/
 COPY apps/web/ apps/web/
 RUN pnpm --filter @groombook/web build
