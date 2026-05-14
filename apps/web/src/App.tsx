@@ -4,6 +4,7 @@ import { AppointmentsPage } from "./pages/Appointments.js";
 import { ClientsPage } from "./pages/Clients.js";
 import { ClientDetailPage } from "./pages/ClientDetailPage.js";
 import { ServicesPage } from "./pages/Services.js";
+import { MessagesPage } from "./pages/Messages.js";
 import { StaffPage } from "./pages/Staff.js";
 import { InvoicesPage } from "./pages/Invoices.js";
 import { BookPage } from "./pages/Book.js";
@@ -170,6 +171,7 @@ function LoginPage() {
 
 const NAV_LINKS = [
   { to: "/admin", label: "Appointments" },
+  { to: "/admin/messages", label: "Messages" },
   { to: "/admin/clients", label: "Clients" },
   { to: "/admin/services", label: "Services" },
   { to: "/admin/staff", label: "Staff" },
@@ -296,6 +298,7 @@ function AdminLayout() {
       <main style={{ padding: "1.25rem 1.5rem" }}>
         <Routes>
           <Route path="/" element={<AppointmentsPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/:clientId" element={<ClientDetailPage />} />
           <Route path="/services" element={<ServicesPage />} />
