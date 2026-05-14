@@ -40,13 +40,17 @@ const EXPIRED_SESSION = {
 let selectRows: Record<string, unknown>[] = [];
 let selectSessionRow: Record<string, unknown> | null = null;
 let insertedValues: Record<string, unknown>[] = [];
+let insertedAuditValues: Record<string, unknown>[] = [];
 let updatedValues: Record<string, unknown>[] = [];
+let lastInsertTable: string | null = null;
 
 function resetMock() {
   selectRows = [];
   selectSessionRow = null;
   insertedValues = [];
+  insertedAuditValues = [];
   updatedValues = [];
+  lastInsertTable = null;
 }
 
 vi.mock("@groombook/db", () => {
@@ -89,6 +93,11 @@ vi.mock("@groombook/db", () => {
     { get: (t, p) => (p === "_name" ? "services" : { table: "services", column: p }) }
   );
 
+  const impersonationAuditLogs = new Proxy(
+    { _name: "impersonationAuditLogs" },
+    { get: (t, p) => (p === "_name" ? "impersonationAuditLogs" : { table: "impersonationAuditLogs", column: p }) }
+  );
+
   const appointments = new Proxy(
     { _name: "appointments" },
     { get: (t, p) => (p === "_name" ? "appointments" : { table: "appointments", column: p }) }
@@ -107,9 +116,13 @@ vi.mock("@groombook/db", () => {
           return makeChainable([]);
         },
       }),
-      insert: () => ({
+      insert: (table: { _name: string }) => ({
         values: (vals: Record<string, unknown>) => {
-          insertedValues.push(vals);
+          if (table._name === "impersonationAuditLogs") {
+            insertedAuditValues.push(vals);
+          } else {
+            insertedValues.push(vals);
+          }
           return {
             returning: () => [{ ...WAITLIST_ENTRY, ...vals, id: "waitlist-uuid-new" }],
           };
@@ -143,6 +156,7 @@ vi.mock("@groombook/db", () => {
     pets,
     services,
     appointments,
+    impersonationAuditLogs,
     eq: vi.fn(),
     and: vi.fn(),
     lt: vi.fn(),
