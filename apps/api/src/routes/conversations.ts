@@ -12,7 +12,6 @@ import {
   messages,
   clients,
   businessSettings,
-  isNull,
 } from "@groombook/db";
 import type { AppEnv } from "../middleware/rbac.js";
 import { sendMessage } from "../services/messaging/outbound.js";

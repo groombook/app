@@ -178,8 +178,6 @@ vi.mock("../services/messaging/outbound.js", () => ({
 
 // ─── App setup ────────────────────────────────────────────────────────────────
 
-import type { AppEnv } from "../middleware/rbac.js";
-
 const { conversationsRouter } = await import("../routes/conversations.js");
 
 const app = new Hono();
