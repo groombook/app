@@ -58,7 +58,7 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           cd /tmp/infra
-          PROD_KUST="apps/groombook/overlays/prod/kustomization.yaml"
+          PROD_KUST="apps/overlays/prod/kustomization.yaml"
 
           SHORT_SHA="${TAG##*-}"
           export SHORT_SHA
@@ -70,14 +70,14 @@ jobs:
           yq -i '(.images[] | select(.name == "ghcr.io/groombook/seed")).newTag = env(TAG)' "$PROD_KUST"
 
           # Update migrate Job name to include short SHA (immutable template fix)
-          MIGRATE_JOB="apps/groombook/base/migrate-job.yaml"
+          MIGRATE_JOB="apps/base/migrate-job.yaml"
           if [ -f "$MIGRATE_JOB" ]; then
             yq -i '.metadata.name = "migrate-schema-" + env(SHORT_SHA)' "$MIGRATE_JOB"
             yq -i '.metadata.annotations."groombook.app/deploy-version" = env(TAG)' "$MIGRATE_JOB"
           fi
 
           # Update seed Job name to include short SHA (immutable template fix)
-          SEED_JOB="apps/groombook/base/seed-job.yaml"
+          SEED_JOB="apps/base/seed-job.yaml"
           if [ -f "$SEED_JOB" ]; then
             yq -i '.metadata.name = "seed-test-data-" + env(SHORT_SHA)' "$SEED_JOB"
             yq -i '.metadata.annotations."groombook.app/deploy-version" = env(TAG)' "$SEED_JOB"
@@ -94,7 +94,7 @@ jobs:
           git config user.name "groombook-engineer[bot]"
           git config user.email "3141748+groombook-engineer[bot]@users.noreply.github.com"
           git checkout -b "release/promote-prod-${TAG}"
-          git add apps/groombook/overlays/prod/ apps/groombook/base/migrate-job.yaml apps/groombook/base/seed-job.yaml
+          git add apps/overlays/prod/ apps/base/migrate-job.yaml apps/base/seed-job.yaml
           git commit -m "release: promote ${TAG} to production"
           git push -u origin "release/promote-prod-${TAG}"
           gh pr create \

@@ -340,7 +340,7 @@ jobs:
     name: Update Infra Image Tags
     runs-on: ubuntu-latest
     needs: [docker]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && github.event_name == 'push'
     permissions:
       contents: write
       pull-requests: write
