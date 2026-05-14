@@ -40,7 +40,10 @@ function LoginPage() {
   const handleSocialLogin = async (provider: string) => {
     setIsLoading(true);
     setError(null);
-    const result = await signIn.social({ provider, callbackURL: window.location.origin });
+    // Use /admin as callback URL so Better-Auth redirects to the app's dashboard
+    // after the OAuth callback completes, rather than back to /login
+    const callbackURL = `${window.location.origin}/admin`;
+    const result = await signIn.social({ provider, callbackURL });
     if (result?.error) {
       setError(result.error.message ?? "Sign-in failed");
       setIsLoading(false);
