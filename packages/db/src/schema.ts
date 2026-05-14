@@ -466,7 +466,6 @@ export const conversations = pgTable(
     staffReadAt: timestamp("staff_read_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
-    staffReadAt: timestamp("staff_read_at"),
   },
   (t) => [
     index("idx_conversations_business_id_last_message_at").on(
