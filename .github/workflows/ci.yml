@@ -119,6 +119,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build all packages
+        env:
+          VITE_API_URL: ""
         run: pnpm build
 
   docker:
