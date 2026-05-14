@@ -463,6 +463,7 @@ export const conversations = pgTable(
     businessNumber: text("business_number").notNull(),
     lastMessageAt: timestamp("last_message_at"),
     status: text("status").notNull().default("active"),
+    staffReadAt: timestamp("staff_read_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
     staffReadAt: timestamp("staff_read_at"),
