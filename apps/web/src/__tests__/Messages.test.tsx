@@ -96,7 +96,7 @@ describe("MessagesPage", () => {
     vi.mocked(global.fetch).mockImplementation((input) => {
       const url = String(input);
       if (url === "/api/conversations?limit=20") {
-        return Promise.resolve(makeResponse(mockConversations));
+        return Promise.resolve(makeResponse({ items: mockConversations, nextCursor: null }));
       }
       if (url === "/api/conversations/conv-1/messages?limit=50") {
         return Promise.resolve(makeResponse({ items: mockMessages, nextCursor: null }));
@@ -110,7 +110,7 @@ describe("MessagesPage", () => {
     fireEvent.click(screen.getByText("Alice Smith"));
 
     await waitFor(() => {
-      expect(screen.getByText("Hello, is my dog ready?")).toBeInTheDocument();
+      expect(screen.getAllByText("Hello, is my dog ready?").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Yes, she is all done!")).toBeInTheDocument();
     });
   });
@@ -130,7 +130,7 @@ describe("MessagesPage", () => {
           sentByStaffId: "staff-1",
         }, 201));
       }
-      return Promise.resolve(makeResponse(mockConversations));
+      return Promise.resolve(makeResponse({ items: mockConversations, nextCursor: null }));
     });
 
     render(<MessagesPage />);
