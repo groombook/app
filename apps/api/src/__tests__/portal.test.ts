@@ -72,6 +72,11 @@ vi.mock("@groombook/db", () => {
     { get: (t, p) => (p === "_name" ? "appointments" : { table: "appointments", column: p }) }
   );
 
+  const impersonationAuditLogs = new Proxy(
+    { _name: "impersonationAuditLogs" },
+    { get: (t, p) => (p === "_name" ? "impersonationAuditLogs" : { table: "impersonationAuditLogs", column: p }) }
+  );
+
   return {
     getDb: () => ({
       select: () => ({
@@ -99,9 +104,15 @@ vi.mock("@groombook/db", () => {
           }),
         }),
       }),
+      insert: () => ({
+        values: () => ({
+          returning: () => [],
+        }),
+      }),
     }),
     impersonationSessions,
     appointments,
+    impersonationAuditLogs,
     eq: vi.fn(),
     and: vi.fn(),
   };
