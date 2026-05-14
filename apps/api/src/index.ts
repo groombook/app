@@ -18,6 +18,7 @@ import { groomingLogsRouter } from "./routes/groomingLogs.js";
 import { impersonationRouter } from "./routes/impersonation.js";
 import { settingsRouter } from "./routes/settings.js";
 import { authProviderRouter } from "./routes/authProvider.js";
+import { conversationsRouter } from "./routes/conversations.js";
 import { searchRouter } from "./routes/search.js";
 import { getObject } from "./lib/s3.js";
 import { calendarRouter } from "./routes/calendar.js";
@@ -273,6 +274,7 @@ api.route("/admin/settings", settingsRouter);
 api.route("/admin/auth-provider", authProviderRouter);
 api.route("/admin/seed", adminSeedRouter);
 api.route("/search", searchRouter);
+api.route("/conversations", conversationsRouter);
 
 const port = Number(process.env.PORT ?? 3000);
 await initAuth();

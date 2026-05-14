@@ -218,6 +218,13 @@
       "when": 1775828067192,
       "tag": "0030_messaging",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1778818472097,
+      "tag": "0032_staff_read_at",
+      "breakpoints": true
     }
   ]
 }
