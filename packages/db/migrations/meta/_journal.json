@@ -222,13 +222,6 @@
     {
       "idx": 31,
       "version": "7",
-      "when": 1778732072097,
-      "tag": "0031_steady_veda",
-      "breakpoints": true
-    },
-    {
-      "idx": 32,
-      "version": "7",
       "when": 1778818472097,
       "tag": "0032_staff_read_at",
       "breakpoints": true
