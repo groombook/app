@@ -5,12 +5,11 @@ interface Conversation {
   clientId: string;
   clientName: string;
   channel: string;
-  externalNumber: string;
+  clientPhone: string;
   lastMessageAt: string | null;
-  staffReadAt: string | null;
-  lastMessageBody: string | null;
   unreadCount: number;
   status: string;
+  lastMessage: { body: string | null; direction: string; createdAt: string } | null;
 }
 
 interface Message {
@@ -55,7 +54,8 @@ export function MessagesPage() {
     try {
       const res = await fetch("/api/conversations?limit=20");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as Conversation[];
+      const json = await res.json();
+      const data = json.items as Conversation[];
       setConversations(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load conversations");
@@ -68,8 +68,8 @@ export function MessagesPage() {
     try {
       const res = await fetch(`/api/conversations/${conversationId}/messages?limit=50`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { messages: Message[] };
-      setMessages(data.messages);
+      const json = await res.json();
+      setMessages((json.items as Message[]).reverse());
     } catch (e: unknown) {
       setMessageError(e instanceof Error ? e.message : "Failed to load messages");
     } finally {
@@ -93,10 +93,7 @@ export function MessagesPage() {
 
   useEffect(() => {
     if (messages.length > 0) {
-      const el = messagesEndRef.current;
-      if (el && typeof (el as HTMLDivElement).scrollIntoView === "function") {
-        (el as HTMLDivElement).scrollIntoView({ behavior: "smooth" });
-      }
+      messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
     }
   }, [messages]);
 
@@ -183,7 +180,7 @@ export function MessagesPage() {
                 )}
               </div>
               <div style={{ marginTop: 2, color: "#6b7280", fontSize: 12 }}>
-                {truncate(conv.lastMessageBody, 60)}
+                {truncate(conv.lastMessage?.body ?? null, 60)}
               </div>
               <div style={{ marginTop: 2, color: "#9ca3af", fontSize: 11 }}>
                 {relativeTime(conv.lastMessageAt)}
