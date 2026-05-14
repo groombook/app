@@ -23,7 +23,8 @@ if (process.env.AUTH_DISABLED === "true") {
 }
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
-  if (c.req.path.startsWith("/api/auth/")) {
+  const path = c.req.path;
+  if (path.startsWith("/api/auth/") || path.startsWith("/api/webhooks/")) {
     await next();
     return;
   }
