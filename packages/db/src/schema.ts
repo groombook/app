@@ -48,6 +48,22 @@ export const clientStatusEnum = pgEnum("client_status", [
   "disabled",
 ]);
 
+export const petSizeCategoryEnum = pgEnum("pet_size_category", [
+  "small",
+  "medium",
+  "large",
+  "xlarge",
+]);
+
+export const coatTypeEnum = pgEnum("coat_type", [
+  "smooth",
+  "double",
+  "curly",
+  "wire",
+  "long",
+  "hairless",
+]);
+
 // ─── Better-Auth Tables ──────────────────────────────────────────────────────
 
 export const user = pgTable("user", {
@@ -146,6 +162,8 @@ export const pets = pgTable(
     photoKey: text("photo_key"),
     photoUploadedAt: timestamp("photo_uploaded_at"),
     image: text("image"),
+    sizeCategory: petSizeCategoryEnum("size_category"),
+    coatType: coatTypeEnum("coat_type"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -158,6 +176,7 @@ export const services = pgTable("services", {
   description: text("description"),
   basePriceCents: integer("base_price_cents").notNull(),
   durationMinutes: integer("duration_minutes").notNull(),
+  defaultBufferMinutes: integer("default_buffer_minutes").notNull().default(0),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -240,6 +259,8 @@ export const appointments = pgTable(
     confirmationStatus: text("confirmation_status").notNull().default("pending"),
     confirmedAt: timestamp("confirmed_at"),
     cancelledAt: timestamp("cancelled_at"),
+    // Per-appointment buffer time (may be overridden from service default or bufferTimeRules)
+    bufferMinutes: integer("buffer_minutes").notNull().default(0),
     // Token for tokenized email confirm/cancel links (no auth required)
     confirmationToken: text("confirmation_token").unique(),
     // Customer-provided note visible to groomer (500 char max, editable until appointment starts)
@@ -442,9 +463,9 @@ export const conversations = pgTable(
     businessNumber: text("business_number").notNull(),
     lastMessageAt: timestamp("last_message_at"),
     status: text("status").notNull().default("active"),
+    staffReadAt: timestamp("staff_read_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
-    staffReadAt: timestamp("staff_read_at"),
   },
   (t) => [
     index("idx_conversations_business_id_last_message_at").on(
@@ -600,3 +621,22 @@ export const authProviderConfig = pgTable("auth_provider_config", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const bufferTimeRules = pgTable(
+  "buffer_time_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    sizeCategory: petSizeCategoryEnum("size_category"),
+    coatType: coatTypeEnum("coat_type"),
+    bufferMinutes: integer("buffer_minutes").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique().on(t.serviceId, t.sizeCategory, t.coatType),
+    index("idx_buffer_rules_service_id").on(t.serviceId),
+  ]
+);

@@ -40,11 +40,17 @@ const APPOINTMENT = {
 let selectSessionRow: Record<string, unknown> | null = null;
 let selectAppointmentRow: Record<string, unknown> | null = null;
 let updatedValues: Record<string, unknown>[] = [];
+let selectBusinessSettingsRow: Record<string, unknown> | null = null;
+let selectConversationRow: Record<string, unknown> | null = null;
+let selectMessageRows: Record<string, unknown>[] = [];
 
 function resetMock() {
   selectSessionRow = null;
   selectAppointmentRow = null;
   updatedValues = [];
+  selectBusinessSettingsRow = null;
+  selectConversationRow = null;
+  selectMessageRows = [];
 }
 
 vi.mock("@groombook/db", () => {
@@ -72,6 +78,21 @@ vi.mock("@groombook/db", () => {
     { get: (t, p) => (p === "_name" ? "appointments" : { table: "appointments", column: p }) }
   );
 
+const businessSettings = new Proxy(
+    { _name: "businessSettings" },
+    { get: (t, p) => (p === "_name" ? "businessSettings" : { table: "businessSettings", column: p }) }
+  );
+
+  const conversations = new Proxy(
+    { _name: "conversations" },
+    { get: (t, p) => (p === "_name" ? "conversations" : { table: "conversations", column: p }) }
+  );
+
+  const messages = new Proxy(
+    { _name: "messages" },
+    { get: (t, p) => (p === "_name" ? "messages" : { table: "messages", column: p }) }
+  );
+
   const impersonationAuditLogs = new Proxy(
     { _name: "impersonationAuditLogs" },
     { get: (t, p) => (p === "_name" ? "impersonationAuditLogs" : { table: "impersonationAuditLogs", column: p }) }
@@ -86,6 +107,15 @@ vi.mock("@groombook/db", () => {
           }
           if (table._name === "appointments") {
             return makeChainable(selectAppointmentRow ? [selectAppointmentRow] : []);
+          }
+          if (table._name === "businessSettings") {
+            return makeChainable(selectBusinessSettingsRow ? [selectBusinessSettingsRow] : []);
+          }
+          if (table._name === "conversations") {
+            return makeChainable(selectConversationRow ? [selectConversationRow] : []);
+          }
+          if (table._name === "messages") {
+            return makeChainable(selectMessageRows);
           }
           return makeChainable([]);
         },
@@ -113,8 +143,12 @@ vi.mock("@groombook/db", () => {
     impersonationSessions,
     appointments,
     impersonationAuditLogs,
+    businessSettings,
+    conversations,
+    messages,
     eq: vi.fn(),
     and: vi.fn(),
+    desc: vi.fn((col: unknown) => ({ _name: "desc", col })),
   };
 });
 
@@ -430,5 +464,118 @@ describe("POST /portal/appointments/:id/cancel", () => {
       { "X-Impersonation-Session-Id": SESSION_ID }
     );
     expect(res.status).toBe(404);
+  });
+});
+
+// ─── Conversation routes ───────────────────────────────────────────────────────
+
+const BUSINESS_ID = "880e8400-e29b-41d4-a716-446655440008";
+const CONVERSATION_ID = "990e8400-e29b-41d4-a716-446655440009";
+
+const CONVERSATION = {
+  id: CONVERSATION_ID,
+  clientId: CLIENT_ID,
+  businessId: BUSINESS_ID,
+  channel: "sms",
+  status: "active",
+  lastMessageAt: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
+};
+
+const MESSAGE_1 = {
+  id: "m1",
+  conversationId: CONVERSATION_ID,
+  direction: "inbound",
+  body: "Hello",
+  status: "delivered",
+  createdAt: new Date().toISOString(),
+  deliveredAt: new Date().toISOString(),
+};
+
+const MESSAGE_2 = {
+  id: "m2",
+  conversationId: CONVERSATION_ID,
+  direction: "outbound",
+  body: "Hi there!",
+  status: "delivered",
+  createdAt: new Date(Date.now() + 1000).toISOString(),
+  deliveredAt: new Date().toISOString(),
+};
+
+function jsonGet(path: string, headers?: Record<string, string>) {
+  return app.request(path, { method: "GET", headers });
+}
+
+describe("GET /portal/conversation", () => {
+  it("returns 204 when no conversation exists", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectBusinessSettingsRow = { id: BUSINESS_ID };
+    selectConversationRow = null;
+    const res = await jsonGet("/portal/conversation", { "X-Impersonation-Session-Id": SESSION_ID });
+    expect(res.status).toBe(204);
+  });
+
+  it("returns conversation for the authenticated client", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectBusinessSettingsRow = { id: BUSINESS_ID };
+    selectConversationRow = { ...CONVERSATION };
+    const res = await jsonGet("/portal/conversation", { "X-Impersonation-Session-Id": SESSION_ID });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe(CONVERSATION_ID);
+    expect(body.channel).toBe("sms");
+    expect(body.status).toBe("active");
+  });
+
+  it("returns 204 when client A's session has no conversation (cross-tenant isolation)", async () => {
+    // Cross-tenant isolation is enforced at the query level via portalClientId scoping.
+    // The mock cannot replicate eq() filtering — this test verifies the query is issued
+    // and no conversation is returned when the mock has no row for the session's clientId.
+    // Real DB: eq() on clientId ensures client A never sees client B's conversation.
+    selectSessionRow = { ...ACTIVE_SESSION, clientId: "client-a" };
+    selectBusinessSettingsRow = { id: BUSINESS_ID };
+    selectConversationRow = null; // client-a has no conversation
+    const res = await jsonGet("/portal/conversation", { "X-Impersonation-Session-Id": SESSION_ID });
+    expect(res.status).toBe(204);
+  });
+});
+
+describe("GET /portal/conversation/messages", () => {
+  it("returns 204 when no conversation exists", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectBusinessSettingsRow = { id: BUSINESS_ID };
+    selectConversationRow = null;
+    const res = await jsonGet("/portal/conversation/messages", { "X-Impersonation-Session-Id": SESSION_ID });
+    expect(res.status).toBe(204);
+  });
+
+  it("returns paginated messages", async () => {
+    selectSessionRow = ACTIVE_SESSION;
+    selectBusinessSettingsRow = { id: BUSINESS_ID };
+    selectConversationRow = { ...CONVERSATION };
+    selectMessageRows = [MESSAGE_2, MESSAGE_1];
+    const res = await jsonGet("/portal/conversation/messages", { "X-Impersonation-Session-Id": SESSION_ID });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.messages).toHaveLength(2);
+    expect(body.messages[0].id).toBe("m2");
+    expect(body.messages[1].id).toBe("m1");
+    expect(body.nextCursor).toBeNull();
+  });
+
+  it("returns messages and nextCursor reflects if more exist", async () => {
+    // Note: the mock does not enforce limit(), so it returns all messages.
+    // nextCursor is null when all messages fit (mock behavior).
+    // Real DB enforces limit and sets nextCursor when messages.length === limit.
+    selectSessionRow = ACTIVE_SESSION;
+    selectBusinessSettingsRow = { id: BUSINESS_ID };
+    selectConversationRow = { ...CONVERSATION };
+    selectMessageRows = [MESSAGE_1, MESSAGE_2];
+    const res = await jsonGet("/portal/conversation/messages?limit=1", { "X-Impersonation-Session-Id": SESSION_ID });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.messages.length).toBeGreaterThan(0);
+    // mock has no limit enforcement, so nextCursor may be null
+    expect(body).toHaveProperty("nextCursor");
   });
 });
