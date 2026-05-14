@@ -255,7 +255,7 @@ portalRouter.get("/conversation/messages", async (c) => {
           deliveredAt: messages.deliveredAt,
         })
         .from(messages)
-        .where(eq(messages.conversationId, conversation.id))
+        .where(and(eq(messages.conversationId, conversation.id), lt(messages.createdAt, cursorMsg.createdAt)))
         .orderBy(desc(messages.createdAt))
         .limit(limit);
     }
