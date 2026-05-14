@@ -1,5 +1,7 @@
 import { getDb, conversations, messages, businessSettings, clients, eq, and } from "@groombook/db";
 import { v4 as uuidv4 } from "uuid";
+import { detectKeyword, handleConsentKeyword } from "./consent.js";
+import { sendMessage } from "./outbound.js";
 
 export interface TelnyxMessageReceivedPayload {
   data: {
@@ -152,7 +154,7 @@ export async function handleMessageReceived(payload: TelnyxMessageReceivedPayloa
     throw new Error(`No business owns messaging number: ${toPhone}`);
   }
 
-  const { id: conversationId } = await findOrCreateConversation(businessId, fromPhone, toPhone);
+  const { id: conversationId, clientId } = await findOrCreateConversation(businessId, fromPhone, toPhone);
 
   await getDb()
     .update(conversations)
@@ -166,6 +168,22 @@ export async function handleMessageReceived(payload: TelnyxMessageReceivedPayloa
     message.body,
     "received"
   );
+
+  const keyword = detectKeyword(message.body ?? "");
+  if (keyword) {
+    const { replyText } = await handleConsentKeyword({
+      clientId,
+      businessId,
+      kind: keyword.kind,
+      db: getDb(),
+    });
+    await sendMessage({
+      businessId,
+      clientId,
+      body: replyText,
+      sentByStaffId: undefined,
+    });
+  }
 
   return { conversationId, messageId };
 }
