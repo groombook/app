@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod/v3";
-import { eq, inArray } from "@groombook/db";
-import { getDb, appointments, impersonationSessions, waitlistEntries, clients, pets, services, staff, invoices, invoiceLineItems } from "@groombook/db";
+import { eq, inArray, desc } from "@groombook/db";
+import { getDb, appointments, impersonationSessions, waitlistEntries, clients, pets, services, staff, invoices, invoiceLineItems, businessSettings, conversations, messages } from "@groombook/db";
 import { validatePortalSession } from "../middleware/portalSession.js";
 import { portalAudit } from "../middleware/portalAudit.js";
 import type { PortalEnv } from "../middleware/portalSession.js";
@@ -173,6 +173,98 @@ portalRouter.get("/invoices", async (c) => {
     date: inv.createdAt,
     lineItems: (itemsByInvoice[inv.id] || []).map(li => ({ id: li.id, description: li.description, quantity: li.quantity, unitPriceCents: li.unitPriceCents, totalCents: li.totalCents })),
   })));
+});
+
+// ─── Conversation routes ──────────────────────────────────────────────────────
+
+portalRouter.get("/conversation", async (c) => {
+  const db = getDb();
+  const clientId = c.get("portalClientId");
+
+  const [settings] = await db.select({ id: businessSettings.id }).from(businessSettings).limit(1);
+  if (!settings) return c.json({ error: "Business not configured" }, 500);
+  const businessId = settings.id;
+
+  const [conversation] = await db
+    .select({
+      id: conversations.id,
+      channel: conversations.channel,
+      lastMessageAt: conversations.lastMessageAt,
+      status: conversations.status,
+      createdAt: conversations.createdAt,
+    })
+    .from(conversations)
+    .where(eq(conversations.clientId, clientId))
+    .limit(1);
+
+  if (!conversation) {
+    return c.body(null, 204);
+  }
+
+  return c.json(conversation);
+});
+
+portalRouter.get("/conversation/messages", async (c) => {
+  const db = getDb();
+  const clientId = c.get("portalClientId");
+  const cursor = c.req.query("cursor") || undefined;
+  const limit = Math.min(Number(c.req.query("limit") || "50"), 100);
+
+  const [settings] = await db.select({ id: businessSettings.id }).from(businessSettings).limit(1);
+  if (!settings) return c.json({ error: "Business not configured" }, 500);
+
+  const [conversation] = await db
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(eq(conversations.clientId, clientId))
+    .limit(1);
+
+  if (!conversation) {
+    return c.body(null, 204);
+  }
+
+  let query = db
+    .select({
+      id: messages.id,
+      direction: messages.direction,
+      body: messages.body,
+      status: messages.status,
+      createdAt: messages.createdAt,
+      deliveredAt: messages.deliveredAt,
+    })
+    .from(messages)
+    .where(eq(messages.conversationId, conversation.id))
+    .orderBy(desc(messages.createdAt))
+    .limit(limit);
+
+  if (cursor) {
+    const [cursorMsg] = await db
+      .select({ createdAt: messages.createdAt })
+      .from(messages)
+      .where(eq(messages.id, cursor))
+      .limit(1);
+    if (cursorMsg) {
+      query = db
+        .select({
+          id: messages.id,
+          direction: messages.direction,
+          body: messages.body,
+          status: messages.status,
+          createdAt: messages.createdAt,
+          deliveredAt: messages.deliveredAt,
+        })
+        .from(messages)
+        .where(eq(messages.conversationId, conversation.id))
+        .orderBy(desc(messages.createdAt))
+        .limit(limit);
+    }
+  }
+
+  const messagesResult = await query;
+
+  const nextCursor = messagesResult.length === limit ? messagesResult[messagesResult.length - 1]!.id : null;
+
+  return c.json({ messages: messagesResult, nextCursor });
 });
 
 // ─── Appointment action routes ────────────────────────────────────────────────
