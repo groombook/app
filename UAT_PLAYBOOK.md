@@ -217,6 +217,17 @@ GroomBook is an open-source, self-hostable pet grooming business management & CR
 | TC-APP-4.19.3 | Empty states | 1. Navigate to pages with no data (empty calendar, no clients)<br>2. Verify UI | Helpful empty state message with call-to-action displayed |
 | TC-APP-4.19.4 | Network error handling | 1. Disable network in DevTools<br>2. Attempt actions that require API calls<br>3. Re-enable network | Appropriate error message shown, app recovers when network restored |
 
+### 4.20 Staff Messages
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| TC-APP-4.20.1 | Staff messages inbox loads | 1. Log in as Staff<br>2. Navigate to Messages | Conversation list renders with client phone and last message preview |
+| TC-APP-4.20.2 | Open conversation | 1. Select a conversation from the list | Full message thread loads chronologically |
+| TC-APP-4.20.3 | Send message | 1. Type a reply and submit | Message appears in thread; POST /api/conversations/:id/messages succeeds |
+| TC-APP-4.20.4 | Empty state | 1. Log in as Staff with no conversations | Empty state shown; no crash |
+| TC-APP-4.20.5 | Unread indicator | 1. Client sends a new message | Thread marked unread until staff views it |
+| TC-APP-4.20.6 | Cross-tenant isolation | 1. Staff from Business A attempts to read Business B conversations | 403 or empty response returned |
+
 ## 5. Pass/Fail Criteria
 
 **Pass:** All test cases execute without errors. Expected results match actual results. No regressions are observed. All functionality works as documented.
