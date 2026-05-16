@@ -20,6 +20,7 @@ import {
   staff,
 } from "@groombook/db";
 import { buildConfirmationEmail, sendEmail } from "../services/email.js";
+import { cascadeDelay } from "../lib/cascade.js";
 import { notifyWaitlistForAppointment } from "../services/waitlistNotify.js";
 import type { AppEnv } from "../middleware/rbac.js";
 
@@ -580,6 +581,15 @@ appointmentsRouter.patch(
     if (updateFields.endTime) update.endTime = new Date(updateFields.endTime);
 
     if (needsConflictCheck) {
+      // Capture original endTime before the transaction so we can detect an
+      // overrun and trigger cascade delay prevention after the update.
+      const [preUpdate] = await db
+        .select({ originalEndTime: appointments.endTime })
+        .from(appointments)
+        .where(eq(appointments.id, id))
+        .limit(1);
+      const originalEndTime = preUpdate?.originalEndTime ?? null;
+
       // Wrap conflict check + update in a transaction to prevent race conditions
       // (fixes #18). Also falls back to the existing staffId when staffId is
       // omitted from the request, so rescheduling always checks conflicts (fixes #19).
@@ -684,7 +694,23 @@ appointmentsRouter.patch(
       }
 
       if (!row) return c.json({ error: "Not found" }, 404);
-      return c.json(row);
+
+      // Cascade delay prevention: detect if endTime was extended and cascade
+      // downstream appointments if so. Runs after the main update commits.
+      const cascadeResult =
+        updateFields.endTime &&
+        originalEndTime &&
+        new Date(updateFields.endTime) > originalEndTime
+          ? await cascadeDelay(id, new Date(updateFields.endTime), originalEndTime)
+          : { shifted: [], flaggedForReview: [], cascadeLog: [] };
+
+      return c.json({
+        ...row,
+        cascade:
+          cascadeResult.shifted.length > 0 || cascadeResult.flaggedForReview.length > 0
+            ? cascadeResult
+            : undefined,
+      });
     }
 
     const [row] = await db
