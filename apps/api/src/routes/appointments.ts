@@ -21,6 +21,10 @@ import {
 } from "@groombook/db";
 import { buildConfirmationEmail, sendEmail } from "../services/email.js";
 import { notifyWaitlistForAppointment } from "../services/waitlistNotify.js";
+import {
+  detectAndCascadeOverrun,
+  isOverrun,
+} from "../lib/cascade.js";
 import type { AppEnv } from "../middleware/rbac.js";
 
 async function withRetry<T>(
@@ -584,6 +588,7 @@ appointmentsRouter.patch(
       // (fixes #18). Also falls back to the existing staffId when staffId is
       // omitted from the request, so rescheduling always checks conflicts (fixes #19).
       let row: typeof appointments.$inferSelect | undefined;
+      let originalEndTime: Date | undefined;
       try {
         row = await db.transaction(async (tx) => {
           const [current] = await tx
@@ -594,6 +599,9 @@ appointmentsRouter.patch(
           if (!current) {
             throw Object.assign(new Error("not found"), { statusCode: 404 });
           }
+
+          // Preserve original endTime for cascade detection after update
+          originalEndTime = current.endTime;
 
           const start = updateFields.startTime
             ? new Date(updateFields.startTime)
@@ -684,6 +692,29 @@ appointmentsRouter.patch(
       }
 
       if (!row) return c.json({ error: "Not found" }, 404);
+
+      // Cascade delay prevention: detect overrun and shift downstream appointments
+      if (
+        originalEndTime &&
+        updateFields.endTime &&
+        isOverrun({
+          originalEndTime,
+          newEndTime: new Date(updateFields.endTime),
+          originalStartTime: row.startTime,
+          status: row.status,
+          currentTime: new Date(),
+          bufferMinutes: row.bufferMinutes ?? 0,
+        })
+      ) {
+        const cascadeResult = await detectAndCascadeOverrun({
+          db,
+          overrunningAppointmentId: id,
+          newEndTime: new Date(updateFields.endTime),
+          originalEndTime,
+        });
+        return c.json({ ...row, cascade: cascadeResult });
+      }
+
       return c.json(row);
     }
 

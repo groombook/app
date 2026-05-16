@@ -201,3 +201,52 @@ export function buildWaitlistNotificationEmail(
 <p>— Groom Book</p>`,
   };
 }
+
+// ─── Reschedule notification email ────────────────────────────────────────────
+
+interface RescheduleEmailData {
+  clientName: string;
+  petName: string;
+  serviceName: string;
+  groomerName: string | null;
+  oldStartTime: Date;
+  newStartTime: Date;
+}
+
+export function buildRescheduleNotificationEmail(
+  to: string,
+  data: RescheduleEmailData
+): Mail.Options {
+  const oldTime = formatDateTime(data.oldStartTime);
+  const newTime = formatDateTime(data.newStartTime);
+  const groomer = data.groomerName ? ` with ${data.groomerName}` : "";
+  return {
+    to,
+    subject: `Appointment Rescheduled — ${data.petName}'s appointment has been moved`,
+    text: [
+      `Hi ${data.clientName},`,
+      ``,
+      `Your appointment has been rescheduled.`,
+      ``,
+      `  Pet:      ${data.petName}`,
+      `  Service:  ${data.serviceName}`,
+      `  Was:      ${oldTime}${groomer}`,
+      `  Now:      ${newTime}${groomer}`,
+      ``,
+      `If you have any questions or need to make changes, please contact us.`,
+      ``,
+      `— Groom Book`,
+    ].join("\n"),
+    html: `
+<p>Hi ${data.clientName},</p>
+<p>Your appointment has been <strong>rescheduled</strong>.</p>
+<table style="border-collapse:collapse;margin:1em 0">
+  <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#6b7280">Pet</td><td>${data.petName}</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#6b7280">Service</td><td>${data.serviceName}</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#ef4444">Was</td><td style="text-decoration:line-through;color:#ef4444">${oldTime}${groomer}</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#10b981">Now</td><td style="color:#10b981">${newTime}${groomer}</td></tr>
+</table>
+<p>If you have any questions or need to make changes, please contact us.</p>
+<p>— Groom Book</p>`,
+  };
+}
