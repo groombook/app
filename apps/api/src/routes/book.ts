@@ -143,7 +143,7 @@ bookRouter.post(
       .where(and(eq(services.id, body.serviceId), eq(services.active, true)));
     if (!service) return c.json({ error: "Service not found" }, 404);
 
-    const end = new Date(start.getTime() + service.durationMinutes * 60_000);
+    let end = new Date(start.getTime() + service.durationMinutes * 60_000);
 
     // Find all active groomers
     const groomers = await db
@@ -213,10 +213,9 @@ bookRouter.post(
     if (!pet) return c.json({ error: "Failed to create pet" }, 500);
 
     // Buffer-aware end time: large/x-large pets add service bufferMinutes
-    const extraBuffer = (body.petSizeCategory === "large" || body.petSizeCategory === "x-large")
-      ? (service.defaultBufferMinutes ?? 0)
-      : 0;
-    const end = new Date(start.getTime() + (service.durationMinutes + extraBuffer) * 60_000);
+    if (body.petSizeCategory === "large" || body.petSizeCategory === "x-large") {
+      end = new Date(start.getTime() + (service.durationMinutes + (service.defaultBufferMinutes ?? 0)) * 60_000);
+    }
 
     // Insert appointment in a transaction to guard against race conditions
     let appointment;
