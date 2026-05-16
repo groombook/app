@@ -13,6 +13,8 @@ interface BookingBody {
   petName: string;
   petSpecies: string;
   petBreed: string;
+  petSizeCategory: string;
+  petCoatType: string;
   notes: string;
 }
 
@@ -123,6 +125,8 @@ export function BookPage() {
     petName: "",
     petSpecies: "",
     petBreed: "",
+    petSizeCategory: "",
+    petCoatType: "",
     notes: "",
   });
   const [formError, setFormError] = useState<string | null>(null);
@@ -168,14 +172,18 @@ export function BookPage() {
     if (!selectedService || !date) return;
     setSlotsLoading(true);
     setSelectedSlot(null);
-    fetch(
-      `/api/book/availability?serviceId=${encodeURIComponent(selectedService.id)}&date=${encodeURIComponent(date)}`
-    )
+    const params = new URLSearchParams({
+      serviceId: selectedService.id,
+      date,
+    });
+    if (form.petSizeCategory) params.set("petSizeCategory", form.petSizeCategory);
+    if (form.petCoatType) params.set("petCoatType", form.petCoatType);
+    fetch(`/api/book/availability?${params}`)
       .then((r) => r.json() as Promise<string[]>)
       .then(setSlots)
       .catch(() => setSlots([]))
       .finally(() => setSlotsLoading(false));
-  }, [selectedService, date]);
+  }, [selectedService, date, form.petSizeCategory, form.petCoatType]);
 
   function goToStep2(svc: Service) {
     setSelectedService(svc);
@@ -214,6 +222,8 @@ export function BookPage() {
           petName: form.petName,
           petSpecies: form.petSpecies,
           petBreed: form.petBreed || undefined,
+          petSizeCategory: form.petSizeCategory || undefined,
+          petCoatType: form.petCoatType || undefined,
           notes: form.notes || undefined,
         }),
       });
@@ -495,6 +505,36 @@ export function BookPage() {
                   />
                 </div>
                 <div>
+                  <label style={label}>Pet size (optional, but encouraged)</label>
+                  <select
+                    style={input}
+                    value={form.petSizeCategory}
+                    onChange={(e) => setForm((f) => ({ ...f, petSizeCategory: e.target.value }))}
+                  >
+                    <option value="">Select size…</option>
+                    <option value="small">Small (under 15 lbs)</option>
+                    <option value="medium">Medium (15–40 lbs)</option>
+                    <option value="large">Large (40–80 lbs)</option>
+                    <option value="x-large">X-Large (over 80 lbs)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={label}>Coat type (optional, but encouraged)</label>
+                  <select
+                    style={input}
+                    value={form.petCoatType}
+                    onChange={(e) => setForm((f) => ({ ...f, petCoatType: e.target.value }))}
+                  >
+                    <option value="">Select coat type…</option>
+                    <option value="smooth">Smooth</option>
+                    <option value="double">Double</option>
+                    <option value="curly">Curly</option>
+                    <option value="wire">Wire</option>
+                    <option value="long">Long</option>
+                    <option value="hairless">Hairless</option>
+                  </select>
+                </div>
+                <div>
                   <label style={label}>Notes for groomer</label>
                   <textarea
                     style={{ ...input, minHeight: 64, resize: "vertical", fontFamily: "inherit" }}
@@ -528,7 +568,7 @@ export function BookPage() {
               <div>
                 <div style={{ color: "#9ca3af", fontSize: 12, fontWeight: 600, textTransform: "uppercase" }}>Service</div>
                 <div style={{ fontWeight: 600 }}>{selectedService.name}</div>
-                <div style={{ color: "#6b7280" }}>{fmtPrice(selectedService.basePriceCents)} · {fmtDuration(selectedService.durationMinutes)}</div>
+                <div style={{ color: "#6b7280" }}>{fmtPrice(selectedService.basePriceCents)} · {fmtDuration(selectedService.durationMinutes + ((form.petSizeCategory === "large" || form.petSizeCategory === "x-large") ? (selectedService.defaultBufferMinutes ?? 0) : 0))}</div>
               </div>
               <div>
                 <div style={{ color: "#9ca3af", fontSize: 12, fontWeight: 600, textTransform: "uppercase" }}>Date & Time</div>
@@ -599,7 +639,8 @@ export function BookPage() {
               setResult(null);
               setForm({
                 serviceId: "", startTime: "", clientName: "", clientEmail: "",
-                clientPhone: "", petName: "", petSpecies: "", petBreed: "", notes: "",
+                clientPhone: "", petName: "", petSpecies: "", petBreed: "",
+                petSizeCategory: "", petCoatType: "", notes: "",
               });
             }}
           >

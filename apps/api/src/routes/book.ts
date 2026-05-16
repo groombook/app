@@ -38,11 +38,13 @@ bookRouter.get("/services", async (c) => {
 
 // ─── GET /api/book/availability ─────────────────────────────────────────────
 // Public: return ISO startTime strings for slots where ≥1 groomer is free
-// Query params: serviceId (uuid), date (YYYY-MM-DD)
+// Query params: serviceId (uuid), date (YYYY-MM-DD), petSizeCategory, petCoatType
 
 bookRouter.get("/availability", async (c) => {
   const serviceId = c.req.query("serviceId");
   const dateStr = c.req.query("date");
+  const petSizeCategory = c.req.query("petSizeCategory") ?? undefined;
+  const petCoatType = c.req.query("petCoatType") ?? undefined;
 
   if (!serviceId || !dateStr) {
     return c.json({ error: "serviceId and date are required" }, 400);
@@ -57,6 +59,12 @@ bookRouter.get("/availability", async (c) => {
     .from(services)
     .where(and(eq(services.id, serviceId), eq(services.active, true)));
   if (!service) return c.json({ error: "Service not found" }, 404);
+
+  // Buffer-aware duration: extra time for large/x-large or complex coats
+  const extraBuffer = (petSizeCategory === "large" || petSizeCategory === "x-large")
+    ? (service.defaultBufferMinutes ?? 0)
+    : 0;
+  const durationMinutes = service.durationMinutes + extraBuffer;
 
   const groomers = await db
     .select({ id: staff.id })
@@ -89,7 +97,7 @@ bookRouter.get("/availability", async (c) => {
 
   const slots = generateAvailableSlots({
     dateStr,
-    durationMinutes: service.durationMinutes,
+    durationMinutes,
     groomerIds: groomers.map((g) => g.id),
     booked,
   });
@@ -112,6 +120,12 @@ const bookingSchema = z.object({
   petName: z.string().min(1).max(200),
   petSpecies: z.string().min(1).max(100),
   petBreed: z.string().max(100).optional(),
+  petSizeCategory: z
+    .enum(["small", "medium", "large", "x-large"])
+    .optional(),
+  petCoatType: z
+    .enum(["smooth", "double", "curly", "wire", "long", "hairless"])
+    .optional(),
   notes: z.string().max(2000).optional(),
 });
 
@@ -129,7 +143,7 @@ bookRouter.post(
       .where(and(eq(services.id, body.serviceId), eq(services.active, true)));
     if (!service) return c.json({ error: "Service not found" }, 404);
 
-    const end = new Date(start.getTime() + service.durationMinutes * 60_000);
+    let end = new Date(start.getTime() + service.durationMinutes * 60_000);
 
     // Find all active groomers
     const groomers = await db
@@ -191,10 +205,17 @@ bookRouter.post(
         name: body.petName,
         species: body.petSpecies,
         breed: body.petBreed ?? null,
+        sizeCategory: body.petSizeCategory ?? null,
+        coatType: body.petCoatType ?? null,
       })
       .returning();
     const pet = petInserted[0];
     if (!pet) return c.json({ error: "Failed to create pet" }, 500);
+
+    // Buffer-aware end time: large/x-large pets add service bufferMinutes
+    if (body.petSizeCategory === "large" || body.petSizeCategory === "x-large") {
+      end = new Date(start.getTime() + (service.durationMinutes + (service.defaultBufferMinutes ?? 0)) * 60_000);
+    }
 
     // Insert appointment in a transaction to guard against race conditions
     let appointment;

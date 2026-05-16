@@ -78,6 +78,13 @@ GroomBook is an open-source, self-hostable pet grooming business management & CR
 | TC-APP-4.5.4 | Calendar view (day/week/month) | 1. Navigate to Calendar<br>2. Switch between day, week, and month views | Calendar displays appointments in selected time range correctly |
 | TC-APP-4.5.5 | Appointment groups | 1. Create multiple appointments for same time slot<br>2. View in calendar | Appointments are grouped/linked appropriately |
 | TC-APP-4.5.6 | Appointment availability check | 1. Attempt to book appointment during unavailable slot | System shows conflict or prevents double-booking |
+| TC-APP-4.5.7 | Booking wizard — size/coat selection | 1. Start new appointment booking wizard<br>2. Select a pet with sizeCategory and coatType set<br>3. Observe the service/slot selection step | Size and coat type dropdowns are displayed and persist the pet's existing values |
+| TC-APP-4.5.8 | Large/X-Large pet slot duration reflects buffer | 1. Add a pet with sizeCategory = "large" or "x-large" to an appointment<br>2. Note the service duration<br>3. Complete booking and inspect the appointment | Appointment slot includes the service duration plus the configured buffer for the pet's size category |
+| TC-APP-4.5.9 | Appointment overrun cascades downstream | 1. Book three consecutive same-groomer appointments (A → B → C)<br>2. Manually extend appointment A's endTime so it overlaps B's startTime by ≥15 min<br>3. Observe appointment B | Appointment B (and C if still overlapping) is automatically shifted forward by the overrun delta + buffer; no error thrown |
+| TC-APP-4.5.10 | Cascaded appointments appear at new times | 1. Complete TC-APP-4.5.9<br>2. Check the calendar/list view | Appointments B and C are now shown at their shifted start/end times |
+| TC-APP-4.5.11 | Client receives reschedule notification email | 1. Complete TC-APP-4.5.9<br>2. Check the client's email (or notification log) | Client receives an email with subject/lines indicating their appointment was rescheduled from original time to new time |
+| TC-APP-4.5.12 | Appointment flagged when shift crosses day boundary | 1. Book appointment D for late afternoon (e.g. 17:30)<br>2. Extend a prior appointment so D would shift to the next day<br>3. Observe D | Appointment D is flagged for manual review and is NOT auto-shifted to the next day |
+| TC-APP-4.5.13 | Only scheduled/confirmed appointments are cascaded | 1. Start a cascade scenario (TC-APP-4.5.9) where a downstream appointment is already `in_progress`<br>2. Complete the cascade | The `in_progress` appointment is not shifted; cascade continues to next eligible appointment |
 
 ### 4.6 Services
 

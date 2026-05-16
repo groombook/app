@@ -64,6 +64,7 @@ export interface Service {
   description: string | null;
   basePriceCents: number;
   durationMinutes: number;
+  defaultBufferMinutes: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
